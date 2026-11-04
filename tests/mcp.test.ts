@@ -270,17 +270,22 @@ describe("mcp — claude.json installer", () => {
     }
   });
 
-  test("shipped config pins context7 and chrome-devtools, and an earlier unpinned install is replaced", async () => {
+  test("shipped config runs context7 over remote OAuth and pins chrome-devtools, and an earlier install is replaced", async () => {
     const shipped = (await Bun.file(
       join(import.meta.dir, "..", "config", "20-mcp.json"),
     ).json()) as {
-      mcpServers: Record<string, { args: string[]; alwaysLoad?: boolean }>;
+      mcpServers: Record<
+        string,
+        { args?: string[]; type?: string; url?: string; command?: string; alwaysLoad?: boolean }
+      >;
     };
     const exact = /@\d+\.\d+\.\d+$/;
     const context7 = shipped.mcpServers.context7;
     const devtools = shipped.mcpServers["chrome-devtools"];
-    expect(context7?.args.at(-1)).toMatch(exact);
-    expect(devtools?.args.at(-1)).toMatch(exact);
+    expect(context7?.type).toBe("http");
+    expect(context7?.url).toBe("https://mcp.context7.com/mcp/oauth");
+    expect(context7?.command).toBeUndefined();
+    expect(devtools?.args?.at(-1)).toMatch(exact);
     expect(context7?.alwaysLoad).toBeUndefined();
 
     const sandbox = await mkdtemp(join(tmpdir(), "cc-claude-json-pin-"));
@@ -293,8 +298,7 @@ describe("mcp — claude.json installer", () => {
       await writeFile(claudeJsonPath, JSON.stringify({ mcpServers: earlier }));
       await installMcpToClaudeJson(shipped.mcpServers as never, claudeJsonPath, earlier);
       const result = JSON.parse(await readFile(claudeJsonPath, "utf8"));
-      expect(result.mcpServers.context7.args).toEqual(context7?.args as string[]);
-      expect(result.mcpServers.context7.alwaysLoad).toBeUndefined();
+      expect(result.mcpServers.context7).toEqual(context7);
       expect(result.mcpServers["chrome-devtools"].args).toEqual(devtools?.args as string[]);
     } finally {
       await rm(sandbox, { recursive: true, force: true });
@@ -327,6 +331,77 @@ describe("mcp — claude.json installer", () => {
       expect(result.mcpServers["user-good"].command).toBe("keep-me");
     } finally {
       await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("context7 stdio → remote OAuth migration", () => {
+  const instructions =
+    "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options.";
+  const oldShipped = {
+    command: "bunx",
+    args: ["-y", "@upstash/context7-mcp@4.4.4"],
+    serverInstructions: instructions,
+  };
+  const readShipped = async () =>
+    (
+      (await Bun.file(join(import.meta.dir, "..", "config", "20-mcp.json")).json()) as {
+        mcpServers: Record<string, Record<string, unknown>>;
+      }
+    ).mcpServers;
+
+  async function install(
+    onDisk: unknown,
+    mcpWritten?: Record<string, unknown>,
+  ): Promise<{ overridden: string[]; context7: unknown }> {
+    const dir = await mkdtemp(join(tmpdir(), "cc-mcp-ctx7-migrate-"));
+    const path = join(dir, ".claude.json");
+    try {
+      await writeFile(path, JSON.stringify({ mcpServers: { context7: onDisk } }));
+      const teamMcp = { context7: (await readShipped()).context7 };
+      const overridden = await installMcpToClaudeJson(teamMcp as never, path, mcpWritten);
+      const written = JSON.parse(await readFile(path, "utf8"));
+      return { overridden, context7: written.mcpServers.context7 };
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  test("the old stdio entry recorded in mcp_written is replaced, not reported as an override", async () => {
+    const shipped = await readShipped();
+    const r = await install(oldShipped, { context7: oldShipped });
+    expect(r.overridden).toEqual([]);
+    expect(r.context7).toEqual(shipped.context7);
+  });
+
+  test("the old shipped stdio entry with no mcp_written record still migrates", async () => {
+    const shipped = await readShipped();
+    const r = await install(oldShipped);
+    expect(r.overridden).toEqual([]);
+    expect(r.context7).toEqual(shipped.context7);
+  });
+
+  test("a user's own stdio context7 (old package plus an env key) wins untouched", async () => {
+    const mine = { ...oldShipped, env: { CONTEXT7_API_KEY: "secret" } };
+    const r = await install(mine);
+    expect(r.overridden).toEqual(["context7"]);
+    expect(r.context7).toEqual(mine);
+  });
+
+  test("a light install removes the old shipped stdio entry with no mcp_written record", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-mcp-ctx7-light-"));
+    const path = join(dir, ".claude.json");
+    try {
+      await writeFile(
+        path,
+        JSON.stringify({ mcpServers: { context7: oldShipped, personal: { command: "mine" } } }),
+      );
+      await removeManagedMcpServers({ mcpServers: await readShipped() }, path, null);
+      expect(JSON.parse(await readFile(path, "utf8"))).toEqual({
+        mcpServers: { personal: { command: "mine" } },
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });

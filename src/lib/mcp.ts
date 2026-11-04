@@ -63,6 +63,27 @@ function isStdioServer(s: McpServer): s is McpStdioServer {
   return "command" in s;
 }
 
+// Exact definitions earlier releases shipped for a server whose shipped shape
+// has since changed. They cover an install whose sentinel has no usable
+// `mcp_written` record (a corrupt sentinel parses to none), where the old entry
+// would otherwise read as a hand-edit and keep running forever. Exact match
+// only: a user entry that differs in any functional field still wins.
+const PREVIOUSLY_SHIPPED: Readonly<Record<string, readonly McpServer[]>> = {
+  context7: [
+    {
+      command: "bunx",
+      args: ["-y", "@upstash/context7-mcp@4.4.4"],
+      serverInstructions:
+        "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options.",
+    },
+  ],
+};
+
+function isPreviouslyShipped(name: string, entry: unknown): boolean {
+  const key = functionalKey(entry);
+  return (PREVIOUSLY_SHIPPED[name] ?? []).some((shipped) => functionalKey(shipped) === key);
+}
+
 /**
  * True when `entry` (an existing ~/.claude.json server definition) is stale
  * cc-settings output rather than a genuine user edit: it's byte-identical
@@ -98,6 +119,7 @@ function isStaleCcOutput(
 ): boolean {
   if (functionalKey(entry) === functionalKey(teamEntry)) return true;
   if (priorWritten && functionalKey(entry) === functionalKey(priorWritten)) return true;
+  if (isPreviouslyShipped(name, entry)) return true;
   if (!ENGINE_MANAGED_SERVER_NAMES.has(name)) return false;
   if (!isStdioServer(entry) || !isStdioServer(teamEntry)) return false;
   for (const id of Object.keys(ENGINES)) {
@@ -357,7 +379,8 @@ export async function removeManagedMcpServers(
       (currentDefinition !== undefined &&
         functionalKey(entry) === functionalKey(currentDefinition)) ||
       (recordedDefinition !== undefined &&
-        functionalKey(entry) === functionalKey(recordedDefinition))
+        functionalKey(entry) === functionalKey(recordedDefinition)) ||
+      isPreviouslyShipped(name, entry)
     );
   });
 
