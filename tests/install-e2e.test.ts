@@ -2929,6 +2929,8 @@ describe("install E2E — uninstall ownership", () => {
             "src/scripts/hook-report.ts",
             "src/scripts/grade-findings.ts",
             "src/lib/copilot-instructions.ts",
+            "src/lib/git-transport.ts",
+            "src/scripts/git-transport.ts",
             "skills/case-study/SKILL.md",
             "skills/case-study/examples/clips-template.txt",
             "skills/case-study/examples/design-template.json",

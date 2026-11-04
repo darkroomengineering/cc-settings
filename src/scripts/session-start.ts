@@ -21,6 +21,7 @@ import { basename, join } from "node:path";
 import { pruneArtifacts, pruneStaleFiles } from "../lib/artifact-store.ts";
 import { type EngineDescriptor, resolveEngine } from "../lib/code-intel-engine.ts";
 import { runGit } from "../lib/git.ts";
+import { gitTransportAwareness } from "../lib/git-transport.ts";
 import { getClaudeMdMonitor } from "../lib/hook-config.ts";
 import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
 import { readJsonOrNull } from "../lib/json-io.ts";
@@ -323,6 +324,14 @@ for (const l of await teamKnowledgeAwareness()) console.log(l);
 // Linear team and project for this repo, from the cached team-knowledge map.
 // Reads the cache only; silent without a cache or outside a mapped repo.
 for (const l of await linearMapAwareness()) console.log(l);
+
+// How an agent can push to this repo's GitHub origin (loaded SSH key or gh login).
+// Probes exit codes only, never a credential; silent outside a GitHub repo.
+try {
+  for (const l of await gitTransportAwareness()) console.log(l);
+} catch {
+  // Probe failed — skip the line.
+}
 
 // Compaction-plugin awareness — prints only the non-default state.
 // fast-jev-compaction + compaction-trigger are always enabled (see config/10-core.json's enabledPlugins), but

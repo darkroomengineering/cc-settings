@@ -271,7 +271,9 @@ const ADDED_IN_V18 = ["src/lib/copilot-instructions.ts"];
 const ADDED_IN_V19 = ["src/bunfig.toml"];
 // Version 27: the /retro prs mode and its counting script.
 const ADDED_IN_V27 = ["skills/retro/references/prs.md", "src/scripts/pr-retro.ts"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 27;
+// Version 28: the `Git push:` transport probe session-start.ts imports, and its CLI.
+const ADDED_IN_V28 = ["src/lib/git-transport.ts", "src/scripts/git-transport.ts"];
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 28;
 // Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
 // CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.
 const REMOVED_IN_V20 = [
@@ -295,7 +297,10 @@ const REJOINING_AFTER = new Map<string, readonly string[]>([
 ]);
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) =>
-    !ADDED_IN_V15.includes(path) && !ADDED_IN_V18.includes(path) && !ADDED_IN_V27.includes(path),
+    !ADDED_IN_V15.includes(path) &&
+    !ADDED_IN_V18.includes(path) &&
+    !ADDED_IN_V27.includes(path) &&
+    !ADDED_IN_V28.includes(path),
 ).flatMap((path) => [path, ...(REJOINING_AFTER.get(path) ?? [])]);
 const RUNTIME_SOURCE_FILES_V10: readonly string[] = [
   ...RUNTIME_SOURCE_FILES_V4.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
@@ -426,9 +431,10 @@ const RUNTIME_SOURCE_FILES_V25: readonly string[] = [...RUNTIME_SOURCE_FILES_V24
 // Version 26: the /cc update resume marker read by session-start, and the /cc update restart reference.
 const ADDED_IN_V26 = ["skills/cc/references/update-restart.md", "src/lib/update-resume.ts"];
 const RUNTIME_SOURCE_FILES_V26: readonly string[] = [...RUNTIME_SOURCE_FILES_V25, ...ADDED_IN_V26];
+const RUNTIME_SOURCE_FILES_V27: readonly string[] = [...RUNTIME_SOURCE_FILES_V26, ...ADDED_IN_V27];
 export const RUNTIME_SOURCE_FILES: readonly string[] = [
-  ...RUNTIME_SOURCE_FILES_V26,
-  ...ADDED_IN_V27,
+  ...RUNTIME_SOURCE_FILES_V27,
+  ...ADDED_IN_V28,
 ];
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
@@ -473,6 +479,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [24, RUNTIME_SOURCE_FILES_V24],
   [25, RUNTIME_SOURCE_FILES_V25],
   [26, RUNTIME_SOURCE_FILES_V26],
+  [27, RUNTIME_SOURCE_FILES_V27],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

@@ -33,9 +33,11 @@ You are in **Maestro orchestration mode**. Execute the shipping checklist in ord
 
 ### Step 0: Preflight
 ```bash
-ssh-add -l
+bun "$HOME/.claude/src/scripts/git-transport.ts"
 ```
-If no identities loaded: **Unlock 1Password and retry — git signing will fail otherwise.** Agent drops mid-flow are a recurring cause of failed pushes; catch it now, not after the commit.
+Follow its `Git push:` line for every push in this run, so a dropped SSH agent never costs a failed push. Never retry SSH after "Permission denied (publickey)". The 1Password instruction applies only when that line mentions 1Password; a `Commits are signed through 1Password` line means ask the user to unlock it now, before the first commit, because signing fails once the agent is locked. `not logged in` means stop and ask the user to log in. No output means no GitHub origin: use a plain `git push`.
+
+When the repo maps to a Linear team (the startup `Linear:` line, or `~/.claude/tmp/linear-map.json`), confirm the Linear MCP server is connected (a Linear tool such as `list_teams` is available and answers). If it is not, stop before any commit and hand back: "Sign in to Linear: run /mcp and select the Linear server, then rerun /ship. If you signed in from another session, restart this one; an open session keeps the Linear tools it started with", unless the user says this PR goes without a ticket.
 
 Read and validate `package.json` before choosing commands. Invalid JSON or invalid
 script declarations block the pipeline. Do not commit until all applicable gates
@@ -132,6 +134,8 @@ If the `codex-verifier` spawn fails, or it reports that Bash was stripped (forke
 
 Read `~/.claude/rules/git.md` if present; Steps 7 and 8 follow its "Commit and PR mechanics".
 
+`git branch --show-current` printing `main` or `master` means branch off before the first commit: run steps 1-4 of "Linear issue" below to get the ID (skip them when the repo has no Linear or the user opted out of a ticket), then `git switch -c <type>/<LINEAR-ID>-<slug>` and commit there. /ship never pushes to main or master; the safety-net hook asks the user before any such push.
+
 Analyze the diff to decide commit strategy:
 
 ```bash
@@ -167,8 +171,10 @@ If a commit would break either check in isolation, merge it with the next commit
 
 No git remote (`git remote` prints nothing) means a local-only run: skip every push and PR step and report the commits.
 
+Push with the method the `Git push:` line from Step 0 names:
+
 ```bash
-git push origin HEAD
+<push command from the Git push: line>
 gh pr list --head "$(git branch --show-current)" --state open --json number,url,headRefName,headRepositoryOwner
 ```
 
@@ -181,16 +187,17 @@ If `gh` is not available, provide the push command and instruct the user to crea
 Every PR carries a Linear issue. Work often starts before anyone files one, so this step creates it when it is missing, without asking, and reports the link:
 
 1. **Find an existing ID** (`ABC-123`) in the branch name, the PR title and body, and `git log <base>..HEAD`. Confirm each candidate with the Linear MCP `get_issue`: `UTF-8` and `SHA-256` have the same shape and are not issues.
-2. **Resolve the repo's team** for `gh repo view --json nameWithOwner --jq .nameWithOwner`, matching `owner/repo` ignoring case. Look in two files, the first hit wins:
-   - `~/.claude/linear-teams.json`, a per-person override. Each value is `{"server": "<Linear MCP server name>", "team": "<team key>", "project": "<project ID>"}`, or `null`. `project` is optional.
+2. **Resolve the repo's team** for `gh repo view --json nameWithOwner --jq .nameWithOwner`, matching `owner/repo` ignoring case. The first hit wins:
+   - `~/.claude/linear-teams.json`, a per-person override. Each value is `{"server": "<Linear MCP server name>", "team": "<team key>", "project": "<project ID>"}`, or `null`. `project` is optional. When the file is missing or cannot be read, go on to the next source.
+   - The startup `Linear: team <KEY>, project "<name or ID>"` line in this session's context, which SessionStart builds from the shared map below. Use it as is; `save_issue` takes the project name or ID.
    - `~/.claude/tmp/linear-map.json`, the shared map that SessionStart caches from team-knowledge: `{"map": {"owner/repo": {"team": "<team key>", "project": "<project ID>", "projectName": "<optional>"}}, "checkedAt": "..."}`. It names no MCP server, so use the connected Linear server whose `list_teams` has that team.
 
-   A `null` value means the repo has no Linear, which ends this step. Missing from both files means ask once with AskUserQuestion (the teams from each connected Linear server's `list_teams`, plus "No Linear for this repo"), then the project (that team's `list_projects`, plus "No project"), then write the answers into `linear-teams.json`. For a `darkroomengineering` repo, also tell the user to add it to `linear-map.json` in team-knowledge by PR. Where the question tool is unavailable, skip the step and report that the repo needs a mapping.
+   A `null` value means the repo has no Linear, which ends this step. Never make up a placeholder ID such as `DR-000`. Missing from all three means ask once with AskUserQuestion (the teams from each connected Linear server's `list_teams`, plus "No Linear for this repo"), then the project (that team's `list_projects`, plus "No project"), then write the answers into `linear-teams.json`. For a `darkroomengineering` repo, also tell the user to add it to `linear-map.json` in team-knowledge by PR. Where the question tool is unavailable, skip the step and report that the repo needs a mapping.
 3. **Synced GitHub issue.** When the PR closes a GitHub issue (`Fixes #N`, `Closes #N` in the body or commits), Linear's GitHub issue sync may already hold a copy. Search that team with `list_issues` (`team`, `query` set to the GitHub issue's title) and confirm a hit with `get_issue`, asking for `attachments` in `fields` when that server's schema has a `fields` parameter: it counts only when an attachment URL is that GitHub issue's URL. Use the confirmed ID as an existing ID and create nothing; keep `Fixes #N` in the body.
 4. **No confirmed ID:** create the issue with `save_issue` in that team and, when the mapping names one, that project, assigned to the user. Write its title and description from the same plain-English summary as the PR body, effect first, per `rules/git.md` "Issue descriptions".
 5. **Link it.** Put the ID at the end of the PR title (`<type>: <title> (DR-123)`) and `Fixes <ID>` on its own line in the PR body, for an issue this step created or found, or one named only in commits; Linear's GitHub integration links the PR, moves the issue through the team's workflow, and closes it on merge. An ID already in the branch name, title, or body is linked; leave it as the author wrote it. The branch is already pushed, so never rename it to add the ID. For an existing PR, add the title suffix with `gh pr edit --title` and the body line with `gh pr edit --body-file`.
 
-No Linear MCP server connected, or a call fails: skip the step, say so in the output, leave the ID out of the title, and continue with `CC_SKIP_LINEAR=1` in front of `gh pr create`, which lets the `linear-gate` hook pass a PR with no issue; report that the PR has no issue. A missing issue never blocks a ship.
+Linear not connected was already caught in Step 0 (stop and ask). A Linear call that fails twice means stop and report what failed. `CC_SKIP_LINEAR=1` in front of `gh pr create` is only for when the user explicitly said this PR has no ticket; it lets the `linear-gate` hook pass, and the report says the PR has no issue.
 
 **Author the PR body, never `--fill`** (it pastes commit messages into the description). Write it from the full `git log <base>..HEAD` range and the diff, using the repo's own PR template or the structure in `rules/git.md` "PRs", then pass it with `--body-file`:
 

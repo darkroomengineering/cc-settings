@@ -12,7 +12,7 @@ import { join, resolve } from "node:path";
 
 const SAFETY_NET_TS = resolve(import.meta.dir, "..", "src", "hooks", "safety-net.ts");
 
-type Decision = "allow" | "block";
+type Decision = "allow" | "ask" | "block";
 
 type EnvOverrides = Record<string, string | undefined>;
 
@@ -46,7 +46,8 @@ async function runSafetyNet(
   });
   const stdout = await new Response(proc.stdout).text();
   const exitCode = await proc.exited;
-  const decision: Decision = exitCode === 2 ? "block" : "allow";
+  const decision: Decision =
+    exitCode === 2 ? "block" : /"permissionDecision":"ask"/.test(stdout) ? "ask" : "allow";
   return { decision, exitCode, stdout };
 }
 
@@ -64,6 +65,13 @@ async function expectBlock(
   const parsed = JSON.parse(r.stdout) as { decision: string; reason: string };
   expect(parsed.decision).toBe("block");
   expect(parsed.reason).toMatch(/\[Safety Net\]/);
+}
+
+async function expectAsk(cmd: string, cwd?: string): Promise<void> {
+  const r = await runSafetyNet(cmd, cwd);
+  if (r.decision !== "ask") {
+    throw new Error(`expected ASK for: ${cmd}\n  got exit=${r.exitCode} stdout=${r.stdout}`);
+  }
 }
 
 async function expectAllow(
@@ -171,6 +179,72 @@ describe("TS safety-net — force-with-lease without a refspec uses the current 
     expectAllow("git push --force-with-lease", repoOn("feature")));
 });
 
+describe("TS safety-net — push to main or master asks the user", () => {
+  const cleanups: string[] = [];
+  afterAll(() => {
+    for (const dir of cleanups) rmSync(dir, { recursive: true, force: true });
+  });
+  function repoOn(branch: string): string {
+    const dir = mkdtempSync(join(tmpdir(), "cc-safety-net-main-push-"));
+    spawnSync("git", ["init", "-q", "-b", branch, dir]);
+    cleanups.push(dir);
+    return dir;
+  }
+  const GH_LOGIN_PUSH =
+    "git -c url.\"https://github.com/\".insteadOf=git@github.com: -c credential.helper= -c credential.helper='!gh auth git-credential' push origin";
+
+  for (const cmd of [
+    "git push origin main",
+    "git push origin master",
+    "git push -u origin main",
+    "git push origin HEAD:main",
+    "git push origin refs/heads/main",
+    "git push --all origin",
+    "git push --mirror origin",
+    "git status && git push origin main",
+    `${GH_LOGIN_PUSH} main`,
+  ]) {
+    test(`ask: ${cmd}`, () => expectAsk(cmd, repoOn("fix/x")));
+  }
+  for (const cmd of [
+    "git push",
+    "git push origin",
+    "git push origin HEAD",
+    `${GH_LOGIN_PUSH} HEAD`,
+  ]) {
+    test(`ask on main: ${cmd}`, () => expectAsk(cmd, repoOn("main")));
+  }
+  test("ask: bare push on master", () => expectAsk("git push", repoOn("master")));
+  test("ask: cd into a main checkout, then push", () =>
+    expectAsk(
+      `cd ${repoOn("main").replaceAll("\\", "/")} && git push origin HEAD`,
+      repoOn("fix/x"),
+    ));
+
+  test("block wins over ask in one command", () =>
+    expectBlock("git push origin main; rm -rf /", repoOn("fix/x")));
+  test("block: force-with-lease on main stays blocked", () =>
+    expectBlock("git push --force-with-lease", repoOn("main")));
+
+  for (const cmd of [
+    "git push",
+    "git push origin HEAD",
+    "git push -u origin fix/x",
+    "git push origin fix/main-menu",
+    "git push -o ci.skip origin fix/x",
+    "git push --tags",
+    "git push origin v1.2.3",
+    "git push origin --delete main",
+    "git push origin :main",
+    "git push --dry-run origin main",
+    `${GH_LOGIN_PUSH} HEAD`,
+    'echo "git push origin main"',
+    "git stash push -m main",
+  ]) {
+    test(`allow: ${cmd}`, () => expectAllow(cmd, repoOn("fix/x")));
+  }
+});
+
 describe("TS safety-net — reflog-recoverable git → ALLOW (permission layer asks)", () => {
   for (const cmd of ["git branch -D feature", "git stash drop", "git stash drop stash@{0}"]) {
     test(cmd, () => expectAllow(cmd));
@@ -182,7 +256,6 @@ describe("TS safety-net — git safe → ALLOW", () => {
     ["git checkout main", "git checkout main"],
     ["git checkout -b new-feature", "git checkout -b new-feature"],
     ["git checkout -B new-feature", "git checkout -B new-feature"],
-    ["git push origin main", "git push origin main"],
     ["git push --force-with-lease origin feature", "git push --force-with-lease origin feature"],
     ["git reset --hard", "git reset --hard"],
     ["git reset --hard HEAD~3", "git reset --hard HEAD~3"],
@@ -361,8 +434,8 @@ describe("TS safety-net — issue #74 adversarial bypasses", () => {
   // Bypass 5: force-push detection matched literal `-f`/`--force` only;
   // bundled short flags like `-uf` (set-upstream + force) rode through.
   test("git push -uf (bundled force flag) → BLOCK", () => expectBlock("git push -uf"));
-  test("git push -u origin main → ALLOW (neighbor safe)", () =>
-    expectAllow("git push -u origin main"));
+  test("git push -u origin feature → ALLOW (neighbor safe)", () =>
+    expectAllow("git push -u origin feature"));
 
   // Bypass 6: interpreter one-liner recursion only extracted a single quoted
   // string argument (os.system("...")); a list-arg call

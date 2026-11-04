@@ -43,11 +43,17 @@ link the Figma frame or Linear ticket it implements and add a "Screenshots:
 before/after needed" line for the author; agents cannot attach images through
 `gh`. Refactor, logic, API, and tooling PRs get no screenshots.
 
-**Open a PR by default** — most Darkroom client projects protect `main`. Direct
-push to main is the exception for repos that explicitly allow it. Merge only
-with CI green, review done, no conflicts, branch up to date.
+**Open a PR by default** — most Darkroom client projects protect `main`. A
+direct push to main or master needs the user's approval in the current
+conversation; a repo's history of direct pushes is not permission, and the
+safety-net hook asks the user through the permission prompt before one runs. Merge only with CI green, review done, no
+conflicts, branch up to date.
 
 ## Commit and PR mechanics
+
+**Push with the method the SessionStart `Git push:` line names** (SSH when an
+agent has a key, otherwise the gh login). Never retry SSH after a publickey
+failure, never write a saved password, and never set a global `insteadOf`.
 
 **Commit with explicit pathspecs.** Write the message to a file and commit the
 named paths: `git add <paths>` then `git commit -F <msgfile> -- <paths>`. A bare

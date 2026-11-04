@@ -4,6 +4,8 @@
 //
 // Decision protocol (identical to bash):
 //   exit 0                → ALLOW (silent)
+//   exit 0 + JSON stdout  → ASK — permissionDecision "ask" for a push to main or
+//                           master; a block anywhere in the command wins over it
 //   exit 2 + JSON stdout  → BLOCK — {"decision":"block","reason":"[Safety Net] ..."}
 //   exit 1 + stderr       → unexpected internal error; fails CLOSED (the
 //                           "onFailure": "block" wiring in config/40-hooks.json
@@ -414,9 +416,9 @@ function analyzeGitAfterVerb(afterVerb: string, cmd: string): void {
 }
 
 // Fails open to "" (no match) when git is unavailable or HEAD is detached.
-function currentBranch(): string {
+function currentBranch(dir?: string): string {
   try {
-    const r = Bun.spawnSync(["git", "branch", "--show-current"], { stderr: "ignore" });
+    const r = Bun.spawnSync(["git", "branch", "--show-current"], { stderr: "ignore", cwd: dir });
     return r.exitCode === 0 ? r.stdout.toString().trim() : "";
   } catch {
     return ""; // git not installed or cwd gone
@@ -699,6 +701,49 @@ function checkGitHookSkips(c: ParsedShellCommand, ctx: ShellCtx, cmd: string): v
       else if (hasShortNoVerify(t)) block(`${reason} (-n is --no-verify for commit)`, cmd);
     }
   }
+}
+
+// --- Rule: push to main or master ------------------------------------------
+//
+// A push to main or master asks the user through the permission prompt. Org repos
+// whose rulesets require a PR reject it anyway, but repos without one accept it,
+// and an agent reads a history of direct pushes as permission. GitHub org rulesets
+// already block deleting and force-pushing main, so deletes are not checked here.
+
+const pendingAsks: string[] = [];
+const PUSH_VALUE_OPTS = new Set(["-o", "--push-option", "--repo", "--recurse-submodules"]);
+const MAIN_PUSH_ASK =
+  "git push to main or master: approve only if the user asked for a direct push in this conversation; otherwise push a branch and open a PR";
+
+function checkMainPush(c: ParsedShellCommand, ctx: ShellCtx): void {
+  if (c.word !== "git") return;
+  const a = c.args;
+  let i = 0;
+  while (i < a.length && (a[i] as string).startsWith("-")) {
+    const t = a[i] as string;
+    i += t === "-c" || t === "--config-env" || GIT_VALUE_OPTS.has(t) ? 2 : 1;
+  }
+  if (a[i] !== "push") return;
+  const targets: string[] = [];
+  let everyBranch = false;
+  let tagsOnly = false;
+  for (let j = i + 1; j < a.length; j++) {
+    const t = a[j] as string;
+    if (t === "-n" || t === "--dry-run" || t === "-d" || t === "--delete") return;
+    if (t === "--all" || t === "--mirror") everyBranch = true;
+    else if (t === "--tags") tagsOnly = true;
+    else if (PUSH_VALUE_OPTS.has(t)) j++;
+    else if (!t.startsWith("-")) targets.push(t);
+  }
+  const current = () => currentBranch(ctx.dir ?? undefined);
+  const refspecs = targets.length > 1 ? targets.slice(1) : tagsOnly ? [] : [current()];
+  const toMain = refspecs.some((spec) => {
+    const s = spec.replace(/^\+/, "");
+    return (
+      !s.startsWith(":") && /(^|:)(refs\/heads\/)?(main|master)$/.test(s === "HEAD" ? current() : s)
+    );
+  });
+  if (everyBranch || toMain) pendingAsks.push(MAIN_PUSH_ASK);
 }
 
 // --- Rule: secret file content readers -------------------------------------
@@ -1447,6 +1492,7 @@ function analyzeSegment(seg: ShellSegment, ctx: ShellCtx, depth: number): void {
     checkSecretReaders(c, ctx, text);
     checkGhWrites(c, ctx, text);
     checkGitHookSkips(c, ctx, text);
+    checkMainPush(c, ctx);
     unwrapShellStage(c, stages[i - 1], seg, ctx, depth);
     // Pipeline stages run in subshells, so only a lone command changes state.
     if (stages.length === 1) trackState(c, ctx);
@@ -1540,8 +1586,11 @@ export async function main(io: HookIO = processIO): Promise<void> {
 
     const { cwd } = await io.hookInput<{ cwd: unknown }>();
     baseDir = typeof cwd === "string" && cwd ? cwd : null;
+    pendingAsks.length = 0;
     splitCommands(COMMAND);
     resolvePendingOwnerChecks();
+    // Asks wait until every check has run, so any block in the command wins.
+    if (pendingAsks.length > 0) io.ask(`[Safety Net] ${MAIN_PUSH_ASK}`);
   } catch (err) {
     if (err instanceof BlockDecision) {
       await logBlocked(err.command, err.reason);
