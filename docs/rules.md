@@ -33,6 +33,8 @@ Claude Code automatically loads relevant rules based on:
 | `performance.md` | Working with `.ts`, `.tsx`, `.js`, `components/`, or `app/` — stack forms, streaming, frame loops, budgets |
 | `ui-fix.md` | Working with `.tsx`, `.jsx`, `.css`, `.scss`, `app/`, or `components/` — UI bug-fix workflow, screenshot-first |
 | `motion-physics.md` | Working with `.tsx`, `.jsx`, or `components/` — should-it-animate gate, easing and duration tokens, gesture/spring physics, animation vocabulary |
+| `writing.md` | Working with `.tsx`, `.jsx`, `.mdx`, `.html`, `.astro`, `.vue`, `.svelte`, `content/`, `messages/`, or `locales/` — copy built from facts, the structures and words that read as generated, punctuation and casing |
+| `design.md` | Working with `.tsx`, `.jsx`, `.html`, `.astro`, `.vue`, `.svelte`, `.css`, or `.scss` — the brief before a landing page, the templated landing page, visual tells, and when an element earns its place |
 | `swift-animation.md` | Working with `.swift` files — SwiftUI animation at the display's maximum frame rate (WWDC23 "Explore SwiftUI animation") |
 | `swift.md` | Working with `.swift` files — concurrency (Swift 6.2 isolation settings), Sendable, Swift Testing, `Logger` |
 | `git.md` | Working with `.git/`, `.gitignore`, or `.github/` files; `/ship` and `/dr-review` read it explicitly |

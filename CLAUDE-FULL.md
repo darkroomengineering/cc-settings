@@ -24,7 +24,9 @@ does not need. State the real-world effect before the mechanism. Write it the
 way a colleague would: plain verbs, concrete specifics, varied sentence length,
 no decorative emojis, headers only when they add navigation. Slack: ask or news
 in the first line, one topic per message, owner and deadline for requests. PRs
-and issues follow `~/.claude/rules/git.md`; read it before writing one.
+and issues follow `~/.claude/rules/git.md`; read it before writing one. The
+structures and words that read as generated are in `~/.claude/rules/writing.md`;
+read it before writing public text.
 
 ## Delegation
 

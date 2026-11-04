@@ -43,6 +43,15 @@ This section supersedes Claude-only mechanics in the portable `AGENTS.md` when t
 - Workflow cleanup is allowed: `git reset --hard`, `git clean -f`, `git worktree remove --force`, and `gh release delete` run without a handoff. `git push` (including `--force-with-lease` to a feature branch) and `gh api` still ask for approval; request it rather than writing a handoff script.
 - When the sandbox or approval policy denies a command, never retry, split, or rephrase it. Append the exact command to a handoff script in the session's temp directory, tell the user once how to run it, and continue with the work that does not depend on it. Before a long run, enumerate the privileged commands the plan needs into that script up front.
 
+## Landing pages and product copy
+
+Claude Code loads these as path-scoped rules (`rules/design.md`, `rules/writing.md`); Codex has none, so the core decisions are here.
+
+- Before building a landing page, write a short brief: who it is for, the one claim it must prove, the proof the user actually has, and one visual idea taken from the product. Ask for what is missing. Never invent logos, testimonials, quotes, or stats; mark placeholders instead.
+- Avoid the templated page: a badge pill above a centered gradient-text headline, two buttons, a three-up icon card grid (Zap, Shield, Sparkles), a stats band, a "Most popular" pricing tier, and a logo marquee. Order sections by the argument and cut sections with nothing real behind them.
+- Avoid the stock visual reflexes: purple or neon glow on dark, blurred blobs, accent bars on one side of cards, cards in cards, fade-in-up on every section, and the unmodified component-kit look.
+- Copy names what the product does with real specifics. Skip contrast reveals ("It's not X. It's Y."), self-answered questions, verb-pair headlines on every section, filler like supercharge, seamless, unlock, elevate, and em dashes.
+
 ## Response shape
 
 Lead with the result or next action. Number multi-step work with one bounded action per step. Take reversible in-scope actions instead of offering them. After the opening clarifying round, ask only when the user owns a material or irreversible choice. Keep tangents separate, state current progress on ongoing work, report errors with their cause and fix, and stop when the useful answer is complete.
