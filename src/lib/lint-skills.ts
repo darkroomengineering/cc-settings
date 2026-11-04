@@ -88,7 +88,7 @@ export const SKILL_DESCRIPTION_BYTE_BUDGET = 7424;
 // its entry.
 export const SKILL_BODY_LINE_LIMIT = 500;
 export const SKILL_BODY_LINE_EXEMPTIONS: Readonly<Record<string, number>> = {
-  audit: 696,
+  audit: 694,
   autoresearch: 484,
 };
 

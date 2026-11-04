@@ -359,11 +359,10 @@ Whole-repo performance audit with one governing rule: **a finding does not exist
 
 Detect the repo's shape and build the measurement plan before measuring anything:
 
-- **Web app** — can you `next build && next start` (or the framework's equivalent)? Which routes matter most (traffic order if analytics are known, else: home, top nav destinations, heaviest template)?
+- **Web app** — can you `next build && next start` (or the framework's equivalent)? Which routes matter most (traffic order if analytics are known, else: home, top nav destinations, heaviest template)? Does it serve its own font files (`public/`, `next/font/local`, `@font-face`)? Then fonts are a surface in the plan, even when every other number looks fine.
 - **Server/API** — can you start it locally and hit endpoints? Is there query logging to count round-trips?
 - **CLI/library** — what are the entry points worth timing? (Startup, the hot command, the public API's hot function.)
 - **The build itself** — always measurable: full build wall-time, test-suite wall-time, CI duration from recent run logs.
-
 The plan lists each surface, the measurement command, and the budget or leverage anchor it will be graded against. Surfaces the repo doesn't have (no client? no client-runtime section) are marked not-applicable, not skipped silently.
 
 ### Phase 1 — Baseline measurements
@@ -373,7 +372,8 @@ One pass per applicable surface; every number goes into the Measurement Log.
 1. **Client runtime** — run Lighthouse (3 mobile + 3 desktop runs, averaged) against the production build, per key route. Collect LCP, INP (or TBT as lab proxy), CLS, plus long-task totals from the traces.
 2. **Bundle & build** — the framework's build output for per-route first-load JS; a bundle analyzer pass for composition (which deps dominate); build wall-time via `hyperfine 'bun run build'` (or 3 timed runs, median, when hyperfine is absent).
 3. **Server & data** — timed requests (`curl -w '%{time_starttransfer} %{time_total}'`) against the local production serve, per key endpoint; query counts per request from logs to catch N+1s; request logs or Server-Timing headers to expose waterfalls.
-4. **Hot paths (code-level)** — CPU profile the heaviest flow (`node --cpu-prof` / bun's inspector / React Profiler for render counts), or micro-benchmark a suspect function with `hyperfine` or the test runner's bench support.
+4. **Fonts** — per font file: bytes, glyph count, variable axes and ranges, OpenType features, hinting (fontTools: `ttx -l`, or `fontTools.ttLib` in a `python3 -c`). Per key route: font bytes transferred and every font `preload` (`references/net-capture.mjs`). Then collect what the site uses, per step 2 of "Subsetting fonts without changing rendering" in `~/.claude/docs/performance-reference.md`. A file carrying characters, axes or features the site never uses, or a preload on a route with no first-viewport use, is a measured finding: its number is the file's bytes against the used set, and its direction is that procedure (preloaded core file, `unicode-range` extended file, pixel diffs before and after, a person approves any visible change). If the repo has a subset script, run its `--check`; when CI does not run it, that is a LOW finding.
+5. **Hot paths (code-level)** — CPU profile the heaviest flow (`node --cpu-prof` / bun's inspector / React Profiler for render counts), or micro-benchmark a suspect function with `hyperfine` or the test runner's bench support.
 
 ### Phase 2 — Hypothesis sweep (static, generates no findings)
 
@@ -399,9 +399,7 @@ Run the confirming measurement for every hypothesis:
 
 ### Output
 
-Shared Contract report at `docs/audits/performance-audit-YYYY-MM-DD.md`, with mode-specific mechanics: the summary-table status column reads **measured** (there is no PLAUSIBLE); every finding row carries its number, the command that produced it, and its anchor (budget source or leverage math); two extra sections — **Measurement Log** (every command run, median, spread, environment) and **Unmeasured candidates**. Findings hand off to `/fix` (client-runtime fixes) or `/refactor` (structural fixes); this mode never applies fixes itself.
-
-**Boundary:** animation frame-rate and jank findings belong to Motion mode's performance category, not here — note them and move on.
+Shared Contract report at `docs/audits/performance-audit-YYYY-MM-DD.md`, with mode-specific mechanics: the summary-table status column reads **measured** (there is no PLAUSIBLE); every finding row carries its number, the command that produced it, and its anchor (budget source or leverage math); two extra sections — **Measurement Log** (every command run, median, spread, environment) and **Unmeasured candidates**. Findings hand off to `/fix` (client-runtime fixes) or `/refactor` (structural fixes); this mode never applies fixes itself. **Boundary:** animation frame-rate and jank findings belong to Motion mode's performance category, not here — note them and move on.
 
 ## Mode: Threat-Model
 
