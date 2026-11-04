@@ -502,7 +502,7 @@ async function main(): Promise<number> {
   // so the install itself runs unattended. The Codex question already ran in
   // resolveInstallTarget. Non-interactive runs get the same defaults as before.
   const skillsDir = join(CLAUDE_DIR, "skills");
-  const typesafeKey = await askTypesafeKeyUpfront(args.profile, args.typesafeKey);
+  const typesafeKey = await askTypesafeKeyUpfront(args.profile, args.typesafeKey, args.fresh);
   const autoUpdateAnswer = await askAutoUpdateUpfront(args, args.fresh ? null : priorAutoUpdate);
   const retiredAtStart = args.migrateOnly ? [] : await scanRetiredSkills(skillsDir).catch(() => []);
   const removeRetired =

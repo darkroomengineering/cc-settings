@@ -372,11 +372,14 @@ export const TYPESAFE_DISCLOSURE: readonly string[] = [
 async function resolveTypesafeKey(
   flagKey: string | null | undefined,
   dryRun: boolean,
+  ignoreSettings = false,
 ): Promise<ResolvedTypesafeKey> {
   if (flagKey) return { key: flagKey, source: "flag" };
   const fromEnv = process.env.TYPESAFE_API_KEY;
   if (fromEnv) return { key: fromEnv, source: "env" };
-  const installed = await readJsonOrNull(join(CLAUDE_DIR, "settings.json"));
+  // --fresh deletes settings.json after this runs, so a key read from it would
+  // be reported as configured but never written back.
+  const installed = ignoreSettings ? null : await readJsonOrNull(join(CLAUDE_DIR, "settings.json"));
   const env = (installed as { env?: Record<string, unknown> } | null)?.env;
   const fromSettings = env?.TYPESAFE_API_KEY;
   if (typeof fromSettings === "string" && fromSettings)
@@ -395,9 +398,10 @@ async function resolveTypesafeKey(
 export async function askTypesafeKeyUpfront(
   profile: Profile,
   flagKey: string | null | undefined,
+  fresh = false,
 ): Promise<ResolvedTypesafeKey> {
   if (profile === "light" || !pluginInstallAllowed() || !hasCommand("claude")) return null;
-  return resolveTypesafeKey(flagKey, false);
+  return resolveTypesafeKey(flagKey, false, fresh);
 }
 
 /** Hold ~/.claude/settings.json to owner-only (600) whenever its env block
