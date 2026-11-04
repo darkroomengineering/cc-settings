@@ -2889,6 +2889,7 @@ describe("install E2E — uninstall ownership", () => {
             "src/hooks/dispatch.ts",
             "src/hooks/linear-gate.ts",
             "src/hooks/model-switch-guard.ts",
+            "src/hooks/session-worktrees.ts",
             "src/hooks/spawn-cap.ts",
             "src/hooks/test-protect.ts",
             "src/hooks/visual-proof.ts",

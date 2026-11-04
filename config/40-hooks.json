@@ -67,7 +67,7 @@
 		],
 		"PostToolUse": [
 			{
-				"matcher": "Write|Edit|Bash|Agent",
+				"matcher": "Write|Edit|Bash|Agent|Task|EnterWorktree",
 				"hooks": [
 					{
 						"type": "command",
@@ -151,6 +151,12 @@
 		"SessionEnd": [
 			{
 				"hooks": [
+					{
+						"type": "command",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/session-worktrees.ts\"",
+						"async": true,
+						"timeout": 70
+					},
 					{
 						"type": "command",
 						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/handoff.ts\" create --from-hook",

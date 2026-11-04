@@ -4,6 +4,10 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [Unreleased]
+
+Sessions clean up their own merged worktrees immediately through Programa. The hook tracks only worktrees created in the session by `EnterWorktree` or `Agent`/`Task` isolation through a structured `worktreePath` result. It never tracks the folder a session starts in or moves to. It excludes main checkouts and passes only the recorded paths to `programa storage clean --now --include-external --json`. Programa protects dirty worktrees, ignored `.env` files, open workspaces and running processes. Missing or older Programa versions silently skip cleanup. Set `CC_SESSION_WORKTREE_CLEANUP_ENABLED=false` to opt out.
+
 ## [15.96.0] — 2026-11-03
 
 Sync with Claude Code v2.1.317. Claude Code started warning at every session start about the `Read(*)`, `Edit(*)` and `Grep(*)` allow rules. They are now plain `Read`, `Edit` and `Grep`, which keep the all-paths allow they always meant, and a reinstall removes the old forms. Codex 0.166.0 and the Codex app changelog had nothing new.
