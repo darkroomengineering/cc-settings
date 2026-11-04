@@ -32,7 +32,10 @@
 // Responsibilities of this file:
 //   1. ~/.claude.json installation (installMcpToClaudeJson) and removal of
 //      cc-settings-managed servers on light installs (removeManagedMcpServers)
-//   2. One-time cleanup of the inert settings.json block
+//   2. Removal of a server name cc-settings does not ship when the entry is
+//      exactly what an earlier install wrote (installMcpToClaudeJson; see
+//      isRetiredCcOutput)
+//   3. One-time cleanup of the inert settings.json block
 //      (pruneSettingsMcpServers)
 //
 // Generic JSON/atomic-file I/O moved to src/lib/json-io.ts; the pure settings.json
@@ -63,11 +66,15 @@ function isStdioServer(s: McpServer): s is McpStdioServer {
   return "command" in s;
 }
 
+const DEVTOOLS_INSTRUCTIONS =
+  "Chrome DevTools control for performance tracing, network inspection, console logs, DOM inspection, user interaction simulation, and performance audits. Prefer this over shelling out to the lighthouse CLI when measuring Core Web Vitals.";
+
 // Exact definitions earlier releases shipped for a server whose shipped shape
-// has since changed. They cover an install whose sentinel has no usable
-// `mcp_written` record (a corrupt sentinel parses to none), where the old entry
-// would otherwise read as a hand-edit and keep running forever. Exact match
-// only: a user entry that differs in any functional field still wins.
+// has changed, or for a server name cc-settings does not ship at all. They
+// cover an install whose sentinel has no usable `mcp_written` record (a corrupt
+// sentinel parses to none), where the old entry would otherwise read as a
+// hand-edit and keep running forever. Exact match only: a user entry that
+// differs in any functional field still wins.
 const PREVIOUSLY_SHIPPED: Readonly<Record<string, readonly McpServer[]>> = {
   context7: [
     {
@@ -77,11 +84,41 @@ const PREVIOUSLY_SHIPPED: Readonly<Record<string, readonly McpServer[]>> = {
         "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options.",
     },
   ],
+  // The tester agent defines chrome-devtools inline (agents/tester.md), so the
+  // server runs only while that agent does instead of in every session.
+  "chrome-devtools": [
+    {
+      command: "bunx",
+      args: ["-y", "chrome-devtools-mcp@1.11.0"],
+      serverInstructions: DEVTOOLS_INSTRUCTIONS,
+    },
+    {
+      command: "bunx",
+      args: ["-y", "chrome-devtools-mcp@latest"],
+      serverInstructions: DEVTOOLS_INSTRUCTIONS,
+    },
+    {
+      command: "npx",
+      args: ["-y", "chrome-devtools-mcp@latest"],
+      serverInstructions: DEVTOOLS_INSTRUCTIONS,
+    },
+  ],
 };
 
 function isPreviouslyShipped(name: string, entry: unknown): boolean {
   const key = functionalKey(entry);
   return (PREVIOUSLY_SHIPPED[name] ?? []).some((shipped) => functionalKey(shipped) === key);
+}
+
+/**
+ * True when `entry` sits under a server name cc-settings does not ship and is
+ * exactly what an earlier install wrote there: the `mcp_written` sentinel
+ * record for that name, or a PREVIOUSLY_SHIPPED definition. Anything else under
+ * an unshipped name is the user's own server and stays.
+ */
+function isRetiredCcOutput(name: string, entry: McpServer, priorWritten?: McpServer): boolean {
+  if (priorWritten && functionalKey(entry) === functionalKey(priorWritten)) return true;
+  return isPreviouslyShipped(name, entry);
 }
 
 /**
@@ -211,12 +248,12 @@ export function launcherPackage(entry: McpServer): string | undefined {
 
 /**
  * Team server names whose package the user already runs under a different
- * name (e.g. `aside-devtools` registered by the Aside browser is
- * `chrome-devtools-mcp`, the same package cc-settings ships as
- * `chrome-devtools`). Installing ours next to theirs would load two copies of
- * every tool schema into each turn, so the team entry is skipped and the
- * user's copy is the one that runs. A user entry that only shares a NAME with
- * a team entry is not a duplicate here; that case is the shadowing rule below.
+ * name (e.g. a team `chrome-devtools` entry and the `aside-devtools` entry the
+ * Aside browser registers both run `chrome-devtools-mcp`). Installing ours
+ * next to theirs would load two copies of every tool schema into each turn,
+ * so the team entry is skipped and the user's copy is the one that runs. A
+ * user entry that only shares a NAME with a team entry is not a duplicate
+ * here; that case is the shadowing rule below.
  */
 export function duplicateTeamServers(teamMcp: McpServers, userMcp: McpServers): string[] {
   const userPackages = new Map<string, string>();
@@ -318,11 +355,14 @@ export async function installMcpToClaudeJson(
   // never reaches ~/.claude.json, because the stale entry always looks like a
   // "user override" to the spread. Genuinely user-edited entries (matching
   // neither the team entry nor any known engine variant) are left untouched.
+  // A name cc-settings does not ship is dropped only when the entry is exactly
+  // what an earlier install wrote (isRetiredCcOutput).
   const effectiveCurrentMcp: McpServers = {};
   for (const [name, entry] of Object.entries(currentMcp)) {
     const teamEntry = teamMcp[name];
     const priorWritten = mcpWritten?.[name] as McpServer | undefined;
     if (teamEntry && isStaleCcOutput(name, entry, teamEntry, priorWritten)) continue;
+    if (!teamEntry && isRetiredCcOutput(name, entry, priorWritten)) continue;
     effectiveCurrentMcp[name] = entry;
   }
 

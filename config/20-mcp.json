@@ -17,14 +17,6 @@
 			"type": "http",
 			"url": "https://mcp.figma.com/mcp",
 			"serverInstructions": "Figma design inspection and extraction: tokens, styles, component props, variables, and file structure. Use for design-to-code workflows, design fidelity checks, and extracting design tokens. Prefer this over screenshot-based workflows when structured design data is needed."
-		},
-		"chrome-devtools": {
-			"command": "bunx",
-			"args": [
-				"-y",
-				"chrome-devtools-mcp@1.11.0"
-			],
-			"serverInstructions": "Chrome DevTools control for performance tracing, network inspection, console logs, DOM inspection, user interaction simulation, and performance audits. Prefer this over shelling out to the lighthouse CLI when measuring Core Web Vitals."
 		}
 	}
 }

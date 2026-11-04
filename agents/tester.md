@@ -5,6 +5,11 @@ description: |
   Writes and runs tests, and reports coverage gaps. Delegate for new test files, test runs, or verification after implementation.
   RETURNS: test results (pass/fail/skip), test files, failure analysis, coverage gaps.
 tools: [Read, Write, Edit, Bash, Grep, Glob, mcp__tldr__context, mcp__tldr__impact, mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__press_key]
+mcpServers:
+  - chrome-devtools:
+      type: stdio
+      command: bunx
+      args: ["-y", "chrome-devtools-mcp@1.11.0", "--no-usage-statistics"]
 maxTurns: 30
 effort: medium
 color: cyan
@@ -16,7 +21,7 @@ apps you're testing) — not for cc-settings itself, which runs Bun's native tes
 **Testing Stack** (target project)
 - Vitest (unit tests)
 - React Testing Library (component tests)
-- chrome-devtools MCP (E2E / visual tests)
+- chrome-devtools MCP (E2E / visual tests), defined in this agent's `mcpServers`, so it starts when this agent runs and stops when it finishes
 
 **Principles**
 
@@ -43,6 +48,8 @@ or `bun test --coverage`. Forward flags through a test script only after
 inspecting the command it runs.
 
 **E2E and visual tests (chrome-devtools MCP)**
+
+The server starts with this agent and shuts down when it returns; the main conversation does not have these tools.
 
 | Action | Tool |
 |---|---|

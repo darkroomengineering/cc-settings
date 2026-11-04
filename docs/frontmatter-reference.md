@@ -21,7 +21,7 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 | `tools` / `allowedTools` | list | No | Tools the agent can access. Both field names are accepted. Format: `[Read, Write, Edit, Bash, Grep, Glob, Agent, ...]` |
 | `color` | string | No | Display color in the UI: `purple`, `green`, `red`, `yellow`, `blue`, `cyan`, `magenta`, `gold` |
 | `skills` | list | No | Skills to preload into the subagent context at startup. Claude Code preloads at most 32, each once (v2.1.295); a subagent with the Skill tool can still invoke the rest |
-| `mcpServers` | object | No | MCP servers scoped to this agent (inline definitions or references) |
+| `mcpServers` | list | No | MCP servers scoped to this agent: a server name references a configured server; a one-key map defines one inline, which connects when the subagent starts and disconnects when it finishes (used by `tester` for chrome-devtools). Plugin agents ignore it |
 | `hooks` | object | No | Lifecycle hooks scoped to this specific subagent |
 | `maxTurns` | number | No | Maximum agentic turns before the subagent stops |
 | `disallowedTools` | list | No | Tools to deny (removed from inherited tool list) |

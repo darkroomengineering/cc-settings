@@ -7,16 +7,20 @@
 //   Each has drifted at least once — plugin.json sat at 8.1.0 for two major
 //   versions, and package.json sat at 13.4.3 across three releases because
 //   nothing tested it.
-// - plugin.json mcpServers must be a subset of config/20-mcp.json (source of
-//   truth), matching on the portable transport fields.
+// - Every plugin.json mcpServers entry must match its source of truth on the
+//   portable transport fields: config/20-mcp.json, or for a server an agent
+//   defines inline (chrome-devtools in agents/tester.md), that agent's
+//   `mcpServers` entry. Plugin agents ignore `mcpServers`, so the plugin
+//   declares such a server itself.
 // - marketplace.json must point at the plugin defined in this repo.
 
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { codexCliAvailable } from "../src/lib/codex-install-state.ts";
+import { extractFrontmatterBlock } from "../src/lib/frontmatter.ts";
 
 const ROOT = join(import.meta.dir, "..");
 
@@ -32,6 +36,21 @@ interface McpServerConfig {
 
 async function readJson(relPath: string): Promise<Record<string, unknown>> {
   return JSON.parse(await readFile(join(ROOT, relPath), "utf8"));
+}
+
+/** Inline MCP servers declared in agents/*.md frontmatter, keyed by server name. */
+async function agentInlineServers(): Promise<Record<string, McpServerConfig>> {
+  const out: Record<string, McpServerConfig> = {};
+  const dir = join(ROOT, "agents");
+  for (const file of (await readdir(dir)).filter((f) => f.endsWith(".md"))) {
+    const block = extractFrontmatterBlock(await readFile(join(dir, file), "utf8"));
+    const fm = Bun.YAML.parse(block ?? "") as { mcpServers?: unknown } | null;
+    if (!Array.isArray(fm?.mcpServers)) continue;
+    for (const item of fm.mcpServers) {
+      if (typeof item === "object" && item !== null) Object.assign(out, item);
+    }
+  }
+  return out;
 }
 
 /** The one source of truth every other version must follow. */
@@ -78,23 +97,39 @@ describe("always-loaded prompt byte budgets", () => {
   });
 });
 
-describe("plugin manifest — mcpServers sync with config/20-mcp.json", () => {
-  test("every plugin server matches its config fragment counterpart", async () => {
+describe("plugin manifest — mcpServers match their source of truth", () => {
+  test("every plugin server matches config/20-mcp.json or an agent's inline definition", async () => {
     const plugin = await readJson(".claude-plugin/plugin.json");
     const fragment = await readJson("config/20-mcp.json");
     const pluginServers = (plugin.mcpServers ?? {}) as Record<string, McpServerConfig>;
     const configServers = (fragment.mcpServers ?? {}) as Record<string, McpServerConfig>;
+    const agentServers = await agentInlineServers();
+    // A stdio server may omit `type`; compare the transport it resolves to.
+    const transport = (s: McpServerConfig) => s.type ?? (s.command ? "stdio" : undefined);
 
     expect(Object.keys(pluginServers).length).toBeGreaterThan(0);
 
     for (const [name, server] of Object.entries(pluginServers)) {
-      const source = configServers[name];
-      expect(source, `plugin server "${name}" missing from config/20-mcp.json`).toBeDefined();
+      const fromConfig = configServers[name];
+      const source = fromConfig ?? agentServers[name];
+      expect(
+        source,
+        `plugin server "${name}" is in neither config/20-mcp.json nor an agent's mcpServers`,
+      ).toBeDefined();
       if (!source) continue;
       expect(server.command).toBe(source.command as string | undefined);
-      expect(server.args).toEqual(source.args as string[] | undefined);
-      expect(server.type).toBe(source.type as string | undefined);
+      expect(transport(server)).toBe(transport(source));
       expect(server.url).toBe(source.url as string | undefined);
+      if (fromConfig) {
+        expect(server.args).toEqual(source.args as string[] | undefined);
+      } else {
+        // The agent definition may append flags (--no-usage-statistics); the
+        // package and its pinned version must still match.
+        const sourceArgs = source.args ?? [];
+        const pluginArgs = server.args ?? [];
+        expect(pluginArgs.length > 0 || sourceArgs.length === 0).toBe(true);
+        expect(sourceArgs.slice(0, pluginArgs.length)).toEqual(pluginArgs);
+      }
     }
   });
 

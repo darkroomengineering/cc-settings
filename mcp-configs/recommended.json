@@ -30,21 +30,22 @@
       "_usage": "Design tokens, styles, component props, variables, file structure — design-to-code workflows",
       "_contextCost": "medium",
       "_status": "core"
-    },
-
-    "chrome-devtools": {
-      "command": "bunx",
-      "args": ["-y", "chrome-devtools-mcp@latest"],
-      "_description": "Chrome DevTools via CDP. Performance traces, network, console, user simulation. bunx is used so catalog:/overrides in monorepo package.json don't break resolution.",
-      "_usage": "Performance tracing, network inspection, console logs, Core Web Vitals measurement",
-      "_contextCost": "medium",
-      "_status": "core"
     }
   },
 
   "_optional": "These servers are NOT installed by default. Add them manually to ~/.claude.json if needed.",
 
   "optionalMcpServers": {
+    "chrome-devtools": {
+      "command": "bunx",
+      "args": ["-y", "chrome-devtools-mcp@1.11.0", "--no-usage-statistics"],
+      "_description": "Chrome DevTools via CDP. Performance traces, network, console, user simulation. bunx is used so catalog:/overrides in monorepo package.json don't break resolution.",
+      "_usage": "Performance tracing, network inspection, console logs, Core Web Vitals measurement",
+      "_contextCost": "medium",
+      "_status": "optional",
+      "_note": "The tester agent starts this server for its own runs (agents/tester.md mcpServers). Add it to ~/.claude.json only if you want DevTools in every session; each session then runs its own Node process (about 100 MB)."
+    },
+
     "github": {
       "command": "bunx",
       "args": ["-y", "@anthropic/github-mcp-server"],

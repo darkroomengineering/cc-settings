@@ -68,6 +68,18 @@ describe("AgentFrontmatter schema", () => {
     }
   });
 
+  test("accepts the documented mcpServers list of references and inline definitions", () => {
+    const r = AgentFrontmatter.safeParse({
+      name: "x",
+      description: "y",
+      mcpServers: [
+        "github",
+        { playwright: { type: "stdio", command: "npx", args: ["-y", "@playwright/mcp@latest"] } },
+      ],
+    });
+    expect(r.success).toBe(true);
+  });
+
   test("rejects isolation typos", () => {
     const r = AgentFrontmatter.safeParse({
       name: "x",

@@ -58,4 +58,4 @@ Reduced motion means gentler, not zero. Declare movement inside the opt-in query
 
 ## Tools
 
-- **`mcp__chrome-devtools__take_snapshot`** — text-based accessibility tree with element `uid`s
+- **`mcp__chrome-devtools__take_snapshot`** (through the `tester` agent, which starts chrome-devtools for the run) — text-based accessibility tree with element `uid`s

@@ -58,7 +58,14 @@ export const AgentFrontmatter = z.looseObject({
     .optional(),
   // Future-leaning — accepted but not validated deeply.
   hooks: z.unknown().optional(),
-  mcpServers: z.record(z.string(), z.unknown()).optional(),
+  // Claude Code documents a list whose items are a server name (a reference to
+  // a configured server) or a one-key map of name to inline definition.
+  mcpServers: z
+    .union([
+      z.array(z.union([z.string(), z.record(z.string(), z.unknown())])),
+      z.record(z.string(), z.unknown()),
+    ])
+    .optional(),
 
   // Loose on unknown keys — agent ecosystem is fast-moving and we'd
   // rather accept an unrecognized field than block install for a new agent

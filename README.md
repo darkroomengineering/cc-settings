@@ -237,10 +237,10 @@ on every machine. The same request behaves differently once it is installed:
 - **Model routing.** Effort pinned to medium, read-only subagents on Sonnet, planning, decisions and
   code-editing agents on the session model, bulk or mechanical work and one cross-model review per PR or direct push routed to Codex when
   the bridge is installed. The statusline shows the usage limits that drive that routing.
-- **Connected tools.** In Claude, four MCP servers: Context7 for current library docs, a TypeScript
-  code map for call graphs and blast radius, Figma, and Chrome DevTools for screenshots and
-  Lighthouse. Codex gets the Figma server only and reports a missing capability instead of faking
-  the rest.
+- **Connected tools.** In Claude, three MCP servers: Context7 for current library docs, a TypeScript
+  code map for call graphs and blast radius, and Figma. The `tester` agent starts Chrome DevTools
+  for screenshots and Lighthouse while it runs. Codex gets the Figma server only and reports a
+  missing capability instead of faking the rest.
 - **Verbatim compaction.** With a TypeSafe key, long sessions compact near the 200K working
   ceiling by removing stale tool output that Jev scores as no longer needed, while every user and
   assistant message stays word for word. Without a key, native summary compaction applies. See

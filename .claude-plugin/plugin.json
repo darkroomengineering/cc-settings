@@ -33,7 +33,7 @@
     },
     "chrome-devtools": {
       "command": "bunx",
-      "args": ["-y", "chrome-devtools-mcp@1.11.0"]
+      "args": ["-y", "chrome-devtools-mcp@1.11.0", "--no-usage-statistics"]
     }
   }
 }
