@@ -1,11 +1,8 @@
 {
 	"mcpServers": {
 		"context7": {
-			"command": "bunx",
-			"args": [
-				"-y",
-				"@upstash/context7-mcp@4.4.4"
-			],
+			"type": "http",
+			"url": "https://mcp.context7.com/mcp/oauth",
 			"serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options."
 		},
 		"tldr": {

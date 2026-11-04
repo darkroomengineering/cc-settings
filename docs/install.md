@@ -148,6 +148,12 @@ cc-settings-owned.
 
 Run `bash setup.sh --help` or `.\setup.ps1 --help` for the wrapper you use.
 
+An interactive install asks all of its questions before it changes anything: whether to install
+for Codex too (with `--target=auto`), the TypeSafe key when none is set, daily auto-update on a
+first macOS install, and whether to remove skills cc-settings no longer ships. After that it runs
+unattended, printing numbered phases and a live spinner with elapsed seconds on each slow step.
+Without a terminal (CI, the auto-update job), it prints plain lines and uses the same defaults.
+
 | Flag | Effect |
 |---|---|
 | `--target=auto|claude|codex|both` | Select the product boundary. |

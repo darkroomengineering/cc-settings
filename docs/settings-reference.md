@@ -1287,19 +1287,19 @@ they are not a second inventory.
 
 #### context7
 
-Library documentation lookup via the Context7 MCP protocol.
+Library documentation lookup through Context7's hosted MCP server.
 
 ```json
 {
   "context7": {
-    "command": "bunx",
-    "args": ["-y", "@upstash/context7-mcp@4.4.4"],
+    "type": "http",
+    "url": "https://mcp.context7.com/mcp/oauth",
     "serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices."
   }
 }
 ```
 
-> **Note:** uses `bunx` rather than `npx` so monorepos that combine Bun's `catalog:` protocol with `overrides` in `package.json` don't break the server launch (`EOVERRIDE`). The version is pinned, so a session start never runs a newer release than the one reviewed here; `chrome-devtools` is pinned the same way (`chrome-devtools-mcp@1.11.0`). Bump the pins by editing `config/20-mcp.json` by hand. The server has no `alwaysLoad`, so its tools stay deferred behind `ENABLE_TOOL_SEARCH` until needed.
+> **Note:** the `/mcp/oauth` endpoint signs each user in through Claude Code's MCP OAuth flow, so cc-settings stores no API key. Until you run `/mcp` in Claude Code and sign in to Context7 once, the server shows as needing authentication and its tools are unavailable. Context7 supports OAuth only on the remote endpoint; a local stdio server needs an API key. A context7 entry you write yourself in `~/.claude.json` (for example `https://mcp.context7.com/mcp` with a key header) wins over this one. The server has no `alwaysLoad`, so its tools stay deferred behind `ENABLE_TOOL_SEARCH` until needed. `chrome-devtools` is pinned to an exact version (`chrome-devtools-mcp@1.11.0`), so a session start never runs a newer release than the one reviewed here; bump it by editing `config/20-mcp.json` by hand.
 
 **Tools provided:** `mcp__context7__resolve-library-id`, `mcp__context7__query-docs`
 
@@ -1469,7 +1469,7 @@ teammates who hit it.
 
 Notes on the MCP servers shipped in `config/20-mcp.json`. They live here rather than as `_comment` / `_status` keys in the JSON, which keeps the composed `settings.json` schema-clean.
 
-- **context7**: Library documentation lookup. Auto-triggered by the server's own instructions on any library question and documentation-related prompts (the dedicated `/docs` skill was retired May 2026). Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution. Pinned to an exact version in `config/20-mcp.json`. (status: core)
+- **context7**: Library documentation lookup. Auto-triggered by the server's own instructions on any library question and documentation-related prompts. Remote OAuth endpoint: run `/mcp` in Claude Code and sign in to Context7 once. (status: core)
 - **tldr**: Codemap analysis behind a pluggable engine. Default `native-ts` — no prerequisite, no index. `CC_CODE_INTEL_ENGINE=llm-tldr` opts into the multi-language engine, which needs `pipx install llm-tldr` (v1.5+) and `tldr warm .`. The entry in `config/20-mcp.json` is the llm-tldr template; the installer rewrites it to the resolved engine. (status: core)
 - **figma**: Figma Dev Mode MCP (remote). Requires Dev or Full seat. OAuth on first use. (status: core)
 - **chrome-devtools**: Chrome DevTools via CDP. Performance traces, network, console, user simulation. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution. Pinned to an exact version in `config/20-mcp.json`. (status: core)

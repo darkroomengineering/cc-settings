@@ -168,12 +168,11 @@ export async function showSummary(
     if (shouldHintContext7(managed, overridden)) {
       console.log("");
       console.log(
-        `  ${palette.dim}context7 is running keyless (lower rate limits).${palette.reset}`,
+        `  ${palette.dim}context7 signs in through Claude Code. If it shows "needs authentication",${palette.reset}`,
       );
       console.log(
-        `  ${palette.dim}Higher limits + private repos:${palette.reset} bunx ctx7 setup --claude --mcp`,
+        `  ${palette.dim}run${palette.reset} /mcp ${palette.dim}in Claude Code and sign in to Context7 once.${palette.reset}`,
       );
-      console.log(`  ${palette.dim}Free key: context7.com/dashboard${palette.reset}`);
     }
   }
 }
@@ -195,29 +194,26 @@ export async function readShippedMcpNames(sourceDir?: string): Promise<Set<strin
 }
 
 /**
- * Whether to nudge the user toward a context7 API key.
+ * Whether to tell the user how to sign in to context7.
  *
- * cc-settings ships context7 as the keyless stdio transport, which context7
- * documents as the lower tier ("higher rate limits and private repositories"
- * come with a free key). Nothing else tells anyone the better tier exists, so
- * without this every install silently sits on the worse one.
+ * cc-settings ships context7 as Context7's remote OAuth endpoint, so the server
+ * needs a one-time sign-in through Claude Code's `/mcp` before its tools load.
+ * Claude Code shows it as "needs authentication" until then, and nothing else
+ * in the install says what to do about that.
  *
  * True only when OUR entry is the one actually running: context7 is a managed
  * server AND the user hasn't shadowed it with their own definition. On the
  * light profile `managed` is empty, so it stays silent with no special case.
+ * Any user-supplied context7 entry silences it: that entry's auth (an API key
+ * header, a local stdio server) is the user's choice, and our sign-in steps may
+ * not apply to it.
  *
- * Deliberately narrower than "has no API key". Any user-supplied context7 entry
- * silences this, including a hand-written keyless one — we do not inspect the
- * entry for auth markers, because the auth shape is context7's to define (their
- * README documents `Authorization: Bearer`; a real config in the wild used a
- * `CONTEXT7_API_KEY` header) and sniffing for it would make us the third party
- * guessing at a contract we don't own. The target is the default nobody chose,
- * not every keyless setup: someone who wrote their own entry has already
- * thought about context7 and doesn't need the nudge.
+ * The installer cannot tell whether the sign-in already happened (Claude Code
+ * holds the token), so the printed line is conditional and stays true on a
+ * re-run after sign-in. cc-settings never reads, writes, or prints a token.
  *
  * Pure so it can be unit-tested without a TTY or a filesystem — same discipline
- * as `decideAutoUpdate`. cc-settings never reads, writes, or prints a key; the
- * hint points at `ctx7 setup`, which owns the OAuth and the auth contract.
+ * as `decideAutoUpdate`.
  */
 export function shouldHintContext7(
   managed: readonly string[],

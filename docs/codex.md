@@ -81,8 +81,9 @@ install stops before writing when the file cannot be merged into: a symlink, inv
 unexpected shape, or a group that mixes cc-settings and other handlers. These hooks keep their handoffs and logs in
 `$CODEX_HOME/plugins/data/darkroom-cc-settings`.
 
-The Codex package does not auto-run Context7 or Chrome DevTools from mutable, unpinned registry
-packages. Users may configure reviewed and pinned versions themselves. The package also excludes
+The Codex package ships one MCP server, the fixed HTTPS Figma endpoint. It does not run Chrome
+DevTools from a registry package, and it leaves Context7 for the user to configure. The package
+also excludes
 Claude's `tldr` MCP server and the `codex-verifier` agent. That agent exists only to bridge from
 Claude Code into Codex. Its twin, `claude-verifier`, is installed only into Codex and bridges the
 other way: it runs the current diff past a Claude model through headless Claude Code. See

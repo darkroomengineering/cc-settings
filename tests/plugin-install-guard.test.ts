@@ -2,12 +2,13 @@
 // network. It must never run from a test sandbox (HOME under the OS temp
 // dir) without every spawn site having to opt out.
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   decidePluginCommands,
   FAST_JEV_PLUGIN_ID,
+  marketplaceCloneMatchesSource,
   type ParsedMarketplaceEntry,
   type ParsedPluginEntry,
   pluginInstallAllowed,
@@ -254,5 +255,79 @@ describe("decidePluginCommands", () => {
     );
     expect(decision.toRun).toEqual([]);
     expect(decision.skipped[0]).toContain(UPSTREAM_PINNED_SHA.slice(0, 7));
+  });
+});
+
+describe("marketplaceCloneMatchesSource", () => {
+  const plugins = ["compaction-trigger", "context-report", "drift-fuse"] as const;
+
+  async function sourceWith(versions: Partial<Record<(typeof plugins)[number], string>>) {
+    const dir = await mkdtemp(join(tmpdir(), "cc-mkt-src-"));
+    for (const [name, version] of Object.entries(versions)) {
+      const manifestDir = join(dir, "plugins", name, ".claude-plugin");
+      await mkdir(manifestDir, { recursive: true });
+      await writeFile(join(manifestDir, "plugin.json"), JSON.stringify({ name, version }));
+    }
+    return dir;
+  }
+
+  test("matches when the clone offers every version the checkout ships", async () => {
+    const dir = await sourceWith({
+      "compaction-trigger": "0.3.0",
+      "context-report": "0.1.0",
+      "drift-fuse": "0.1.1",
+    });
+    try {
+      expect(
+        await marketplaceCloneMatchesSource(dir, {
+          "compaction-trigger": "0.3.0",
+          "context-report": "0.1.0",
+          "drift-fuse": "0.1.1",
+        }),
+      ).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("refreshes when the checkout ships a newer version or a plugin the clone lacks", async () => {
+    const dir = await sourceWith({
+      "compaction-trigger": "0.4.0",
+      "context-report": "0.1.0",
+      "drift-fuse": "0.1.1",
+    });
+    try {
+      expect(
+        await marketplaceCloneMatchesSource(dir, {
+          "compaction-trigger": "0.3.0",
+          "context-report": "0.1.0",
+          "drift-fuse": "0.1.1",
+        }),
+      ).toBe(false);
+      expect(
+        await marketplaceCloneMatchesSource(dir, {
+          "compaction-trigger": "0.4.0",
+          "context-report": "0.1.0",
+          "drift-fuse": null,
+        }),
+      ).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("refreshes when the checkout's own manifest is unreadable", async () => {
+    const dir = await sourceWith({ "compaction-trigger": "0.3.0", "context-report": "0.1.0" });
+    try {
+      expect(
+        await marketplaceCloneMatchesSource(dir, {
+          "compaction-trigger": "0.3.0",
+          "context-report": "0.1.0",
+          "drift-fuse": "0.1.1",
+        }),
+      ).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

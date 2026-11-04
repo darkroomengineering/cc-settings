@@ -48,6 +48,7 @@ import {
   writeVersionSentinel,
 } from "./lib/claude-install-ownership.ts";
 import {
+  askTypesafeKeyUpfront,
   installPlugins,
   installSettings,
   refreshSettingsFingerprint,
@@ -65,7 +66,17 @@ import {
   readCodexInstalledVersion,
   validateProductRootDisjointness,
 } from "./lib/codex-install.ts";
-import { error, info, palette, progressArrow, showBanner, success, warn } from "./lib/colors.ts";
+import {
+  error,
+  info,
+  palette,
+  phase,
+  progressArrow,
+  showBanner,
+  startPhases,
+  success,
+  warn,
+} from "./lib/colors.ts";
 import { composeSettings } from "./lib/compose-settings.ts";
 import { reportCopilotSync } from "./lib/copilot-instructions.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
@@ -80,6 +91,7 @@ import { cmdDryRun, printStatus, showSummary } from "./lib/install-display.ts";
 import { createBackup, createDirectories, preflightInstallSource } from "./lib/install-fs.ts";
 import {
   applyAutoUpdate,
+  askAutoUpdateUpfront,
   assertAutoUpdateRequestDoesNotClaimIndependentState,
   createSharedBackupId,
   resolveEnrolledRepoPath,
@@ -307,6 +319,7 @@ async function printCodexStatus(sourceDir: string): Promise<void> {
 }
 
 async function main(): Promise<number> {
+  const startedAt = Date.now();
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     printHelp(VERSION);
@@ -485,6 +498,30 @@ async function main(): Promise<number> {
   const fmWarning = formatFrontmatterIssues(fmIssues);
   if (fmWarning) warn(fmWarning);
 
+  // Every question is asked here, before the lock and before any file changes,
+  // so the install itself runs unattended. The Codex question already ran in
+  // resolveInstallTarget. Non-interactive runs get the same defaults as before.
+  const skillsDir = join(CLAUDE_DIR, "skills");
+  const typesafeKey = await askTypesafeKeyUpfront(args.profile, args.typesafeKey, args.fresh);
+  const autoUpdateAnswer = await askAutoUpdateUpfront(args, args.fresh ? null : priorAutoUpdate);
+  const retiredAtStart = args.migrateOnly ? [] : await scanRetiredSkills(skillsDir).catch(() => []);
+  const removeRetired =
+    retiredAtStart.length > 0 &&
+    isInteractive() &&
+    (await promptYn(
+      `cc-settings no longer ships these skills: ${retiredAtStart.join(", ")}. Remove them?`,
+      false,
+    ));
+
+  const phases = [
+    ...(includesTarget(target, "codex") ? ["Codex"] : []),
+    ...(args.migrateOnly ? ["Backup"] : ["Dependencies", "Backup", "Configuration files"]),
+    "Settings and MCP servers",
+    ...(args.profile === "light" ? [] : ["Plugins"]),
+    "Auto-update",
+  ];
+  startPhases(phases.length);
+
   // Serialize the destructive install region (dispatch → sentinel write)
   // against a concurrent run — a manual setup.sh racing the scheduled
   // auto-updater's setup invocation would otherwise interleave rm/cp over
@@ -540,6 +577,7 @@ async function main(): Promise<number> {
       );
       const claudeSharedBaseline = await captureClaudeSharedExplicitState();
       if (includesTarget(target, "codex")) {
+        phase("Codex");
         codexCompensation = await installCodex({
           sourceDir: args.sourceDir,
           version: VERSION,
@@ -559,6 +597,7 @@ async function main(): Promise<number> {
         // Dispatch to migrate-only or full install path.
         if (args.migrateOnly) {
           priorSettingsBaseline = await readSettingsBaseline(CLAUDE_DIR);
+          phase("Backup");
           info("Migrate-only: backup + merger + sentinel; skipping file copy");
           await assertClaudeLifecycleOwnershipUnchanged(preparedClaudeInstallOwnership.snapshot);
           await createBackup({ managedFiles: preparedClaudeInstallOwnership.files });
@@ -644,6 +683,7 @@ async function main(): Promise<number> {
           priorSettingsBaseline = null;
         }
 
+        phase("Settings and MCP servers");
         try {
           ({ overridden: mcpOverridden, mcpWritten } = await installSettings(
             args.sourceDir,
@@ -669,7 +709,12 @@ async function main(): Promise<number> {
         // the two compaction plugins via the claude CLI so settings.json's
         // declaration and the plugin store agree. Fail-open — see
         // installPlugins' own doc comment.
-        await installPlugins(args.profile, args.dryRun, { typesafeKey: args.typesafeKey });
+        if (args.profile !== "light") phase("Plugins");
+        await installPlugins(args.profile, args.dryRun, {
+          typesafeKey: args.typesafeKey,
+          resolvedKey: typesafeKey,
+          sourceDir: args.sourceDir,
+        });
         // The plugin step rewrites the plugin keys the fingerprint covers, so
         // fingerprint after it.
         if (!args.dryRun) await refreshSettingsFingerprint();
@@ -678,11 +723,13 @@ async function main(): Promise<number> {
 
         schedulerSharedBaseline = await captureClaudeSharedExplicitState();
         claudePhase = "scheduler";
+        phase("Auto-update");
         const autoUpdateEnrolled = await applyAutoUpdate(
           args,
           priorAutoUpdate,
           autoUpdateSnapshot,
           enrolledRepoPath,
+          autoUpdateAnswer,
         );
         claudeSharedDrift = {
           ...claudeSharedDrift,
@@ -741,6 +788,7 @@ async function main(): Promise<number> {
     }
   });
   if (installCode !== 0) return installCode;
+  startPhases(0);
 
   if (!args.migrateOnly) await showSummary(args.profile, args.sourceDir, mcpOverridden);
   if (includesTarget(target, "claude")) await reportCopilotSync();
@@ -764,7 +812,6 @@ async function main(): Promise<number> {
   // Skill prereq check: warn if any installed skill declares `requires:` for
   // a CLI / MCP that's missing from the user's environment. Non-fatal — the
   // skill simply fails at runtime if the user invokes it without the prereq.
-  const skillsDir = join(CLAUDE_DIR, "skills");
   const prereqReports = await reportMissingPrereqs(skillsDir).catch(() => []);
   const prereqWarnings = formatPrereqWarnings(prereqReports);
   if (prereqWarnings) {
@@ -773,7 +820,9 @@ async function main(): Promise<number> {
   }
 
   if (includesTarget(target, "claude") && !args.migrateOnly) {
-    const retired = await scanRetiredSkills(skillsDir).catch(() => []);
+    const retired = (await scanRetiredSkills(skillsDir).catch(() => [])).filter(
+      (skill) => !isInteractive() || retiredAtStart.includes(skill),
+    );
     if (retired.length > 0) {
       console.log("");
       const list = retired.join(", ");
@@ -781,9 +830,7 @@ async function main(): Promise<number> {
         warn(
           `Retired cc-settings skills still installed: ${list}. Re-run setup in a terminal to remove them.`,
         );
-      } else if (
-        await promptYn(`cc-settings no longer ships these skills: ${list}. Remove them?`, false)
-      ) {
+      } else if (removeRetired) {
         const moved = await retireSkills(
           skillsDir,
           retired,
@@ -805,7 +852,7 @@ async function main(): Promise<number> {
   console.log("");
   info(`Rollback if needed: bun src/setup.ts --target=${target} --rollback`);
   success(
-    `Restart ${target === "both" ? "Claude Code and Codex" : "Claude Code"} to apply changes.`,
+    `Done in ${((Date.now() - startedAt) / 1000).toFixed(1)}s. Restart ${target === "both" ? "Claude Code and Codex" : "Claude Code"} to apply changes.`,
   );
   console.log("");
   return 0;

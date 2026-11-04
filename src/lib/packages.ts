@@ -4,7 +4,7 @@
 // provides idempotent `ensure` helpers that return true on success.
 // Spawns use Bun.spawn for cross-platform argv handling.
 
-import { progressArrow, progressFail, progressOk, progressWarn } from "./colors.ts";
+import { progressFail, progressOk, progressWarn, withProgress } from "./colors.ts";
 import { hasCommand, os } from "./platform.ts";
 
 export type SystemPM =
@@ -79,8 +79,17 @@ function detectPythonPM(): PythonPM {
 // a prompting sudo fails/exits instead of blocking.
 const PACKAGE_INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
 
+// brew refreshes every tap before an install unless told not to, which on a
+// machine that has not run brew lately takes minutes before the install starts.
+const QUIET_INSTALL_ENV = {
+  ...process.env,
+  HOMEBREW_NO_AUTO_UPDATE: "1",
+  HOMEBREW_NO_ENV_HINTS: "1",
+};
+
 async function runSilent(cmd: string[]): Promise<boolean> {
   const proc = Bun.spawn(cmd, {
+    env: QUIET_INSTALL_ENV,
     stdout: "ignore",
     stderr: "ignore",
     stdin: "ignore",
@@ -102,8 +111,6 @@ export async function ensureSystemPackage(pkg: string, checkCmd = pkg): Promise<
     progressWarn(`${pkg} - no package manager available`);
     return false;
   }
-  progressArrow(`Installing ${pkg} via ${pm}...`);
-
   const installCmd: Record<NonNullable<SystemPM>, string[]> = {
     brew: ["brew", "install", pkg],
     port: ["sudo", "port", "install", pkg],
@@ -118,12 +125,13 @@ export async function ensureSystemPackage(pkg: string, checkCmd = pkg): Promise<
     winget: ["winget", "install", "--id", pkg, "-e", "--silent"],
   };
 
-  if (pm === "apt" && !aptUpdated) {
-    await runSilent(["sudo", "apt-get", "update", "-qq"]);
-    aptUpdated = true;
-  }
-
-  const ok = await runSilent(installCmd[pm]);
+  const ok = await withProgress(`Installing ${pkg} via ${pm}`, async () => {
+    if (pm === "apt" && !aptUpdated) {
+      await runSilent(["sudo", "apt-get", "update", "-qq"]);
+      aptUpdated = true;
+    }
+    return runSilent(installCmd[pm]);
+  });
   if (ok) progressOk(`${pkg} installed`);
   else progressFail(`Failed to install ${pkg}`);
   return ok;
@@ -139,13 +147,12 @@ export async function ensurePythonPackage(pkg: string, checkCmd = pkg): Promise<
     progressWarn(`${pkg} - pip/pipx not available`);
     return false;
   }
-  progressArrow(`Installing ${pkg} via ${pm}...`);
   const installCmd: Record<NonNullable<PythonPM>, string[]> = {
     pipx: ["pipx", "install", pkg],
     pip3: ["pip3", "install", "--user", pkg],
     pip: ["pip", "install", "--user", pkg],
   };
-  const ok = await runSilent(installCmd[pm]);
+  const ok = await withProgress(`Installing ${pkg} via ${pm}`, () => runSilent(installCmd[pm]));
   if (ok) progressOk(`${pkg} installed`);
   else progressFail(`Failed to install ${pkg}`);
   return ok;

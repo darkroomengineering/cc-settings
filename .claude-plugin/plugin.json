@@ -24,8 +24,8 @@
   ],
   "mcpServers": {
     "context7": {
-      "command": "bunx",
-      "args": ["-y", "@upstash/context7-mcp@4.4.4"]
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp/oauth"
     },
     "figma": {
       "type": "http",
