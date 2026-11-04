@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 39;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 40;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -558,11 +558,14 @@ const REJOINING_AFTER = new Map<string, readonly string[]>([
 ]);
 // Version 37 adds the /retro prs script to the inventory; older shipped manifests never held it.
 const ADDED_SOURCES_IN_V37 = ["src/scripts/pr-retro.ts"];
+// Version 40: the `Git push:` transport probe session-start.ts imports, and its CLI.
+const ADDED_IN_V40 = ["src/lib/git-transport.ts", "src/scripts/git-transport.ts"];
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) =>
     !ADDED_IN_V17.includes(path) &&
     !ADDED_IN_V20.includes(path) &&
-    !ADDED_SOURCES_IN_V37.includes(path),
+    !ADDED_SOURCES_IN_V37.includes(path) &&
+    !ADDED_IN_V40.includes(path),
 ).flatMap((path) => [path, ...(REJOINING_AFTER.get(path) ?? [])]);
 const historicalManifest = {
   full: [
@@ -882,9 +885,15 @@ const v38 = {
 };
 MANIFESTS.set(38, v38);
 // Version 39: the SessionEnd worktree cleanup hook (every profile: src/ is installed from the light list).
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v39 = {
   full: [...v38.full, "src/hooks/session-worktrees.ts"],
   light: [...v38.light, "src/hooks/session-worktrees.ts"],
+};
+MANIFESTS.set(39, v39);
+// Version 40: the `Git push:` transport probe (every profile: src/ is installed from the light list).
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v39.full, ...ADDED_IN_V40],
+  light: [...v39.light, ...ADDED_IN_V40],
 });
 
 const GENERATED_MANAGED_FILES = new Set([

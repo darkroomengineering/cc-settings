@@ -4,9 +4,20 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
-## [Unreleased]
+## [15.97.0] — 2026-11-04
 
-Sessions clean up their own merged worktrees immediately through Programa. The hook tracks only worktrees created in the session by `EnterWorktree` or `Agent`/`Task` isolation through a structured `worktreePath` result. It never tracks the folder a session starts in or moves to. It excludes main checkouts and passes only the recorded paths to `programa storage clean --now --include-external --json`. Programa protects dirty worktrees, ignored `.env` files, open workspaces and running processes. Missing or older Programa versions silently skip cleanup. Set `CC_SESSION_WORKTREE_CLEANUP_ENABLED=false` to opt out.
+`/ship` pushes with whatever GitHub login works on the machine, never pushes straight to `main`, and always files the Linear ticket in the repo's own team and project. Before this, a session with no SSH key loaded went looking for 1Password, kept retrying SSH, and merged a fix to `main` with no ticket and no PR.
+
+**Added:**
+- `src/lib/git-transport.ts`, `src/scripts/git-transport.ts`: SessionStart prints a `Git push:` line. It says SSH when an agent has a key loaded, otherwise the exact gh-login push command (a per-command `-c` override, never a saved password, a plain HTTPS remote or a global `insteadOf`), or "not logged in". The line covers every push in the session, not only `/ship`. 1Password is mentioned only when it is installed.
+- `evals/ship-main-branch-gh-login/`: a ship case with no SSH agent on a repo used to direct pushes to `main`.
+
+**Changed:**
+- `src/hooks/safety-net.ts`: a push to `main` or `master`, `--all`, `--mirror`, or a bare push while on `main` asks first. Branch deletion and force pushes are left to the GitHub org rulesets.
+- `skills/ship/SKILL.md`: a preflight reads the `Git push:` and `Linear:` lines, stops when Linear is not connected, branches off `main` as `<type>/<ID>-<slug>` before committing, and pushes with the detected command. The Linear step takes the team from `~/.claude/linear-teams.json`, then the startup `Linear:` line, then the shared map, and never invents a placeholder ID.
+- `rules/git.md`, `docs/hooks-reference.md`, `evals/ship-preflight-block/`: match the above.
+
+Sessions also clean up their own merged worktrees immediately through Programa. The hook tracks only worktrees created in the session by `EnterWorktree` or `Agent`/`Task` isolation through a structured `worktreePath` result. It never tracks the folder a session starts in or moves to. It excludes main checkouts and passes only the recorded paths to `programa storage clean --now --include-external --json`. Programa protects dirty worktrees, ignored `.env` files, open workspaces and running processes. Missing or older Programa versions silently skip cleanup. Set `CC_SESSION_WORKTREE_CLEANUP_ENABLED=false` to opt out.
 
 ## [15.96.0] — 2026-11-03
 

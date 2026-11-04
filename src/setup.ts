@@ -126,7 +126,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.96.0"; // Sync with Claude Code v2.1.317.
+const VERSION = "15.97.0"; // /ship pushes with the detected git login and branches off main.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
