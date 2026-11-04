@@ -285,8 +285,12 @@ ensure_bun
 # Install/refresh deps under the source repo. The lockfile is authoritative and
 # lifecycle scripts stay disabled because this bootstrap crosses a supply-chain
 # boundary before the TypeScript installer can perform its own checks.
-echo "Installing dependencies..."
-if ! (cd "$SCRIPT_DIR" && bun install --frozen-lockfile --ignore-scripts >/dev/null 2>&1); then
+# The managed clone only runs the installer, so it skips dev tooling (Biome,
+# type packages); a developer checkout keeps them.
+PRODUCTION_FLAG=""
+if [[ "${CC_SETTINGS_BOOTSTRAPPED:-}" == "1" ]]; then PRODUCTION_FLAG="--production"; fi
+echo "Installing installer dependencies..."
+if ! (cd "$SCRIPT_DIR" && bun install --frozen-lockfile --ignore-scripts ${PRODUCTION_FLAG:+"$PRODUCTION_FLAG"} >/dev/null 2>&1); then
     echo "ERROR: dependency install failed with the frozen lockfile." >&2
     echo "Run 'bun install --frozen-lockfile --ignore-scripts' in $SCRIPT_DIR for details." >&2
     exit 1
