@@ -31,7 +31,7 @@ import {
   uninstallCodex,
   validateCodexInstallBoundaries,
 } from "./codex-install.ts";
-import { error, info, success, warn } from "./colors.ts";
+import { error, info, phase, success, warn } from "./colors.ts";
 import { composeSettings } from "./compose-settings.ts";
 import { writeSrcManifest } from "./hooks-fingerprint.ts";
 import {
@@ -102,11 +102,42 @@ export function assertAutoUpdateRequestDoesNotClaimIndependentState(
   }
 }
 
+const AUTO_UPDATE_QUESTION =
+  "Enable daily auto-update? Pulls cc-settings and re-runs setup at 10am";
+
+/** Ask the auto-update question before the install starts, when the run would
+ *  ask it at all. Returns the answer, or undefined when no question applies;
+ *  pass the result to applyAutoUpdate. */
+export async function askAutoUpdateUpfront(
+  args: InstallArgs,
+  prior: boolean | null,
+): Promise<boolean | undefined> {
+  if (os !== "macos" || !isInteractive() || args.autoUpdate !== null || prior === false) {
+    return undefined;
+  }
+  // Only an enrolled sentinel needs the launchd probe, and the probe touches
+  // ~/Library, so it runs after the same boundary check the install lock does.
+  let jobPresent = false;
+  if (prior === true) {
+    await validateClaudeInstallBoundaries();
+    jobPresent = await autoUpdateJobLoaded();
+  }
+  const decision = decideAutoUpdate({
+    flag: args.autoUpdate,
+    sentinelValue: prior ?? undefined,
+    isTTY: true,
+    jobPresent,
+  });
+  if (decision.kind !== "ask") return undefined;
+  return promptYn(AUTO_UPDATE_QUESTION, true);
+}
+
 export async function applyAutoUpdate(
   args: InstallArgs,
   prior: boolean | null,
   snapshot: AutoUpdateStateSnapshot | null,
   enrolledRepoPath: string,
+  upfrontAnswer?: boolean,
 ): Promise<boolean | undefined> {
   if (os !== "macos") {
     if (args.autoUpdate !== null) warn("--auto-update is macOS-only; ignoring");
@@ -132,10 +163,7 @@ export async function applyAutoUpdate(
 
   let enrolled: boolean | undefined;
   if (decision.kind === "ask") {
-    enrolled = await promptYn(
-      "Enable daily auto-update? Pulls cc-settings and re-runs setup at 10am",
-      true,
-    );
+    enrolled = upfrontAnswer ?? (await promptYn(AUTO_UPDATE_QUESTION, true));
   } else {
     enrolled = decision.enrolled;
   }
@@ -609,19 +637,19 @@ export async function runFullInstall(
   preflightInstallSource(args.sourceDir, args.profile);
   await composeSettings(args.sourceDir);
 
-  info("Installing dependencies...");
+  phase("Dependencies");
   await installDependencies(args.profile, engine);
   await installPinnedTools(args.profile);
   printPreflightReport(checkCliTools());
 
   await assertClaudeLifecycleOwnershipUnchanged(ownershipSnapshot);
   if (backup) {
-    info("Creating backup...");
+    phase("Backup");
     await createBackup({ backupId, managedFiles: priorManagedFiles });
     await assertClaudeLifecycleOwnershipUnchanged(ownershipSnapshot);
   }
 
-  info("Installing configuration...");
+  phase("Configuration files");
   await removeClaudeFilesWithHashes(priorManagedFiles, priorNodeModulesTarget);
   await createDirectories();
   // Disjoint destination trees (config dirs vs ~/.claude/src), so install both

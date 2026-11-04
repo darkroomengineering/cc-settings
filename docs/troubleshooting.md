@@ -91,6 +91,18 @@ The full Codex profile installs only the fixed HTTPS Figma MCP. It does not auto
 Context7, TLDR, or Chrome DevTools. A Codex workflow must use its documented fallback or say that the
 capability is unavailable.
 
+### Context7 shows "needs authentication"
+
+cc-settings installs Context7 as its hosted OAuth server (`https://mcp.context7.com/mcp/oauth`), so
+each user signs in once instead of storing an API key. Until then Claude Code lists the server as
+needing authentication and its tools are unavailable. Run `/mcp` in Claude Code, select `context7`,
+and finish the Context7 sign-in in the browser. Claude Code stores and refreshes the token itself;
+run `/mcp` again if the server returns to "needs authentication".
+
+If you would rather use an API key, define your own `context7` entry in `~/.claude.json`. The
+installer keeps an entry that differs from the one it ships and reports it as your copy in the
+install summary.
+
 ## Claude reports suspicious hooks
 
 Run the installed scanner, which does not require a repository checkout:

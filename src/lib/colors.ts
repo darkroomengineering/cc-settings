@@ -50,44 +50,133 @@ function color(s: string, ansi: string): string {
   return `${ansi}${s}${palette.reset}`;
 }
 
+// --- Live progress --------------------------------------------------------
+//
+// One spinner line at a time, redrawn in place, only on a TTY. Every printer
+// below clears it first, so a warning printed mid-step lands on its own line
+// and the spinner redraws under it. Without a TTY (auto-update log, CI, piped
+// tests) nothing uses "\r": a step prints a start line and, when slow, a
+// duration line.
+
+const LIVE = process.stdout.isTTY === true && process.env.CI !== "true";
+const FRAMES = ["|", "/", "-", "\\"] as const;
+let live: { label: string; startedAt: number; frame: number } | null = null;
+
+function clearLive(): void {
+  if (live) process.stdout.write("\r\x1b[2K");
+}
+
+function drawLive(): void {
+  if (!live) return;
+  const seconds = Math.floor((Date.now() - live.startedAt) / 1000);
+  const frame = FRAMES[live.frame++ % FRAMES.length];
+  process.stdout.write(
+    `\r\x1b[2K  ${color(frame ?? "|", palette.cyan)} ${live.label} ${palette.dim}${seconds}s${palette.reset}`,
+  );
+}
+
+function out(line: string): void {
+  clearLive();
+  console.log(line);
+}
+
+let phaseTotal = 0;
+let phaseIndex = 0;
+
+/** Number the phases that follow ("[2/6] ..."). Zero turns numbering off. */
+export function startPhases(total: number): void {
+  phaseTotal = total;
+  phaseIndex = 0;
+}
+
+export function phase(label: string): void {
+  phaseIndex++;
+  const counter =
+    phaseTotal > 0
+      ? `${palette.dim}[${Math.min(phaseIndex, phaseTotal)}/${phaseTotal}]${palette.reset} `
+      : "";
+  out(`${color("●", palette.blue)} ${counter}${palette.bold}${label}${palette.reset}`);
+}
+
+function formatSeconds(ms: number): string {
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+/**
+ * Run one slow step under a live spinner with elapsed seconds. On success the
+ * spinner becomes "✓ label (Ns)"; on failure it is cleared and the error
+ * propagates for the caller to report. Nested calls run plainly inside the
+ * outer spinner.
+ */
+export async function withProgress<T>(label: string, work: () => Promise<T>): Promise<T> {
+  if (live) return work();
+  const startedAt = Date.now();
+  if (!LIVE) {
+    console.log(`  ${color("→", palette.cyan)} ${label}...`);
+    const result = await work();
+    const elapsed = Date.now() - startedAt;
+    if (elapsed > 2000)
+      console.log(`  ${color("→", palette.cyan)} ...took ${formatSeconds(elapsed)}`);
+    return result;
+  }
+  live = { label, startedAt, frame: 0 };
+  drawLive();
+  const timer = setInterval(drawLive, 100);
+  try {
+    const result = await work();
+    clearInterval(timer);
+    clearLive();
+    live = null;
+    console.log(
+      `  ${color("✓", palette.green)} ${label} ${palette.dim}${formatSeconds(Date.now() - startedAt)}${palette.reset}`,
+    );
+    return result;
+  } finally {
+    clearInterval(timer);
+    clearLive();
+    live = null;
+  }
+}
+
 // --- Styled output --------------------------------------------------------
 
 export function info(...parts: unknown[]): void {
-  console.log(`${color("ℹ", palette.blue)} ${parts.join(" ")}`);
+  out(`${color("ℹ", palette.blue)} ${parts.join(" ")}`);
 }
 
 export function success(...parts: unknown[]): void {
-  console.log(`${color("✓", palette.green)} ${parts.join(" ")}`);
+  out(`${color("✓", palette.green)} ${parts.join(" ")}`);
 }
 
 export function warn(...parts: unknown[]): void {
-  console.log(`${color("⚠", palette.yellow)} ${parts.join(" ")}`);
+  out(`${color("⚠", palette.yellow)} ${parts.join(" ")}`);
 }
 
 export function error(...parts: unknown[]): void {
+  clearLive();
   console.error(`${color("✗", palette.red)} ${parts.join(" ")}`);
 }
 
 export function debug(...parts: unknown[]): void {
   if (process.env.DEBUG === "1") {
-    console.log(`${color("○", palette.dim)} ${parts.join(" ")}`);
+    out(`${color("○", palette.dim)} ${parts.join(" ")}`);
   }
 }
 
 export function progressOk(msg: string): void {
-  console.log(`  ${color("✓", palette.green)} ${msg}`);
+  out(`  ${color("✓", palette.green)} ${msg}`);
 }
 
 export function progressWarn(msg: string): void {
-  console.log(`  ${color("⚠", palette.yellow)} ${msg}`);
+  out(`  ${color("⚠", palette.yellow)} ${msg}`);
 }
 
 export function progressFail(msg: string): void {
-  console.log(`  ${color("✗", palette.red)} ${msg}`);
+  out(`  ${color("✗", palette.red)} ${msg}`);
 }
 
 export function progressArrow(msg: string): void {
-  console.log(`  ${color("→", palette.cyan)} ${msg}`);
+  out(`  ${color("→", palette.cyan)} ${msg}`);
 }
 
 // --- Box drawing (setup banner + MCP status) ------------------------------

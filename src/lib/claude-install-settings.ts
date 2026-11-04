@@ -5,7 +5,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import type { McpStdioServer } from "../schemas/mcp.ts";
 import { Settings } from "../schemas/settings.ts";
 import { type EngineDescriptor, ensureEngineInstalled } from "./code-intel-engine.ts";
-import { debug, info, progressArrow, progressOk, warn } from "./colors.ts";
+import { debug, info, progressArrow, progressOk, warn, withProgress } from "./colors.ts";
 import { composeSettings } from "./compose-settings.ts";
 import { writeFingerprint as writeHooksFingerprint } from "./hooks-fingerprint.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
@@ -352,6 +352,7 @@ export function redactKey(text: string, key: string | null | undefined): string 
 }
 
 type KeySource = "flag" | "prompt" | "env" | "settings";
+export type ResolvedTypesafeKey = { key: string; source: KeySource } | null;
 
 /** What a TypeSafe key sends and to whom, shown before the key prompt and again
  *  when a key is supplied by flag. Keep in step with docs/hooks-reference.md. */
@@ -371,11 +372,14 @@ export const TYPESAFE_DISCLOSURE: readonly string[] = [
 async function resolveTypesafeKey(
   flagKey: string | null | undefined,
   dryRun: boolean,
-): Promise<{ key: string; source: KeySource } | null> {
+  ignoreSettings = false,
+): Promise<ResolvedTypesafeKey> {
   if (flagKey) return { key: flagKey, source: "flag" };
   const fromEnv = process.env.TYPESAFE_API_KEY;
   if (fromEnv) return { key: fromEnv, source: "env" };
-  const installed = await readJsonOrNull(join(CLAUDE_DIR, "settings.json"));
+  // --fresh deletes settings.json after this runs, so a key read from it would
+  // be reported as configured but never written back.
+  const installed = ignoreSettings ? null : await readJsonOrNull(join(CLAUDE_DIR, "settings.json"));
   const env = (installed as { env?: Record<string, unknown> } | null)?.env;
   const fromSettings = env?.TYPESAFE_API_KEY;
   if (typeof fromSettings === "string" && fromSettings)
@@ -386,6 +390,18 @@ async function resolveTypesafeKey(
     "TypeSafe API key for verbatim Jev compaction (Enter to skip; keys at https://typesafe.ai): ",
   );
   return typed ? { key: typed, source: "prompt" } : null;
+}
+
+/** Resolve the TypeSafe key before the install starts, asking for it only when
+ *  the plugin step will actually run. Pass the result to installPlugins as
+ *  `resolvedKey` so the question is never asked mid-install. */
+export async function askTypesafeKeyUpfront(
+  profile: Profile,
+  flagKey: string | null | undefined,
+  fresh = false,
+): Promise<ResolvedTypesafeKey> {
+  if (profile === "light" || !pluginInstallAllowed() || !hasCommand("claude")) return null;
+  return resolveTypesafeKey(flagKey, false, fresh);
 }
 
 /** Hold ~/.claude/settings.json to owner-only (600) whenever its env block
@@ -614,6 +630,24 @@ async function readGitHead(repoDir: string): Promise<string | null> {
   }
 }
 
+const CC_SETTINGS_PLUGINS = ["compaction-trigger", "context-report", "drift-fuse"] as const;
+
+/** True when the cc-settings marketplace clone offers, for every cc-settings
+ *  plugin, the same version the source checkout ships. Any unreadable version
+ *  on either side returns false, so the refresh runs. */
+export async function marketplaceCloneMatchesSource(
+  sourceDir: string,
+  offered: Readonly<Record<string, string | null>>,
+): Promise<boolean> {
+  const shipped = await Promise.all(
+    CC_SETTINGS_PLUGINS.map((name) => readPluginJsonVersion(join(sourceDir, "plugins", name))),
+  );
+  return CC_SETTINGS_PLUGINS.every((name, i) => {
+    const version = shipped[i];
+    return version != null && offered[name] === version;
+  });
+}
+
 function commandLabel(args: readonly string[]): string {
   if (args[1] === "marketplace" && args[2] === "add") return `adding the ${args[3]} marketplace`;
   if (args[1] === "marketplace" && args[2] === "update")
@@ -628,11 +662,21 @@ function commandLabel(args: readonly string[]): string {
   return args.join(" ");
 }
 
+// The list probes only read local state, so they skip Claude Code's update
+// check and telemetry, about a second of startup on every probe.
+const OFFLINE_PROBE_ENV = {
+  ...process.env,
+  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+  DISABLE_AUTOUPDATER: "1",
+};
+
 async function runClaudeCommand(
   args: readonly string[],
   stdin?: string,
+  env?: Record<string, string | undefined>,
 ): Promise<ClaudeCommandResult> {
   const child = Bun.spawn(["claude", ...args], {
+    ...(env ? { env } : {}),
     stdin: stdin === undefined ? "ignore" : new Blob([stdin]),
     stdout: "pipe",
     stderr: "pipe",
@@ -719,16 +763,29 @@ async function storePluginKey(key: string): Promise<void> {
 export async function installPlugins(
   profile: Profile,
   dryRun: boolean,
-  opts: { typesafeKey?: string | null } = {},
+  opts: {
+    typesafeKey?: string | null;
+    /** From askTypesafeKeyUpfront; when set, the key is not resolved again. */
+    resolvedKey?: ResolvedTypesafeKey;
+    /** The cc-settings checkout being installed, whose plugins/ decides
+     *  whether the marketplace clone needs a refresh. */
+    sourceDir?: string;
+  } = {},
 ): Promise<void> {
   if (profile === "light") return;
   if (!pluginInstallAllowed()) {
     debug("plugin step skipped: HOME is not the account home (test sandbox) or skip flag set");
     return;
   }
-  if (!hasCommand("claude")) return;
+  if (!hasCommand("claude")) {
+    progressArrow("claude CLI not on PATH; plugins skipped (re-run setup once it is installed)");
+    return;
+  }
 
-  const resolved = await resolveTypesafeKey(opts.typesafeKey, dryRun);
+  const resolved =
+    opts.resolvedKey !== undefined
+      ? opts.resolvedKey
+      : await resolveTypesafeKey(opts.typesafeKey, dryRun);
   // A key that already lives in the environment or the settings env block is
   // read by the plugin directly; only a freshly supplied one (flag or prompt)
   // is stored through the plugin's sensitive option AND written to the
@@ -749,23 +806,16 @@ export async function installPlugins(
   }
 
   const installed: string[] = [];
-  const total = commands.length;
-  // Reference-keyed: identity (not deep equality) is what the marketplace/
-  // install command subsets below were filtered from.
-  const stepOf = new Map<readonly string[], number>(commands.map((args, i) => [args, i + 1]));
+  const marketplaceSkipped: string[] = [];
 
   const execute = async (args: readonly string[]): Promise<void> => {
     const plugin =
       args[0] === "plugin" && (args[1] === "install" || args[1] === "update") ? args[2] : null;
-    // An update is derived from its install command, so it takes that step number.
-    const step =
-      stepOf.get(args) ?? commands.findIndex((c) => c[1] === "install" && c[2] === plugin) + 1;
-    progressArrow(`Plugins ${step}/${total}: ${commandLabel(args)}...`);
-    const startedAt = Date.now();
+    const label = commandLabel(args);
     try {
-      const result = await runClaudeCommand(args);
-      const elapsedS = (Date.now() - startedAt) / 1000;
-      if (elapsedS > 2) progressArrow(`...took ${elapsedS.toFixed(1)}s`);
+      const result = await withProgress(label.charAt(0).toUpperCase() + label.slice(1), () =>
+        runClaudeCommand(args),
+      );
       if (!claudeCommandSucceeded(result)) {
         const detail = (result.timedOut ? "timed out" : result.stderr || result.stdout)
           .trim()
@@ -788,15 +838,46 @@ export async function installPlugins(
   // plugin ... list` call erroring, timing out, or printing unparseable
   // JSON) fails open: decidePluginCommands below then runs every command,
   // matching the pre-skip-logic behavior.
-  const [pluginListResult, marketplaceListResult] = await Promise.all([
-    runClaudeCommand(["plugin", "list", "--json"]),
-    runClaudeCommand(["plugin", "marketplace", "list", "--json"]),
-  ]);
+  const [pluginListResult, marketplaceListResult] = await withProgress(
+    "Checking installed plugins",
+    () =>
+      Promise.all([
+        runClaudeCommand(["plugin", "list", "--json"], undefined, OFFLINE_PROBE_ENV),
+        runClaudeCommand(["plugin", "marketplace", "list", "--json"], undefined, OFFLINE_PROBE_ENV),
+      ]),
+  );
   const installedPlugins = parsePluginListJson(pluginListResult);
   const registeredMarketplaces = parseMarketplaceListJson(marketplaceListResult);
 
-  const marketplaceCommands = commands.filter((args) => args[1] === "marketplace");
-  const installCommands = commands.filter((args) => !marketplaceCommands.includes(args));
+  const ccSettingsMarketplace = registeredMarketplaces?.find((m) => m.name === "cc-settings");
+  const readOfferedVersions = async (): Promise<Record<string, string | null>> => {
+    const versions = await Promise.all(
+      CC_SETTINGS_PLUGINS.map((name) =>
+        ccSettingsMarketplace?.installLocation
+          ? readPluginJsonVersion(join(ccSettingsMarketplace.installLocation, "plugins", name))
+          : Promise.resolve(null),
+      ),
+    );
+    return Object.fromEntries(CC_SETTINGS_PLUGINS.map((name, i) => [name, versions[i] ?? null]));
+  };
+  // The marketplace refresh is a network fetch (about 5s) that only matters
+  // when this checkout ships a plugin version the local clone lacks. When the
+  // clone already offers every version the checkout has, skip it.
+  const cloneMatchesSource =
+    opts.sourceDir !== undefined &&
+    (await marketplaceCloneMatchesSource(opts.sourceDir, await readOfferedVersions()));
+
+  const marketplaceCommands = commands.filter(
+    (args) =>
+      args[1] === "marketplace" &&
+      !(cloneMatchesSource && args[2] === "update" && args[3] === "cc-settings"),
+  );
+  if (cloneMatchesSource) {
+    marketplaceSkipped.push(
+      "cc-settings marketplace refresh (clone already matches this checkout)",
+    );
+  }
+  const installCommands = commands.filter((args) => args[1] !== "marketplace");
 
   // Marketplace-add skip only needs what's already registered; it doesn't
   // depend on the offered plugin versions (those live behind the marketplace
@@ -817,24 +898,16 @@ export async function installPlugins(
   const offeredVersions: Record<string, string | null> = {};
   let pinnedShaMatch = false;
   if (installedPlugins && registeredMarketplaces) {
-    const ccSettingsMarketplace = registeredMarketplaces.find((m) => m.name === "cc-settings");
     const fastJevMarketplace = registeredMarketplaces.find((m) => m.name === "fast-jev-compaction");
-    const ccSettingsPlugins = ["compaction-trigger", "context-report", "drift-fuse"] as const;
     const [versions, head] = await Promise.all([
-      Promise.all(
-        ccSettingsPlugins.map((name) =>
-          ccSettingsMarketplace?.installLocation
-            ? readPluginJsonVersion(join(ccSettingsMarketplace.installLocation, "plugins", name))
-            : Promise.resolve(null),
-        ),
-      ),
+      readOfferedVersions(),
       fastJevMarketplace?.installLocation
         ? readGitHead(fastJevMarketplace.installLocation)
         : Promise.resolve(null),
     ]);
-    ccSettingsPlugins.forEach((name, i) => {
-      offeredVersions[`${name}@cc-settings`] = versions[i] ?? null;
-    });
+    for (const name of CC_SETTINGS_PLUGINS) {
+      offeredVersions[`${name}@cc-settings`] = versions[name] ?? null;
+    }
     pinnedShaMatch = head === UPSTREAM_PINNED_SHA;
   }
 
@@ -849,7 +922,11 @@ export async function installPlugins(
   for (const args of installDecision.toRun) await execute(args);
   if (storeKey) await storePluginKey(resolved.key);
 
-  const allSkipped = [...marketplaceDecision.skipped, ...installDecision.skipped];
+  const allSkipped = [
+    ...marketplaceDecision.skipped,
+    ...marketplaceSkipped,
+    ...installDecision.skipped,
+  ];
   if (allSkipped.length > 0) progressArrow(`Already current, skipped: ${allSkipped.join("; ")}`);
 
   if (installed.length > 0) progressOk(`Plugins: ${installed.join(", ")}`);

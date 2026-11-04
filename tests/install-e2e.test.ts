@@ -2914,6 +2914,8 @@ describe("install E2E — uninstall ownership", () => {
             "src/scripts/pr-retro.ts",
             "rules/swift-animation.md",
             "rules/swift.md",
+            "rules/design.md",
+            "rules/writing.md",
             "src/lib/codex-skill-budget.ts",
             "src/scripts/codex-skill-budget.ts",
             "src/hooks/knowledge-hint.ts",

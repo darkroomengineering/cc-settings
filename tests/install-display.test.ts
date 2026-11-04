@@ -187,12 +187,11 @@ describe("classifyMcpServers", () => {
   });
 });
 
-// cc-settings ships context7 as the keyless stdio transport, which context7
-// documents as the lower tier. The hint names `ctx7 setup`; the load-bearing
-// case is the SECOND one — nudging someone who already configured a key is the
-// failure mode, since their setup is already the better one.
+// cc-settings ships context7 as the remote OAuth endpoint, which needs a
+// one-time `/mcp` sign-in. The load-bearing case is the SECOND one: our
+// sign-in steps are wrong for someone running their own context7 entry.
 describe("shouldHintContext7", () => {
-  test("our keyless entry is live → hint", () => {
+  test("our OAuth entry is live → hint", () => {
     expect(shouldHintContext7(["context7", "tldr"], new Set())).toBe(true);
   });
 
