@@ -1,6 +1,6 @@
 ---
 name: dr-review
-description: Review the local diff against Darkroom's checklist, or address feedback on the active PR. Triggers "review my changes", "check this diff", "address PR feedback". Native /code-review handles a diff or PR without the checklist.
+description: Review the local diff against Darkroom's checklist, or address feedback on the active PR. Triggers "review my changes", "check this diff", "address PR feedback", "review these tickets". Native /code-review handles a diff or PR without the checklist.
 context: fork
 agent: reviewer
 ---
@@ -126,6 +126,26 @@ Fires when the diff adds or changes user-facing copy or the markup and styles of
 - **Earn it, don't strip it:** status pills, chevrons, nav icons, checkmark lists, and hover lift are fine when they encode a real state, action, or comparison. Flag only the decorative case, and say why it is decorative.
 
 Each finding names the tell, quotes the line, and gives a concrete replacement drawn from the product, not another stock pattern.
+
+---
+
+## Variant: Ticket Review
+
+When the user asks to review tickets or user stories ("review these tickets", "are these stories good"), review the ticket text, not a diff. Read the tickets from the tracker (`gh issue view <n> --json title,body`, or the Linear issue and its sub-issues) or from the local `tickets.md`. Read-only: report, never edit a ticket.
+
+The standard is `~/.claude/skills/stories/SKILL.md` and its `references/ticket.md`. Flag each of these, quoting the ticket and the line:
+
+| Anti-pattern | How to spot it |
+|---|---|
+| Container parent | A parent with sub-issues whose own Acceptance criteria are missing or only say it is done when the sub-issues are done |
+| Implementation detail in criteria | A criterion that names a file, function, event, interval, API or library, so the client cannot sign it off; it belongs in Implementation notes |
+| Bare design node ID | A design link or ID with no frame name, position or on-frame text next to it, or a front-end ticket missing its desktop or mobile reference |
+| Copied boilerplate | The same Verify, QA or rules block repeated across three or more tickets; it belongs once in the kickoff |
+| Done from a reasoned check | A ticket marked done whose closing comment lists "verified by logic, not live" items, or has no closing comment, or validates only by reading code |
+
+Also flag: a story with fewer than four or more than ten criteria, no explicit negative, a missing template section, and a title that names an implementation instead of what the visitor or merchant gets.
+
+Output: one line per finding (ticket, anti-pattern, quoted line, the fix), grouped by anti-pattern, then counts per anti-pattern and a verdict (READY / NEEDS CHANGES).
 
 ---
 

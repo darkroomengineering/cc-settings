@@ -116,6 +116,13 @@ Codex falls back to `rg` and native code navigation.
 Say "create our glossary" or "record this decision as an ADR". `context-doc` interviews for the
 real domain terms, then writes `CONTEXT.md` and architecture decision records.
 
+### Turn a client scope into tickets
+
+Say "write the user stories" or "break this scope into tickets". `stories` writes the scope and
+user stories docs, then stops until the client approves the stories. A later run writes the
+implementation review, the tickets, the kickoff and the QA checklist. `/build` drafts each
+ticket's closing comment, and `/dr-review` flags thin tickets.
+
 ## Review, proof, and diagnosis
 
 ### Review a diff
@@ -267,7 +274,7 @@ warnings, run `bun ~/.claude/src/scripts/audit-hooks.ts`. Follow
 
 ## Reference routes
 
-- [All 25 skills, effects, approvals, output, prerequisites, and host behavior](./docs/skills.md)
+- [All 26 skills, effects, approvals, output, prerequisites, and host behavior](./docs/skills.md)
 - [Installation flags, tiers, paths, side effects, rollback, and uninstall](./docs/install.md)
 - [Claude Code and Codex parity](./docs/claude-vs-codex.md)
 - [Models, effort, advisor, and quota policy](./docs/agent-models.md)
