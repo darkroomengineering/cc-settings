@@ -126,6 +126,12 @@ export const HANDLERS: Record<DispatchEvent, Handler[]> = {
     },
   ],
   PostToolUse: [
+    {
+      name: "session-worktrees",
+      matcher: "Agent|Task|EnterWorktree",
+      timeoutS: 5,
+      load: () => import("./session-worktrees.ts"),
+    },
     { name: "post-edit", matcher: "Write|Edit", load: () => import("../scripts/post-edit.ts") },
     {
       name: "tool-cadence",

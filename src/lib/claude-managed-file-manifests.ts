@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 38;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 39;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -876,9 +876,15 @@ const v37 = {
 };
 MANIFESTS.set(37, v37);
 // Version 38: the writing and design rules (full profile only; light installs carry no rules).
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v38 = {
   full: [...v37.full, "rules/design.md", "rules/writing.md"],
   light: v37.light,
+};
+MANIFESTS.set(38, v38);
+// Version 39: the SessionEnd worktree cleanup hook (every profile: src/ is installed from the light list).
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v38.full, "src/hooks/session-worktrees.ts"],
+  light: [...v38.light, "src/hooks/session-worktrees.ts"],
 });
 
 const GENERATED_MANAGED_FILES = new Set([

@@ -624,6 +624,15 @@ Since v2.1.314, hooks with the `Bash` matcher also run on shell commands started
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `handoff.ts create` | Saves final handoff state at session end | Yes |
+| `session-worktrees.ts` | Rechecks the recorded roots and calls Programa once to remove only eligible worktrees created in this session. Deletes the session record even when cleanup is skipped or fails | Yes |
+
+`session-worktrees.ts` tracks only worktrees created in the session by `EnterWorktree` or `Agent`/`Task` isolation, using the structured `PostToolUse.tool_response.worktreePath` string. It never tracks the folder a session starts in or moves to. Every candidate is checked with Git and stored as its canonical worktree root in `~/.claude/tmp/session-worktrees-<sha256 of session id>.jsonl`. Main checkouts are excluded. Parallel completions append independently. Text-only tool responses cannot supply a reliable path and are ignored.
+
+`WorktreeCreate` supplies the proposed name, not a created path, and replaces Claude Code's worktree creation. Registering an observer there would break creation. The hook uses structured tool results instead. See the [WorktreeCreate contract](https://code.claude.com/docs/en/hooks#worktreecreate).
+
+Cleanup runs `programa storage clean --path <root> [--path <root> ...] --now --include-external --json`, with a 60 second process timeout and no grace period. Programa checks that each worktree is merged into the default remote branch, or has a missing upstream and is clean. It skips uncommitted or untracked files, ignored `.env` files, open Programa workspaces and running processes. It never force-removes worktrees or deletes branches.
+
+The hook looks for Programa on PATH, at `$HOME/.local/bin/programa`, then in `/Applications/Programa.app/Contents/Resources/bin/programa`. Missing Programa, no eligible paths, older versions rejecting the flags, and other failures skip cleanup without interrupting exit. Errors go to the hook's stderr log. A successful JSON response and directories removed from disk produce one plain line reporting the count; the JSON contract supplies no size fields. Nothing else is printed. Set `CC_SESSION_WORKTREE_CLEANUP_ENABLED` to `false` in settings `env` to disable tracking and cleanup; it defaults to `true`.
 
 ---
 
