@@ -1,6 +1,6 @@
 # Closing comment
 
-Post this on the ticket when its work is ready for review. `/build` drafts it from the ticket's acceptance criteria; the main session posts it (Linear through the `linear` agent's `review-ready` event, GitHub with `gh issue comment <n> --body-file <file>`).
+Post this on the ticket when its work is ready for review. It fits any unit of work, not only a story: without a `US-<n>`, use the issue title, and say what the change adds for the people who use the product. `/build` drafts it from the ticket's acceptance criteria; the main session posts it (Linear through the `linear` agent's `review-ready` event, GitHub with `gh issue comment <n> --body-file <file>`).
 
 ```markdown
 **US-<n>: preview ready for review**
