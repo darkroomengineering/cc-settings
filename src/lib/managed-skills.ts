@@ -58,6 +58,7 @@ export const ACTIVE_SKILLS = [
   "review-batch",
   "share-learning",
   "ship",
+  "stories",
   "triage",
   "zero-tech-debt",
 ];

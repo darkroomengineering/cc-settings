@@ -57,7 +57,9 @@ Work Mode":
 In a repo with a `Linear:` startup line, the main session spawns `linear` at
 each milestone of a unit of work: `start` before the first commit (wait for
 the ID and put it in the branch name), `pr-opened` and `ci` after `/ship`
-reports, `merged` after landing, and `follow-up` for work you defer. Pass the
+reports, `review-ready` with the closing comment a `/build` ticket run
+drafts, `merged` after landing, and `follow-up` for work you defer (`/stories`
+spawns it with `tickets` to create approved tickets). Pass the
 event, repo, branch, issue ID, PR URL and CI result you already have. `/ship`
 and `/build` run as forks and cannot spawn it; ship's "Linear issue" step is
 their fallback, and the `linear-gate` hook blocks a PR that has no issue.

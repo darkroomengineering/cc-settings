@@ -136,7 +136,7 @@ There's no third `inherit` value — `context: inherit` is never written anywher
 
 Skills using `fork` (12): `autoresearch`, `build`, `dr-review`, `fix`, `handoff`, `harvest`, `orchestrate`, `poke-holes`, `refactor`, `retro`, `ship`, `triage`. All 12 run in the background by default as of v2.1.218 — invoking one hands the result back as a task notification instead of holding up the conversation.
 
-Skills declaring `context: main` explicitly (4): `audit`, `codex`, `freeze`, `zero-tech-debt`.
+Skills declaring `context: main` explicitly (5): `audit`, `codex`, `freeze`, `stories`, `zero-tech-debt`.
 
 Skills that omit `context` (8, same behavior as `main`): `cc`, `component`, `context-doc`, `dr-init`, `hook`, `proof-of-work`, `review-batch`, `share-learning`.
 

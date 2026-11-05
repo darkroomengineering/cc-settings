@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 40;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 41;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -560,6 +560,14 @@ const REJOINING_AFTER = new Map<string, readonly string[]>([
 const ADDED_SOURCES_IN_V37 = ["src/scripts/pr-retro.ts"];
 // Version 40: the `Git push:` transport probe session-start.ts imports, and its CLI.
 const ADDED_IN_V40 = ["src/lib/git-transport.ts", "src/scripts/git-transport.ts"];
+// Version 41: the /stories skill and its ticket, kickoff, QA and closing-comment templates.
+const ADDED_IN_V41 = [
+  "skills/stories/SKILL.md",
+  "skills/stories/references/closing-comment.md",
+  "skills/stories/references/kickoff.md",
+  "skills/stories/references/qa-checklist.md",
+  "skills/stories/references/ticket.md",
+];
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) =>
     !ADDED_IN_V17.includes(path) &&
@@ -891,9 +899,15 @@ const v39 = {
 };
 MANIFESTS.set(39, v39);
 // Version 40: the `Git push:` transport probe (every profile: src/ is installed from the light list).
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v40 = {
   full: [...v39.full, ...ADDED_IN_V40],
   light: [...v39.light, ...ADDED_IN_V40],
+};
+MANIFESTS.set(40, v40);
+// Version 41: the /stories skill and its templates (full profile only; light installs carry one skill).
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v40.full, ...ADDED_IN_V41],
+  light: v40.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([

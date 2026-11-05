@@ -42,7 +42,7 @@ context: fork
 ### `context`
 
 - `fork` — skill runs in a forked context (doesn't bloat main session). Use this for most skills. As of v2.1.218 it also runs in the background by default: the result comes back as a task notification, not inline output, so don't write a fork skill's body assuming the user is watching it stream.
-- `main` — skill body is injected into main context (`src/schemas/skill.ts` defines `SkillContext = z.enum(["fork", "main"])`). Use for lightweight, single-turn instructions, or when the skill needs to see or shape the rest of the conversation directly. Shipped skills declaring it explicitly: `audit`, `codex`, `freeze`, `zero-tech-debt`.
+- `main` — skill body is injected into main context (`src/schemas/skill.ts` defines `SkillContext = z.enum(["fork", "main"])`). Use for lightweight, single-turn instructions, or when the skill needs to see or shape the rest of the conversation directly. Shipped skills declaring it explicitly: `audit`, `codex`, `freeze`, `stories`, `zero-tech-debt`.
 - Omitting the field also resolves to inline, same as `main` — but the shipped convention is to declare `context: main` explicitly rather than rely on the omission.
 
 ### Optional frontmatter fields

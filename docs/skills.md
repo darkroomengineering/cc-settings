@@ -65,6 +65,7 @@ not need repeated approval.
 | Skill and what to say | Value and output | Effects and approval | Run style and host notes |
 |---|---|---|---|
 | [`context-doc`](../skills/context-doc/SKILL.md): "build our glossary" or "record an ADR" | Aligns domain language through an interview and writes `CONTEXT.md` plus decision records. | Repository write after the user confirms terminology and decisions. | Inline. Both hosts. |
+| [`stories`](../skills/stories/SKILL.md): "write the user stories", "break this scope into tickets" | Turns a client scope into a client-approved user stories doc, then tickets, a kickoff, a QA checklist and closing comments in one shared format. | Writes planning files, then stops for client approval. Creates tickets only in a later run: Linear through the `linear` agent, GitHub with `gh issue create`. | Inline. Both hosts. |
 
 ## Review, proof, and diagnosis
 

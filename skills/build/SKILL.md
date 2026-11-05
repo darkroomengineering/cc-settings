@@ -18,7 +18,7 @@ contract. This package does not auto-run unpinned registry MCP packages.
 Before any implementation, complete this research phase:
 
 1. **Detect stack** — read `package.json`. `next` dep → satus / Next.js; `react-router` dep → novus / React Router. Note any starter signal (`name` field, `darkroom.starter` marker).
-2. **Understand requirements** — parse what the user actually needs. In Claude Code, when building an agent, bot, assistant, or autonomous job inside a product, read `~/.claude/profiles/durable-agents.md` before implementation.
+2. **Understand requirements** — parse what the user actually needs. When the work is a ticket (a Linear or GitHub issue, often a `/stories` ticket), read it in full: its Acceptance criteria are the done list, its Out of scope is a boundary, and its Open questions with no default make the verdict ASK. Read the kickoff it links for the standard Verify commands and the data contract. In Claude Code, when building an agent, bot, assistant, or autonomous job inside a product, read `~/.claude/profiles/durable-agents.md` before implementation.
 3. **Explore codebase** — find existing patterns, similar implementations. Fetch the team-knowledge index and read any note whose title matches the libraries and integrations this feature touches; the fetch command is in docs/knowledge-system.md (fail-open — skip if `gh` is unavailable).
 4. **Fetch docs** — use Context7 in Claude or when configured in Codex; otherwise use the standalone fallback above. Never code from memory.
 5. **Check versions** — run `bun info <package>` for the latest version.
@@ -77,6 +77,7 @@ Return a concise summary:
 - **Files modified**: list of changed files
 - **How to use**: quick usage guide
 - **Tests added**: what's covered
+- **Closing comment** (ticket builds only): a draft per `~/.claude/skills/stories/references/closing-comment.md`. List each acceptance criterion under "What's implemented" only when you saw it work, and under "Verified by logic, not live" when you checked it by reading code or reasoning. That line is required whenever any criterion was not seen. The main session posts it: Linear through the `linear` agent's `review-ready` event, GitHub with `gh issue comment`. Do not mark the ticket done.
 
 ## Rationalization Counters
 

@@ -28,9 +28,14 @@ You keep one Linear issue in step with one unit of work. You change Linear and n
 | `ci` | unchanged | CI green, only when every check passed | `CI passed` or `CI failed: <check names>` |
 | `merged` | Done, unless the GitHub integration already moved it | Merged | `Merged: <url>` |
 | `follow-up` | each new issue starts in Backlog | none | none on the parent |
+| `review-ready` | In Review, when the team has it | none | the closing comment text the spawner passes, verbatim |
 | `reconcile` | match the PR's real state | match the PR's real state | one line naming what you corrected |
 
 The checklist is a `## Progress` section at the end of the description: `- [ ] PR opened`, `- [ ] CI green`, `- [ ] Review approved`, `- [ ] Merged`. Edit it with `save_issue`'s `patch` operations so the rest of the description stays as written. Tick "Review approved" whenever you see an approving review.
+
+For `tickets`, the spawner passes the path to a `tickets.md` written by the `stories` skill instead of one issue. Skip the find-or-create step for a single issue; resolve the team and project the same way, then create one issue per ticket in the file order, with its title and body verbatim, assigned to the user. Create sub-issues under their parent with `parentId`, and add each blocked-by relation the file names. Report every created ID next to its `US-<n>` title. Never create a ticket the file does not hold.
+
+For `review-ready`, never move the issue to Done: a closing comment with "Verified by logic, not live" items means someone still has to see it work.
 
 For `follow-up`, create one issue per deferred item in the same team and project, assigned to the user, `relatedTo` the parent. Write each title and description per `~/.claude/rules/git.md` "Issue descriptions": the observed effect first, with bounded tasks.
 

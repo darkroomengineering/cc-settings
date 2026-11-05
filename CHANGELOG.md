@@ -4,6 +4,20 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [Unreleased]
+
+Client builds get one way to write and work tickets. Until now each person and agent wrote client tickets differently, and a first pass written in one day came out thin: parents with no criteria of their own, engineer-level criteria, the same Verify block pasted everywhere, bare Figma node IDs.
+
+**Added:**
+- `skills/stories/`: runs the pipeline from scope to user stories, stops for client approval, then writes the implementation review, tickets, kickoff and QA checklist. The ticket, kickoff, QA checklist and closing comment templates live in its `references/`. Tickets go to Linear through the `linear` agent or to GitHub with `gh issue create`. The skill library goes from 25 to 26 skills.
+- `evals/stories-approval-stop/`, `evals/build-closing-comment/`, `evals/dr-review-ticket-antipatterns/`.
+
+**Changed:**
+- `skills/build/SKILL.md`: a ticket's acceptance criteria are the done list, and a ticket build ends with a closing comment draft that keeps a "Verified by logic, not live" line for anything not seen working.
+- `skills/dr-review/SKILL.md`: a ticket review variant flags container parents, implementation detail in criteria, bare design node IDs, copied boilerplate, and tickets marked done from a reasoned check.
+- `agents/linear.md`, `CLAUDE-FULL.md`: `tickets` and `review-ready` events.
+- Claude managed-files manifest v41 and Codex runtime manifest v29 carry the new skill files.
+
 ## [15.97.0] — 2026-11-04
 
 `/ship` pushes with whatever GitHub login works on the machine, never pushes straight to `main`, and always files the Linear ticket in the repo's own team and project. Before this, a session with no SSH key loaded went looking for 1Password, kept retrying SSH, and merged a fix to `main` with no ticket and no PR.
