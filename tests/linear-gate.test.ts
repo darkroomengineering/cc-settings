@@ -3,8 +3,10 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import {
+  commitReminder,
   type GateDeps,
   gateReason,
+  hasGitCommit,
   hasIssueId,
   type LinearTarget,
   lookup,
@@ -248,6 +250,60 @@ describe("gateReason", () => {
       throw new Error("must not read");
     };
     expect(await gateReason("gh pr list", CWD, deps)).toBeNull();
+  });
+});
+
+describe("hasGitCommit", () => {
+  test("finds git commit past global options and inside chains", () => {
+    expect(hasGitCommit("git commit -m x")).toBe(true);
+    expect(hasGitCommit("git -c user.name=a -C /repo commit -F msg")).toBe(true);
+    expect(hasGitCommit("bun run lint && git commit -q -m 'feat: x'")).toBe(true);
+  });
+
+  test("ignores other git commands and the word commit elsewhere", () => {
+    expect(hasGitCommit("git log --oneline")).toBe(false);
+    expect(hasGitCommit("git commit-tree abc")).toBe(false);
+    expect(hasGitCommit("echo 'git commit'")).toBe(false);
+    expect(hasGitCommit("gh pr create -t commit")).toBe(false);
+  });
+});
+
+describe("commitReminder", () => {
+  test("reminds on a branch with no issue, naming the team and the start event", async () => {
+    const text = await commitReminder("git commit -m x", CWD, fakeDeps());
+    expect(text).toContain("feat/new-thing");
+    expect(text).toContain("OSS");
+    expect(text).toContain("event start");
+    expect(text).toContain("not blocked");
+  });
+
+  test("passes a branch that names an issue of the mapped team", async () => {
+    expect(
+      await commitReminder("git commit -m x", CWD, fakeDeps({ branch: "feat/OSS-12-hero" })),
+    ).toBeNull();
+  });
+
+  test("passes main, master and a detached HEAD", async () => {
+    for (const branch of ["main", "master", ""]) {
+      expect(await commitReminder("git commit -m x", CWD, fakeDeps({ branch }))).toBeNull();
+    }
+  });
+
+  test("passes unmapped repos and repos mapped to null", async () => {
+    expect(await commitReminder("git commit -m x", CWD, fakeDeps({ map: {} }))).toBeNull();
+    expect(
+      await commitReminder(
+        "git commit -m x",
+        CWD,
+        fakeDeps({ teams: { "darkroomengineering/app": null } }),
+      ),
+    ).toBeNull();
+  });
+
+  test("a non-commit command never reads git", async () => {
+    const deps = fakeDeps();
+    expect(await commitReminder("git status", CWD, deps)).toBeNull();
+    expect(deps.originCalls).toEqual([]);
   });
 });
 

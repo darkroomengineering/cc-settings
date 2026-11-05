@@ -54,15 +54,24 @@ Work Mode":
 | full feature spanning 3+ agents | `maestro` |
 | premature-stopping or self-review-bias risk | dynamic workflow or `/effort ultracode`; see `skills/orchestrate/SKILL.md` |
 
-In a repo with a `Linear:` startup line, the main session spawns `linear` at
-each milestone of a unit of work: `start` before the first commit (wait for
-the ID and put it in the branch name), `pr-opened` and `ci` after `/ship`
-reports, `review-ready` with the closing comment a `/build` ticket run
-drafts, `merged` after landing, and `follow-up` for work you defer (`/stories`
-spawns it with `tickets` to create approved tickets). Pass the
-event, repo, branch, issue ID, PR URL and CI result you already have. `/ship`
-and `/build` run as forks and cannot spawn it; ship's "Linear issue" step is
-their fallback, and the `linear-gate` hook blocks a PR that has no issue.
+In a repo with a `Linear:` startup line, the ticket carries the work from
+kickoff to close. The main session spawns `linear` at each milestone of a unit
+of work: `start` at kickoff, once the ask is clarified and before research,
+with the goal, why it matters, the plan and what done means (wait for the ID
+and put it in the branch name); `update` when the plan is agreed, the scope
+changes, a blocker appears or a decision is made; `pr-opened` and `ci` after
+`/ship` reports; `review-ready` with a closing comment per
+`skills/stories/references/closing-comment.md` (`/build` drafts it for ticket
+builds; write it yourself otherwise); `merged` after landing; and `follow-up`
+for work you defer (`/stories` spawns it with `tickets` to create approved
+tickets). Milestones only: never a comment per step. Pass the event, repo,
+branch, issue ID, PR URL and CI result you already have. `/ship` and `/build`
+run as forks and cannot spawn it; ship's "Linear issue" step is their
+fallback. The `linear-gate` hook reminds on a commit whose branch names no
+issue and blocks a PR that has none. A repo that tracks work in GitHub Issues
+instead gets the same milestones from the main session: `gh issue create` at
+kickoff, `gh issue comment` for updates and the closing comment, and
+`Fixes #N` in the PR.
 
 If no threshold fires, work directly. Re-evaluate when scope grows; state one
 reason before overriding a yes. Start independent delegations together, and

@@ -3,7 +3,8 @@
 // `gh pr edit` that sets a title, when the repo maps to a Linear team and no
 // issue of that team appears in the title, the body or the branch name. The
 // ship skill's "Linear issue" step finds or creates the issue; this hook
-// catches PRs opened any other way.
+// catches PRs opened any other way. A `git commit` on a branch that names no
+// issue gets a reminder, never a block, so the ticket exists from kickoff.
 //
 // The mapping is read in the ship skill's order: ~/.claude/linear-teams.json,
 // then the linear-map.json cache SessionStart keeps from team-knowledge. An
@@ -83,6 +84,24 @@ export function prCommands(command: string): PrCommand[] {
     }
   }
   return found;
+}
+
+const GIT_OPTS_WITH_VALUE = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace"]);
+
+/** True when a Bash command runs `git commit`, past git's global options. */
+export function hasGitCommit(command: string): boolean {
+  for (const seg of scanShell(command).segments) {
+    for (const stage of splitPipes(seg.clean)) {
+      const { word, args } = parseShellCommand(stage);
+      if (word !== "git") continue;
+      let i = 0;
+      while (i < args.length && (args[i] as string).startsWith("-")) {
+        i += GIT_OPTS_WITH_VALUE.has(args[i] as string) ? 2 : 1;
+      }
+      if (args[i] === "commit") return true;
+    }
+  }
+  return false;
 }
 
 /** The mapping for `slug`: an entry, null for "no Linear here", undefined when unlisted. */
@@ -170,6 +189,29 @@ export async function gateReason(
   return null;
 }
 
+/** The reminder for a commit on a branch with no issue, or null. Never blocks. */
+export async function commitReminder(
+  command: string,
+  cwd: string,
+  deps: GateDeps = defaultDeps,
+): Promise<string | null> {
+  if (!hasGitCommit(command)) return null;
+  const slug = githubSlugFrom(await deps.origin(cwd));
+  if (!slug) return null;
+  const [teams, map] = await Promise.all([deps.readTeams(), deps.readMap()]);
+  const target = lookup(slug, teams, map);
+  if (!target) return null;
+  const branch = await deps.branch(cwd);
+  // main and master are /ship's to branch off; a detached HEAD has no name to fix.
+  if (!branch || branch === "main" || branch === "master") return null;
+  if (hasIssueId(branch, target.team)) return null;
+  return (
+    `[Linear Gate] Branch ${branch} names no ${target.team} issue, so this work has no ticket yet. ` +
+    `Spawn the linear agent with event start now (the goal, why it matters, the plan, and what done means), ` +
+    `then rename the branch to include the ID (git branch -m <type>/${target.team}-123-<slug>). The commit is not blocked.`
+  );
+}
+
 export async function main(io: HookIO = processIO): Promise<void> {
   const { tool_name: tool, cwd } = await io.hookInput<{ tool_name: string; cwd: string }>({
     tool_name: "TOOL_NAME",
@@ -177,9 +219,15 @@ export async function main(io: HookIO = processIO): Promise<void> {
   });
   if (tool !== "Bash") return;
   const { command } = await io.toolInput<{ command: unknown }>();
-  if (typeof command !== "string" || !command.includes("gh")) return;
-  const reason = await gateReason(command, cwd || process.cwd());
-  if (reason) io.block(reason);
+  if (typeof command !== "string") return;
+  if (command.includes("gh")) {
+    const reason = await gateReason(command, cwd || process.cwd());
+    if (reason) io.block(reason);
+  }
+  if (command.includes("commit")) {
+    const reminder = await commitReminder(command, cwd || process.cwd());
+    if (reminder) io.context("PreToolUse", reminder);
+  }
 }
 
 if (import.meta.main) await runHook(main);

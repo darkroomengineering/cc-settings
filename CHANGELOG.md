@@ -17,6 +17,8 @@ Client builds get one way to write and work tickets. Until now each person and a
 - `skills/dr-review/SKILL.md`: a ticket review variant flags container parents, implementation detail in criteria, bare design node IDs, copied boilerplate, and tickets marked done from a reasoned check.
 - `agents/linear.md`, `CLAUDE-FULL.md`: `tickets` and `review-ready` events.
 - Claude managed-files manifest v41 and Codex runtime manifest v29 carry the new skill files.
+- Every ticket now carries the work from kickoff to close, not only from the PR. `CLAUDE-FULL.md`: `start` runs at kickoff with the goal, why, plan and done-when; a new `update` event covers plan agreed, scope change, blocker and decision, at milestones only; every unit of work gets a closing comment; GitHub Issues repos get the same milestones through `gh issue`. `agents/linear.md`: `start` writes a `## Context` section, and `merged` leaves the issue in review while "Verified by logic, not live" items are open (OSS-130).
+- `src/hooks/linear-gate.ts`: a `git commit` on a branch that names no issue of the mapped team gets a reminder to spawn `linear` with `start`. It never blocks (OSS-130).
 
 ## [15.97.0] — 2026-11-04
 
