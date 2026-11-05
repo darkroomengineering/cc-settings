@@ -616,7 +616,7 @@ Channels are the team-distribution mechanism for plugins and managed configurati
 
 Managed MCP server policy lists (v2.1.112). Patterns are matched against MCP server URLs / identifiers. Use for enterprise allowlisting; supports scheme wildcards (e.g., `https://*.internal.example.com`).
 
-Since v2.1.259 these lists govern only servers **users add**: user, project, and local config, `--mcp-config`, agent frontmatter, plugins, and claude.ai connectors. Servers the organization itself delivers through `managedMcpServers` or `managed-mcp.json` bypass them. Since v2.1.305 `allowedMcpServers` also stops filtering `managed-mcp.json` stdio servers that use `${VAR}` only in `env`, while `deniedMcpServers` still blocks them, so list one there to keep it off.
+Since v2.1.259 these lists govern only servers **users add**: user, project, and local config, `--mcp-config`, agent frontmatter, plugins, and claude.ai connectors. Servers the organization itself delivers through `managedMcpServers` or `managed-mcp.json` bypass them. Since v2.1.305 `allowedMcpServers` also stops filtering `managed-mcp.json` stdio servers that use `${VAR}` only in `env`, while `deniedMcpServers` still blocks them, so list one there to keep it off. Since v2.1.318 a `deniedMcpServers` URL entry also blocks Anthropic-provided servers whose upstream URL matches, and connectors in cloud sessions and on self-hosted runners, which receive the connector's own URL; anywhere else, deny a connector by name.
 
 ```json
 {

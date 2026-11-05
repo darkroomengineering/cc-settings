@@ -4,7 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
-## [Unreleased]
+## [15.98.0] — 2026-11-05
+
+Synced with Claude Code v2.1.318 (Codex unchanged at v0.166.0). Nothing to adopt or remove this window: `docs/settings-reference.md` now notes that a `deniedMcpServers` URL entry also blocks Anthropic-provided servers whose upstream URL matches, and connectors in cloud sessions and on self-hosted runners. What a mod attaches at `prompt.submit` now stays in the person's turn, so `drift-fuse` delivers its redirect line there instead of as a system message.
+
+**Files changed:**
+- `docs/settings-reference.md`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts` (version)
 
 Client builds get one way to write and work tickets. Until now each person and agent wrote client tickets differently, and a first pass written in one day came out thin: parents with no criteria of their own, engineer-level criteria, the same Verify block pasted everywhere, bare Figma node IDs.
 
@@ -53,7 +60,7 @@ Sync with Claude Code v2.1.317. Claude Code started warning at every session sta
 - `tests/settings-merge.test.ts`
 - `docs/settings-reference.md`
 - `docs/agent-models.md`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `upstream/codex-manifest.json`
 
 ## [15.95.0] — 2026-11-02
@@ -69,7 +76,7 @@ Sync with Claude Code v2.1.316. The new `CLAUDE_CODE_SUBAGENT_EFFORT` is documen
 **Files changed:**
 - `CLAUDE-FULL.md`
 - `docs/settings-reference.md`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `upstream/codex-manifest.json`
 
 ## [15.94.1] — 2026-11-01
@@ -150,7 +157,7 @@ cc-settings now accepts the new `permissions.blockWritesOutsideWorkingDirectorie
 - `schemas/settings.schema.json`
 - `docs/settings-reference.md`
 - `docs/hooks-reference.md`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `upstream/codex-manifest.json`
 - `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts`
 
@@ -223,7 +230,7 @@ Sync with Claude Code 2.1.312 and Codex 0.165.0. Five env vars are tracked, two 
 **Deletions / Native-now-redundant:** none. The 2.1.311 fix for `SubagentStop` hooks firing about twice a minute means `swarm-log.ts` now logs one stop per subagent; there was no workaround to remove. Codex 0.165.0 (GPT-6.1 Terra, memory v2 by default, Vertex provider) and the Codex app changelog touch no installer surface.
 
 **Files changed:**
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `upstream/codex-manifest.json`
 - `docs/settings-reference.md`
 - `docs/frontmatter-reference.md`
@@ -378,7 +385,7 @@ Sync with Claude Code 2.1.309 and Codex 0.164.0. One new env var is tracked, two
 **Deletions / Native-now-redundant:** none. Codex 0.164.0 and the Codex app changelog brought nothing that touches an installer surface.
 
 **Files changed:**
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `upstream/codex-manifest.json`
 - `docs/settings-reference.md`
 - `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts`
@@ -1162,7 +1169,7 @@ Sync with Claude Code v2.1.292. Codex stays at v0.160.1.
 - `docs/frontmatter-reference.md`
 - `docs/settings-reference.md`
 - `docs/hooks-reference.md`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts`
 
 ## [15.53.1] — 2026-10-07
@@ -1281,7 +1288,7 @@ Synced with Claude Code 2.1.289. Codex stays at 0.160.0. Teams behind a gateway 
 **Skipped:** mods and plugin API additions (tracked in `docs/plans/mods-migration.md`), LSP `requestTimeout`, the `claude purge` rename, `--max-findings`, per-model `/autocompact`, and fix-only bullets. No dedupe: the new native `rm` and deny-rule fixes overlap `safety-net.ts`, which blocks where they prompt.
 
 **Files changed:**
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `docs/settings-reference.md`
 - `docs/hooks-reference.md`
 - `src/setup.ts`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`
@@ -1582,7 +1589,7 @@ Sync with Claude Code 2.1.285 and Codex 0.159.0. The TypeSafe key no longer appe
 - `tests/plugin-key-stdin.test.ts`
 - `src/schemas/settings.ts`
 - `src/hooks/statusline.ts`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `upstream/codex-manifest.json`
 - `docs/settings-reference.md`
 - `CLAUDE-FULL.md`
@@ -1792,7 +1799,7 @@ Sync with Claude Code v2.1.283 and Codex v0.157.1, plus a fix for permission den
 - `CLAUDE-FULL.md`
 - `MANUAL.md`
 - `skills/cc/SKILL.md`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `upstream/codex-manifest.json`
 - `src/setup.ts`, `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`
 
@@ -2392,7 +2399,7 @@ Synced with Claude Code v2.1.266 (from v2.1.260). 2.1.262 and 2.1.264 have no ch
 
 **Files changed:**
 - `src/schemas/settings.ts`, `schemas/settings.schema.json`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `docs/settings-reference.md`
 - `skills/consolidate/SKILL.md`
 - `MANUAL.md`
@@ -2422,7 +2429,7 @@ Synced with Claude Code v2.1.260 (from v2.1.257). 2.1.258 was two fixes; 2.1.259
 **Files changed:**
 - `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `src/hooks/statusline.ts`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `docs/settings-reference.md`
 - `CLAUDE-FULL.md`
 - `CHANGELOG.md`, `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `src/setup.ts`
@@ -2908,7 +2915,7 @@ Yes → team (competing hypotheses that should disprove each other, a review who
 **Files changed:**
 
 - `src/schemas/settings.ts`, `schemas/settings.schema.json`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `docs/settings-reference.md`
 - `CLAUDE-FULL.md`
 - `src/setup.ts`
@@ -3732,7 +3739,7 @@ Upstream sync with Claude Code v2.1.216–v2.1.217. One behavioral change ships 
 **Files changed:**
 - `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `config/10-core.json`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `docs/settings-reference.md`
 - `docs/agent-models.md`
 - `src/setup.ts`
@@ -4353,7 +4360,7 @@ Caught the schema up to upstream `2.1.181 → 2.1.183` (2.1.182 was never publis
 - `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `config/10-core.json`
 - `docs/settings-reference.md`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `src/setup.ts`
 - `CHANGELOG.md`
 
@@ -4565,7 +4572,7 @@ Upstream sync to Claude Code 2.1.169. One surface-area release — 2.1.169 adds 
 
 - `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `schemas/settings.schema.json` (regenerated via `bun run schemas:emit`)
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `docs/settings-reference.md`
 - `src/setup.ts`
 - `CHANGELOG.md`
@@ -4586,7 +4593,7 @@ Upstream sync to Claude Code 2.1.168. Two of the three releases (2.1.167, 2.1.16
 
 - `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `schemas/settings.schema.json` (regenerated via `bun run schemas:emit`)
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `docs/settings-reference.md`
 - `src/setup.ts`
 - `CHANGELOG.md`
@@ -4607,7 +4614,7 @@ Upstream sync to Claude Code 2.1.165. Two of the three releases (2.1.164, 2.1.16
 
 - `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `schemas/settings.schema.json` (regenerated via `bun run schemas:emit`)
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `docs/settings-reference.md`
 - `docs/hooks-reference.md`
 - `src/setup.ts`
@@ -4763,7 +4770,7 @@ Upstream sync to Claude Code v2.1.160 — a cleanup-only release. v2.1.160 is al
 
 ### Files changed
 
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `docs/settings-reference.md`
 - `src/setup.ts`
 - `CHANGELOG.md`
@@ -4971,7 +4978,7 @@ Reconcile the `Settings` zod schema with the full documented Claude Code setting
 ### Files changed
 
 - `src/schemas/settings.ts`, `schemas/settings.schema.json`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `schemas/settings.schema.json`
 - `tests/schemas.test.ts`
 - `tests/setup.test.ts`
@@ -5054,7 +5061,7 @@ Gap-fill bundle adopting verified Claude Code capabilities (v2.1.117–v2.1.147)
 - `src/scripts/worktree-create.ts` (new)
 - `src/scripts/worktree-remove.ts` (new)
 - `src/setup.ts`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `tests/schemas.test.ts`
 - `tests/phase2-scripts.test.ts`
 - `tests/setup-args.test.ts`
@@ -5092,7 +5099,7 @@ _None this cycle._ The remaining v2.1.149 bullets are upstream bug fixes (PowerS
 ### Files changed
 
 - `src/schemas/settings.ts`, `schemas/settings.schema.json`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `docs/settings-reference.md`
 - `src/setup.ts`
 - `CHANGELOG.md`
@@ -5266,7 +5273,7 @@ Captive-portal startup hang (75s → 15s), terminal rendering corruption fixes (
 - `skills/refactor/SKILL.md`
 - `profiles/maestro.md`
 - `CLAUDE-FULL.md`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `src/setup.ts`
 - `CHANGELOG.md`
 
@@ -5706,7 +5713,7 @@ Two new optional hook fields adopted into the schema. Nothing removed; nothing i
 
 - `src/schemas/hooks.ts`
 - `docs/hooks-reference.md`
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `src/setup.ts`
 - `CHANGELOG.md`
 
@@ -5947,7 +5954,7 @@ Tracking-only sync. Upstream 2.1.128 is overwhelmingly bug fixes (30+) plus a ha
 
 **Files changed:**
 
-- `upstream/claude-code-manifest.json`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
 - `src/schemas/settings.ts` (comment only)
 - `src/setup.ts` (VERSION bump)
 - `CHANGELOG.md`
