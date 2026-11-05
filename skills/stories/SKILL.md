@@ -47,7 +47,7 @@ When the design or the scope changes after approval, revalidate the affected sto
 3. **Sub-issues** only when different people build the pieces or a piece is shared by two or more tickets. A shared piece is built once, in the ticket that needs it first; that ticket says it is shared, and each consumer names it and reuses it.
 4. **Design references** on every front-end ticket: the desktop and the mobile frame, each described in words (frame name, where the block sits, the text on it). Never a bare node ID.
 5. **Shared rules live once in the kickoff**: the standard Verify commands, the screenshot QA protocol, branch and push rules, the data contract, the decisions table. A ticket carries only what is specific to it.
-6. Write every ticket to `tickets.md` first and show the count. Then create them in the project's tracker:
+6. Write every ticket to `tickets.md` first, run the `/dr-review` Ticket Review on it, and fix every flag until the verdict is READY. Show the count, then create them in the project's tracker:
    - **Linear:** spawn the `linear` agent with event `tickets`, the path to `tickets.md`, and the repo. It creates the stories, their sub-issues and blocked-by relations in the mapped team and project.
    - **GitHub Issues:** `gh issue create --title <title> --body-file <file>` per ticket, one body file each; link sub-issues from the parent body.
 7. **The tracker is now the source of truth.** The local docs become dated snapshots. Never re-run a generator over the tracker; change tickets in the tracker.
@@ -55,7 +55,7 @@ When the design or the scope changes after approval, revalidate the affected sto
 ## Kickoff, QA and closing (steps 5 to 7)
 
 - Write the kickoff after the repo exists, from `references/kickoff.md`; its most valuable section points at real files. Post it where the team keeps project docs and link it from every ticket.
-- Write `qa-checklist.md` from `references/qa-checklist.md`.
+- Write `qa-checklist.md` from `references/qa-checklist.md`. Before launch, the session that runs `/stories` walks it: spawn the `tester` agent for the browser checks and screenshots, mark each item seen or failed, and leave anything nobody saw open. The launch waits on open items.
 - The closing comment is posted per ticket when its work is ready for review, from `references/closing-comment.md`. `/build` drafts it at the end of a ticket's build.
 
 ## Anti-patterns

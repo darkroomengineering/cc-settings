@@ -45,7 +45,7 @@ or: Paraphrase (not a quote): <faithful paraphrase>, <source>, <date>
 - <nearby work this ticket must not do>
 
 ## Source
-<stories doc path> (US-<n>) · contract line: "<quote>"
+<stories doc path> (US-<n>) · contract line: "<quote>" · kickoff: <link, added once step 5 posts it>
 ```
 
 ## Checks before creating
