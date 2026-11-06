@@ -16,6 +16,10 @@ paths:
 
 The test for every element on screen: does it carry information or serve this context? A chevron that opens something, a status pill that maps to a real state, a dark theme for a product used at night: keep them. The same elements added because they "look like a SaaS page" are the problem. Do not strip real affordances to avoid looking generated; a flat ban list applied blindly is its own failure.
 
+## Building from a design
+
+When the page comes from Figma or Paper frames, build the latest version exactly: its copy, its elements, its order. List the frame's text and elements before you start. Never invent copy, never re-add something the designer removed, and never add a section the frames lack; anything beyond the frames needs the user's OK. The brief and the tells below are for pages with no design. On a designed page, mention a tell to the user once instead of changing the design.
+
 ## Write the brief before the first section
 
 A distinctive page comes from decisions, and generators skip them. Before building a landing page or a new marketing surface, write down (in the plan or a comment to the user, not in the code):
