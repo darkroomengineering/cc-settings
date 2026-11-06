@@ -139,8 +139,7 @@ fd -t d -d 2 --hidden -E node_modules -E .git -E dist -E build
 
 # File-size distribution (largest first) — find the 1k-line crossings
 fd -t f -E node_modules -E .git -E dist -E build \
-  -e ts -e tsx -e js -e jsx -e py -e go -e rs \
-  -x wc -l {} \; | sort -rn | head -50
+  -e ts -e tsx -e js -e jsx -e py -e go -e rs -x wc -l {} \; | sort -rn | head -50
 
 # Direct dependency count
 jq '.dependencies + .devDependencies | length' package.json
@@ -217,6 +216,7 @@ Walk the largest files first, then the modules with the most outbound dependenci
 6. **Keep logic in the canonical layer and reuse existing helpers.** Call out feature logic leaking into shared paths, details leaking through APIs, and bespoke one-offs where a canonical utility exists.
 7. **Treat unnecessary sequential orchestration and non-atomic updates as design smells.** Serialized-for-no-reason work and updates that can leave state half-applied — flag both without over-indexing on micro-optimizations.
 8. **Dependencies must be current and well-used.** Flag deprecated majors, superseded usage patterns, role-duplicating deps, disproportionate footprints, and deps a platform primitive could replace.
+9. **Map every implicit state machine.** Find each place where a lifecycle is spread across booleans, a status string with optional fields, paired `setState` calls, effects chained on each other's flags, or re-entry guard refs (signs in `rules/typescript.md`, which may not be loaded in this fork; read it). For each, report the states it can really be in, the transitions and who triggers them, and the impossible combinations the current shape allows, with a concrete input that reaches one when you can find it. A reachable impossible state is a correctness finding; the rest go under structure, with the discriminated union that replaces them. When the user asks only for this ("find all the implicit state machines"), run just this item across the whole app.
 
 **Behavior lens — hunt categories:**
 
