@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.98.1] — 2026-11-06
+
+Synced with Codex v0.167.0 (Claude Code unchanged at v2.1.318). Nothing to adopt, remove or document this window. The new `decision = "prompt-user"` command rule only works in a managed `requirements.toml`, and `codex/rules/darkroom.rules` is a user rules file, so it does not apply. The rest of the release is TUI features, sign-in options and fixes that reach cc-settings with no change.
+
+**Files changed:**
+- `upstream/codex-manifest.json`, `upstream/claude-code-manifest.json`
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts` (version)
+
 ## [15.98.0] — 2026-11-05
 
 Synced with Claude Code v2.1.318 (Codex unchanged at v0.166.0). Nothing to adopt or remove this window: `docs/settings-reference.md` now notes that a `deniedMcpServers` URL entry also blocks Anthropic-provided servers whose upstream URL matches, and connectors in cloud sessions and on self-hosted runners. What a mod attaches at `prompt.submit` now stays in the person's turn, so `drift-fuse` delivers its redirect line there instead of as a system message.
