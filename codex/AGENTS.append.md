@@ -47,6 +47,8 @@ This section supersedes Claude-only mechanics in the portable `AGENTS.md` when t
 
 Claude Code loads these as path-scoped rules (`rules/design.md`, `rules/writing.md`); Codex has none, so the core decisions are here.
 
+- When a page comes from Figma or Paper frames, build the latest frame exactly: never invent copy, re-add removed elements, or add sections it lacks without the user's OK. The rest of this section applies to pages with no design.
+- Tune motion and visual values in a dev-only control panel that copies them back as code, not over rounds of chat; keep it out of the production bundle.
 - Before building a landing page, write a short brief: who it is for, the one claim it must prove, the proof the user actually has, and one visual idea taken from the product. Ask for what is missing. Never invent logos, testimonials, quotes, or stats; mark placeholders instead.
 - Avoid the templated page: a badge pill above a centered gradient-text headline, two buttons, a three-up icon card grid (Zap, Shield, Sparkles), a stats band, a "Most popular" pricing tier, and a logo marquee. Order sections by the argument and cut sections with nothing real behind them.
 - Avoid the stock visual reflexes: purple or neon glow on dark, blurred blobs, accent bars on one side of cards, cards in cards, fade-in-up on every section, and the unmodified component-kit look.
