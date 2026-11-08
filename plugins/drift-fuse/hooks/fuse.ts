@@ -262,11 +262,12 @@ export const register: Register = (on: On, options: PluginOptions) => {
     }
     const line = redirectLine(contract, fuse.strikesAtTrip, fuse.actionsAtTrip);
     fuse = { kind: "armed", strikes: 0 };
-    if (!event.turnId) queued.push({ origin: event.origin, contract, generation: contractGeneration });
     if (config.onTrip === "pause") {
+      // A dropped prompt starts no turn, so it must not take a queue slot.
       $.ui.log(`drift-fuse: paused a ${event.origin.kind} prompt after ${config.tripAfter} off-task turns`);
       return { drop: line };
     }
+    if (!event.turnId) queued.push({ origin: event.origin, contract, generation: contractGeneration });
     $.ui.log(`drift-fuse: redirected a ${event.origin.kind} prompt after ${config.tripAfter} off-task turns`);
     return next({ ...event, context: [...(event.context ?? []), line] });
   });

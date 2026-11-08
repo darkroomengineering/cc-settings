@@ -287,6 +287,28 @@ describe("register", () => {
     expect(next.drop).toBeUndefined();
   });
 
+  test("a paused prompt starts no turn, so the next turn keeps its own origin", async () => {
+    const { on, handlers } = fakeOn();
+    register(on, { onTrip: "pause" });
+    const { $, logs } = fakeEngine(0.05, "k");
+    await startTask(handlers, $);
+    await runTurn(handlers, $, SCHEDULED, [EDIT]);
+    await runTurn(handlers, $, SCHEDULED, [EDIT]);
+    const dropped = await handlers.get("prompt.submit")!(
+      $,
+      { text: "tick", origin: SCHEDULED, wait: false },
+      passthrough,
+    );
+    expect(dropped.drop).toContain("drift-fuse");
+
+    // A stale queue slot would shift every later turn onto the previous
+    // prompt's origin, leaving this machine turn unscored.
+    await runTurn(handlers, $, { kind: "composer" }, [EDIT]);
+    const before = logs.length;
+    await runTurn(handlers, $, SCHEDULED, [EDIT]);
+    expect(logs.slice(before).some((l) => l.text.includes("off-task turn 1/"))).toBe(true);
+  });
+
   test("an on-task turn between two drifts keeps the fuse closed", async () => {
     const { on, handlers } = fakeOn();
     register(on, {});
