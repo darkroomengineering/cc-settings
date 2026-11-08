@@ -97,13 +97,14 @@ export function isDecisionDump(text: string): boolean {
   return /^decisions(?: \(\d+\/\d+\))?: /.test(text);
 }
 
+type CompactionState = { kind: "idle"; turnsSince: number } | { kind: "compacting" };
+
 // $ is never bound to a name: `claude plugin validate` requires every call on
 // it to read as `$.noun.event(...)` at the call site, so every use below goes
 // straight through a `$` parameter.
 export const register: Register = (on: On, options: PluginOptions) => {
   const config = resolveTriggerConfig(options);
-  let compacting = false;
-  let turnsSinceCompaction = 0;
+  let state: CompactionState = { kind: "idle", turnsSince: 0 };
 
   // A `$.ui.log` from a plugin seated beneath this one is a dispatch this
   // hook sees; rewriting `to` keeps the line in the debug log and off the
@@ -111,39 +112,43 @@ export const register: Register = (on: On, options: PluginOptions) => {
   on("ui.log", ($, event, next) => (isDecisionDump(event.text) ? next({ ...event, to: "debug" }) : next(event)));
 
   on("turn.complete", async ($, event: TurnCompleteInput, next) => {
-    turnsSinceCompaction += 1;
+    if (event.agentId || state.kind === "compacting") return next(event);
+    state = { kind: "idle", turnsSince: state.turnsSince + 1 };
     try {
       const { context } = await $.session.usage();
-      const request = shouldRequest({
+      if (state.kind === "idle" && shouldRequest({
         tokens: context.tokens,
         compactAtTokens: config.compactAtTokens,
-        turnsSince: turnsSinceCompaction,
+        turnsSince: state.turnsSince,
         minTurnsBetween: config.minTurnsBetween,
-        compacting,
-      });
-      if (request) {
-        compacting = true;
+        compacting: false,
+      })) {
+        const turnsSince = state.turnsSince;
+        state = { kind: "compacting" };
         try {
-          if (await syncTypesafeKey($)) $.ui.log("compaction-trigger: refreshed TYPESAFE_API_KEY from settings");
+          try {
+            if (await syncTypesafeKey($)) $.ui.log("compaction-trigger: refreshed TYPESAFE_API_KEY from settings");
+          } catch (error) {
+            $.ui.log(
+              `compaction-trigger: key sync skipped (${error instanceof Error ? error.message : String(error)})`,
+            );
+          }
+          const result = await $.session.compact();
+          if (result.skip) {
+            $.ui.log(`compaction-trigger: skipped: ${result.skip}`);
+          } else {
+            $.ui.log(`compaction-trigger: requested at ${context.tokens} tokens`);
+          }
+          state = { kind: "idle", turnsSince: 0 };
         } catch (error) {
-          $.ui.log(
-            `compaction-trigger: key sync skipped (${error instanceof Error ? error.message : String(error)})`,
-          );
+          state = { kind: "idle", turnsSince };
+          throw error;
         }
-        const result = await $.session.compact();
-        if (result.skip) {
-          $.ui.log(`compaction-trigger: skipped: ${result.skip}`);
-        } else {
-          $.ui.log(`compaction-trigger: requested at ${context.tokens} tokens`);
-        }
-        turnsSinceCompaction = 0;
       }
     } catch (error) {
       $.ui.log(
         `compaction-trigger: skipped (${error instanceof Error ? error.message : String(error)})`,
       );
-    } finally {
-      compacting = false;
     }
     return next(event);
   });

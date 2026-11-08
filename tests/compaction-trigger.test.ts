@@ -151,8 +151,10 @@ function fakeOn(): { on: (event: string, handler: FakeHandler) => void; get: () 
 describe("register", () => {
   test("calls $.session.compact() exactly once when over threshold and returns next(event)", async () => {
     const { on, get } = fakeOn();
-    // biome-ignore lint/suspicious/noExplicitAny: test double for the engine surface
-    register(on as any, { compactAtTokens: 100, minTurnsBetween: 0 } as any);
+    register(on as unknown as Parameters<typeof register>[0], {
+      compactAtTokens: 100,
+      minTurnsBetween: 0,
+    });
     const handler = get();
 
     let compactCalls = 0;
@@ -179,8 +181,10 @@ describe("register", () => {
 
   test("below threshold: never calls compact, still returns next(event)", async () => {
     const { on, get } = fakeOn();
-    // biome-ignore lint/suspicious/noExplicitAny: test double for the engine surface
-    register(on as any, { compactAtTokens: 100_000, minTurnsBetween: 0 } as any);
+    register(on as unknown as Parameters<typeof register>[0], {
+      compactAtTokens: 100_000,
+      minTurnsBetween: 0,
+    });
     const handler = get();
 
     let compactCalls = 0;
@@ -205,8 +209,10 @@ describe("register", () => {
 
   test("a rejecting compact() logs a skip and still returns next(event)", async () => {
     const { on, get } = fakeOn();
-    // biome-ignore lint/suspicious/noExplicitAny: test double for the engine surface
-    register(on as any, { compactAtTokens: 100, minTurnsBetween: 0 } as any);
+    register(on as unknown as Parameters<typeof register>[0], {
+      compactAtTokens: 100,
+      minTurnsBetween: 0,
+    });
     const handler = get();
 
     const logs: string[] = [];
@@ -230,8 +236,10 @@ describe("register", () => {
 
   test("minTurnsBetween: does not request again until enough turns have passed", async () => {
     const { on, get } = fakeOn();
-    // biome-ignore lint/suspicious/noExplicitAny: test double for the engine surface
-    register(on as any, { compactAtTokens: 100, minTurnsBetween: 2 } as any);
+    register(on as unknown as Parameters<typeof register>[0], {
+      compactAtTokens: 100,
+      minTurnsBetween: 2,
+    });
     const handler = get();
 
     let compactCalls = 0;
@@ -256,6 +264,142 @@ describe("register", () => {
     // Turn 3, right after a request reset the counter: goes 0 -> 1, below 2 again.
     await handler($, { turnId: "t3" }, next);
     expect(compactCalls).toBe(1);
+  });
+
+  test("overlapping turns cannot release an in-flight compaction guard", async () => {
+    const { on, get } = fakeOn();
+    register(on as unknown as Parameters<typeof register>[0], {
+      compactAtTokens: 100,
+      minTurnsBetween: 0,
+    });
+    const handler = get();
+    const started = Promise.withResolvers<void>();
+    const finished = Promise.withResolvers<{ messages: never[] }>();
+    let compactCalls = 0;
+    const $ = {
+      session: {
+        usage: async () => ({ context: { tokens: 200 } }),
+        compact: () => {
+          compactCalls += 1;
+          started.resolve();
+          return finished.promise;
+        },
+      },
+      ui: { log: () => {} },
+    };
+    const next = (event: unknown) => event;
+    const first = handler($, { turnId: "t1" }, next);
+    await started.promise;
+    try {
+      await handler($, { turnId: "t2" }, next);
+      await handler($, { turnId: "t3" }, next);
+      expect(compactCalls).toBe(1);
+    } finally {
+      finished.resolve({ messages: [] });
+      await first;
+    }
+  });
+
+  test("subagent turns bypass usage and do not increment the turn counter", async () => {
+    const { on, get } = fakeOn();
+    register(on as unknown as Parameters<typeof register>[0], {
+      compactAtTokens: 100,
+      minTurnsBetween: 2,
+    });
+    const handler = get();
+    let compactCalls = 0;
+    let usageCalls = 0;
+    const $ = {
+      session: {
+        usage: async () => {
+          usageCalls += 1;
+          return { context: { tokens: 200 } };
+        },
+        compact: async () => {
+          compactCalls += 1;
+          return { messages: [] };
+        },
+      },
+      ui: { log: () => {} },
+    };
+    const next = (event: unknown) => event;
+    const subagent = { turnId: "agent-turn", agentId: "agent-1" };
+    expect(await handler($, subagent, next)).toBe(subagent);
+    await handler($, { turnId: "t1" }, next);
+    expect(compactCalls).toBe(0);
+    await handler($, subagent, next);
+    await handler($, { turnId: "t2" }, next);
+    expect(compactCalls).toBe(1);
+    expect(usageCalls).toBe(2);
+  });
+
+  test("overlapping usage reads recheck the compaction guard after resolving", async () => {
+    const { on, get } = fakeOn();
+    register(on as unknown as Parameters<typeof register>[0], {
+      compactAtTokens: 100,
+      minTurnsBetween: 0,
+    });
+    const handler = get();
+    const firstUsage = Promise.withResolvers<{ context: { tokens: number } }>();
+    const secondUsage = Promise.withResolvers<{ context: { tokens: number } }>();
+    const started = Promise.withResolvers<void>();
+    const finished = Promise.withResolvers<{ messages: never[] }>();
+    let usageCalls = 0;
+    let compactCalls = 0;
+    const $ = {
+      session: {
+        usage: () => (++usageCalls === 1 ? firstUsage.promise : secondUsage.promise),
+        compact: () => {
+          compactCalls += 1;
+          started.resolve();
+          return finished.promise;
+        },
+      },
+      ui: { log: () => {} },
+    };
+    const next = (event: unknown) => event;
+    const first = handler($, { turnId: "t1" }, next);
+    const second = handler($, { turnId: "t2" }, next);
+    firstUsage.resolve({ context: { tokens: 200 } });
+    await started.promise;
+    try {
+      secondUsage.resolve({ context: { tokens: 200 } });
+      await second;
+      await handler($, { turnId: "t3" }, next);
+      expect(compactCalls).toBe(1);
+    } finally {
+      finished.resolve({ messages: [] });
+      await first;
+    }
+  });
+
+  test("failed compaction retains the turn count and a successful retry resets it", async () => {
+    const { on, get } = fakeOn();
+    register(on as unknown as Parameters<typeof register>[0], {
+      compactAtTokens: 100,
+      minTurnsBetween: 2,
+    });
+    const handler = get();
+    let compactCalls = 0;
+    const $ = {
+      session: {
+        usage: async () => ({ context: { tokens: 200 } }),
+        compact: async () => {
+          compactCalls += 1;
+          if (compactCalls === 1) throw new Error("compaction unavailable");
+          return { messages: [] };
+        },
+      },
+      ui: { log: () => {} },
+    };
+    const next = (event: unknown) => event;
+    await handler($, { turnId: "t1" }, next);
+    await handler($, { turnId: "t2" }, next);
+    expect(compactCalls).toBe(1);
+    await handler($, { turnId: "t3" }, next);
+    expect(compactCalls).toBe(2);
+    await handler($, { turnId: "t4" }, next);
+    expect(compactCalls).toBe(2);
   });
 });
 
@@ -310,8 +454,10 @@ describe("syncTypesafeKey", () => {
 
   test("register: a $ without env/settings still compacts and logs the skipped sync", async () => {
     const { on, get } = fakeOn();
-    // biome-ignore lint/suspicious/noExplicitAny: test double for the engine surface
-    register(on as any, { compactAtTokens: 100, minTurnsBetween: 0 } as any);
+    register(on as unknown as Parameters<typeof register>[0], {
+      compactAtTokens: 100,
+      minTurnsBetween: 0,
+    });
     const handler = get();
     let compactCalls = 0;
     const logs: string[] = [];
