@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 41;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 42;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -568,6 +568,8 @@ const ADDED_IN_V41 = [
   "skills/stories/references/qa-checklist.md",
   "skills/stories/references/ticket.md",
 ];
+// Version 42: the /audit State mode reference.
+const ADDED_IN_V42 = ["skills/audit/references/state-machines.md"];
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) =>
     !ADDED_IN_V17.includes(path) &&
@@ -905,9 +907,15 @@ const v40 = {
 };
 MANIFESTS.set(40, v40);
 // Version 41: the /stories skill and its templates (full profile only; light installs carry one skill).
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v41 = {
   full: [...v40.full, ...ADDED_IN_V41],
   light: v40.light,
+};
+MANIFESTS.set(41, v41);
+// Version 42: the /audit State mode reference (full profile only).
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v41.full, ...ADDED_IN_V42],
+  light: v41.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([

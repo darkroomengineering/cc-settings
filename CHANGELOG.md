@@ -4,6 +4,27 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.99.0] — 2026-11-08
+
+Claude and Codex now steer away from implicit state machines: one lifecycle spread across booleans, a status next to fields valid only in some statuses, paired updates, or re-entry guard refs. New code models the lifecycle as one tagged union. Feature work converts the machines inside code it already edits, and a bug fix converts one only when it caused the bug. `/audit state` finds the rest across the repo and ranks them (OSS-133).
+
+**Added:**
+- `AGENTS.md`: the "No Implicit State Machines" guardrail. It loads every turn for every language and host, including Codex and forks. It replaces the TypeScript line "Use discriminated unions for state.", and the `AGENTS.md` byte ceiling in `tests/plugin-manifest.test.ts` goes from 16 to 17 KiB to fit it.
+- `skills/audit/SKILL.md`, `skills/audit/references/state-machines.md`: State mode. It finds each machine, records its states, transitions and impossible combinations, proves which are reachable, and then asks which ones to convert now (`/refactor` or `/fix`) and which to ticket (`linear` follow-up or `gh issue create`). Full mode selects it for repos that hold UI or workflow state. Codebase item 9 runs the same sweep, and Full mode skips that item when State mode runs.
+- `skills/dr-review/SKILL.md`: an Implicit State Checklist. A new flag on an existing lifecycle is a Warning, a reachable impossible state is Critical, and an unconverted machine in code that a feature diff edits is a Suggestion.
+- `evals/dr-review-implicit-state/`, `evals/audit-state-machines/`.
+
+**Changed:**
+- Claude managed-files manifest v42 and Codex runtime manifest v30 carry the State mode reference. The audit skill's line exemption drops from 694 to 691.
+
+Sessions are handed off at a topic switch, not only at the end of the day. Motion values are tuned in the browser. Figma frames are built exactly as designed (OSS-132).
+
+**Changed:**
+- `skills/handoff/SKILL.md`, `CLAUDE-FULL.md`: a topic switch is a session boundary.
+- `rules/motion-physics.md`: tune timings, springs, sizes and colours in a dev-only panel and commit the final values.
+- `rules/design.md`: build the latest Figma frame exactly. On a designed page, the anti-generic checks become a note to the person.
+- `codex/AGENTS.append.md`: short versions of the motion and Figma rules for Codex.
+
 ## [15.98.1] — 2026-11-06
 
 Synced with Codex v0.167.0 (Claude Code unchanged at v2.1.318). Nothing to adopt, remove or document this window. The new `decision = "prompt-user"` command rule only works in a managed `requirements.toml`, and `codex/rules/darkroom.rules` is a user rules file, so it does not apply. The rest of the release is TUI features, sign-in options and fixes that reach cc-settings with no change.

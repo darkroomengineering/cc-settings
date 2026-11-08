@@ -88,7 +88,7 @@ describe("version sync — every version-bearing file tracks src/setup.ts", () =
 
 describe("always-loaded prompt byte budgets", () => {
   test.each([
-    ["AGENTS.md", 16 * 1024],
+    ["AGENTS.md", 17 * 1024],
     ["CLAUDE-FULL.md", 16 * 1024],
     ["output-styles/darkroom.md", 4 * 1024],
   ] as const)("%s stays within its byte ceiling", async (relativePath, budget) => {

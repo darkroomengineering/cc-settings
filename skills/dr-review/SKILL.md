@@ -99,11 +99,12 @@ Escalate to `/poke-holes` when the diff touches auth, payments, crypto, input va
 
 ## Implicit State Checklist
 
-Fires when the diff adds a boolean, status field, or `setState` call to a component, hook, or store. The signs are listed in `rules/typescript.md`; it is path-scoped and may not be loaded in this fork, so read it before flagging.
+Fires when the diff adds a boolean, status field, or `setState` call to a component, hook, or store. The signs and the target shape are in AGENTS.md → No Implicit State Machines.
 
 - **New flag on an existing lifecycle:** a second or third boolean (or a status plus optional fields) describing the same thing. Warning: name the states, the impossible combination the diff makes possible, and the discriminated union that replaces them.
 - **Reachable impossible state:** a path in the diff that leaves two flags in a contradictory pair (loading and errored, open and closing with no exit). Critical when it shows wrong UI or loses data.
-- Pre-existing machines the diff only touches go under Pre-existing, not as blockers.
+- **Unconverted machine in edited code:** a pre-existing machine inside a function, component, hook, or store the diff edits. Suggestion in feature work, since the guardrail says to convert it in the same diff; in a bug fix it goes under Pre-existing unless it caused the bug.
+- Machines in code the diff does not edit go under Pre-existing, not as blockers.
 
 ## Animation & Motion Checklist
 

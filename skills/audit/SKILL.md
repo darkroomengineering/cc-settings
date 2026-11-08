@@ -1,7 +1,7 @@
 ---
 name: audit
-argument-hint: "[full|codebase|docs|process|performance|tests|debt|threat-model|motion|seo]"
-description: Repo audits, one mode or all (codebase, docs, process, perf, tests, threat-model, motion, SEO, debt). Triggers "audit the codebase", "full audit", "perf audit", "audit the tests", "threat model", "motion audit", "seo audit", "debt ledger".
+argument-hint: "[full|codebase|docs|process|performance|tests|state|debt|threat-model|motion|seo]"
+description: Repo audits, one mode or all (codebase, docs, process, perf, tests, state, threat-model, motion, SEO, debt). Triggers "audit the codebase", "full audit", "perf audit", "audit the tests", "find the implicit state machines", "threat model", "motion audit", "seo audit", "debt ledger".
 context: main
 requires:
   - mcp: context7
@@ -29,7 +29,7 @@ offers isolation, so the main session writes the final report after readers
 finish; any implementer and test-writer phases must be serialized with
 non-overlapping ownership.
 
-One skill, ten modes. Eight audit modes (Codebase, Docs, Process, Performance, Tests, Threat-Model, Motion, SEO) read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report or plan set. **Full** runs every applicable mode and merges the reports (see Mode: Full). **Debt** is a mechanical grep that collects `SHORTCUT:` markers into a ledger and makes no judgement (see Mode: Debt).
+One skill, eleven modes. Nine audit modes (Codebase, Docs, Process, Performance, Tests, State, Threat-Model, Motion, SEO) read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report or plan set. **Full** runs every applicable mode and merges the reports (see Mode: Full). **Debt** is a mechanical grep that collects `SHORTCUT:` markers into a ledger and makes no judgement (see Mode: Debt).
 
 Codebase mode's structure lens should push to be **ambitious**: do not merely identify local cleanup opportunities, actively search for "code judo" moves. Every adversarial mode holds **no loyalty to the current design** — hunt defects, drift, dead ends, and abuse paths rather than confirm things work.
 
@@ -47,6 +47,7 @@ A request for everything, or one that names two or more verticals ("audit perfor
 | Process | "process audit", "audit the workflows", "walk the journeys", "end-to-end audit" |
 | Performance | "perf audit", "performance audit", "why is the app slow", "bundle audit", "build is slow", "speed audit" |
 | Tests | "audit the tests", "test audit", "low-value tests", "prune the test suite", "junk tests" |
+| State | "find all the implicit state machines", "implicit state", "impossible states", "state audit", "boolean soup" |
 | Threat-Model | "threat model", "STRIDE", "attack surface", "abuse paths" |
 | Motion | "motion audit", "audit the animations", "improve the animations" |
 | SEO | "seo audit", "aeo", "ai engine optimization", "answer engine", "discoverability audit", "rank better", "llms.txt" |
@@ -69,6 +70,7 @@ Each mode answers one question:
 | Docs, Process | Do the docs tell the truth, and do the journeys walk end-to-end? | Before releases, after feature bursts |
 | Performance | Where is time actually going, measured? | Before a launch, after a dependency-heavy sprint, "the site feels slow" with no number |
 | Tests | Which tests guard nothing? | Slow or brittle suite, after a burst of agent-written tests |
+| State | Where is one lifecycle spread across flags, and which impossible states can it reach? | Stuck spinners or stale errors, after a burst of feature work on stateful UI, before a refactor |
 | Threat-Model | What can go wrong, and who would exploit it? | Before a security-sensitive launch or a new internet-facing surface |
 | Motion | Where does the animation work have the highest leverage? | After a UI-heavy sprint, before a client showcase |
 | SEO | Will this site be found, ranked, and cited? | Before a site launch, first pass on any client marketing/content site |
@@ -84,7 +86,7 @@ A typical sequence: `/audit codebase` produces findings → engineers cherry-pic
 
 ---
 
-## Shared Contract (Codebase, Docs, Process, Tests, Threat-Model, SEO, Performance, and Full modes)
+## Shared Contract (Codebase, Docs, Process, Tests, State, Threat-Model, SEO, Performance, and Full modes)
 
 **Role.** No loyalty to the current design/structure/flows. Act simultaneously as a senior staff engineer, a skeptical first-time consumer, and an adversarial reviewer. Understand deeply enough to challenge, not merely validate.
 
@@ -216,7 +218,7 @@ Walk the largest files first, then the modules with the most outbound dependenci
 6. **Keep logic in the canonical layer and reuse existing helpers.** Call out feature logic leaking into shared paths, details leaking through APIs, and bespoke one-offs where a canonical utility exists.
 7. **Treat unnecessary sequential orchestration and non-atomic updates as design smells.** Serialized-for-no-reason work and updates that can leave state half-applied — flag both without over-indexing on micro-optimizations.
 8. **Dependencies must be current and well-used.** Flag deprecated majors, superseded usage patterns, role-duplicating deps, disproportionate footprints, and deps a platform primitive could replace.
-9. **Map every implicit state machine.** Find each place where a lifecycle is spread across booleans, a status string with optional fields, paired `setState` calls, effects chained on each other's flags, or re-entry guard refs (signs in `rules/typescript.md`, which may not be loaded in this fork; read it). For each, report the states it can really be in, the transitions and who triggers them, and the impossible combinations the current shape allows, with a concrete input that reaches one when you can find it. A reachable impossible state is a correctness finding; the rest go under structure, with the discriminated union that replaces them. When the user asks only for this ("find all the implicit state machines"), run just this item across the whole app.
+9. **Implicit state machines.** Run the sweep and per-machine record from Mode: State on every surface you read; a reachable impossible state is a correctness finding, the rest go under structure with the union that replaces them. In Full mode, skip this item when State mode is selected.
 
 **Behavior lens — hunt categories:**
 
@@ -543,6 +545,10 @@ deletion, consolidation into a table-driven case, or moving the test to its
 owning boundary; the `tester` agent executes them. Report test LOC and
 production LOC each remedy removes separately.
 
+## Mode: State
+
+Find every implicit state machine in the repo (signs and target shape: AGENTS.md → No Implicit State Machines), prove which can reach an impossible state, and rank the rest as a conversion backlog. Rides the Shared Contract; finding IDs use the `F` prefix in Full mode. Read and follow `references/state-machines.md` for the sweep, per-machine record, severity, map, and the convert-or-ticket handoff.
+
 ---
 
 ## Mode: Full
@@ -555,7 +561,7 @@ of them ride the Shared Contract.
 
 A named vertical maps to a mode: code quality, maintainability, dead code, or correctness →
 Codebase; security, vulnerabilities, or attack surface → Threat-Model; speed, bundle, or slowness →
-Performance; test quality → Tests; documentation → Docs; animation → Motion; search or
+Performance; test quality → Tests; state machines or impossible states → State; documentation → Docs; animation → Motion; search or
 discoverability → SEO. When the user names verticals, run exactly those. When they say "all" or
 "everything", select from the signals below.
 
@@ -573,6 +579,7 @@ discoverability → SEO. When the user names verticals, run exactly those. When 
    | Debt | Always; it is a grep and runs in the coordinator |
    | Performance | Something can be measured (a build, a server, a benchmark, a CLI to time). Otherwise skipped with the reason; never a speculative section |
    | Tests | A test suite exists |
+| State | The repo holds UI or workflow state: components, hooks, stores, reducers, or lifecycle columns |
    | Docs | Docs exist beyond a README |
    | SEO | The repo is a public website (routes with metadata, sitemap, robots, marketing pages) |
    | Motion | An animation library is a dependency (`gsap`, `motion`, `framer-motion`, `lenis`, `react-spring`) or CSS animation is substantial |
@@ -594,7 +601,7 @@ Claude use the Agent tool: `security-reviewer` for Threat-Model, a reader with B
 - the shared map and the user's Phase 0 answers;
 - the path and heading of its mode section in this file, which it reads and follows;
 - the instruction to return findings in the Shared Contract format with its mode prefix
-  (`C` Codebase, `P` Performance, `T` Threat-Model, `X` Tests, `D` Docs, `S` SEO, `M` Motion,
+  (`C` Codebase, `P` Performance, `T` Threat-Model, `X` Tests, `F` State, `D` Docs, `S` SEO, `M` Motion,
   `R` Process), and to write no files.
 
 The coordinator writes the only report. On a large repo the Codebase reader may split by module;
@@ -632,10 +639,7 @@ Chat reply: the coverage line, counts by severity, the top 5 findings, and the r
 
 ## Mode: Debt
 
-Collect every deliberate shortcut in the repo into one ledger, so a deferral can't
-quietly become permanent. Unlike the other substantive modes this one is mechanical: it
-greps for markers and reports what it finds. It makes no judgement about whether
-the shortcut was right.
+Collect every deliberate shortcut in the repo into one ledger, so a deferral can't quietly become permanent. Unlike the other substantive modes this one is mechanical: it greps for markers and reports what it finds. It makes no judgement about whether the shortcut was right.
 
 The `SHORTCUT:` convention is defined in `AGENTS.md` (Laziness Ladder). Every
 deliberate simplification carries a ceiling and an upgrade trigger:
@@ -681,14 +685,8 @@ End with: `<N> markers, <M> with no trigger.` Nothing found: `No SHORTCUT: debt.
 
 ### Boundaries
 
-Reads and reports only — never edits, never implements a marker. A `SHORTCUT:` is
-not a TODO to clear on sight (see `AGENTS.md` → Comments); it
-comes out only when its trigger has actually fired, and then via `/zero-tech-debt`
-or `/refactor`, not here.
+Reads and reports only — never edits, never implements a marker. A `SHORTCUT:` is not a TODO to clear on sight (see `AGENTS.md` → Comments); it comes out only when its trigger has actually fired, and then via `/zero-tech-debt` or `/refactor`, not here.
 
-**No invented savings.** Report the count of markers and what each defers. Never
-print a "you saved N lines by deferring these" figure — the built version was never
-written, so there is no baseline to subtract from. Counted markers are real; an
-extrapolated saving is not.
+**No invented savings.** Report the count of markers and what each defers. Never print a "you saved N lines by deferring these" figure — the built version was never written, so there is no baseline to subtract from. Counted markers are real; an extrapolated saving is not.
 
-To persist the ledger, ask first, then write it to `SHORTCUT-DEBT.md`.
+To persist the ledger, ask first, then write it to `SHORTCUT-DEBT.md`. 
