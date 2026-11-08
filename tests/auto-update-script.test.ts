@@ -185,9 +185,8 @@ process.exit(await child.exited);
     "a run that throws is recorded as error, not no-repo",
     async () => {
       const home = await mkdtemp(join(tmpdir(), "cc-autoupdate-throw-"));
-      const parent = join(home, "parent");
       try {
-        const repo = join(parent, "repo");
+        const repo = join(home, "repo");
         await mkdir(repo, { recursive: true });
         await git(["init", "-b", "main"], repo);
         await git(
@@ -195,13 +194,13 @@ process.exit(await child.exited);
           repo,
         );
         await writeSentinel(home, repo);
-        // The staging directory is made beside the repo; an unwritable parent makes mkdtemp throw.
-        await chmod(parent, 0o555);
-        const result = await runAutoUpdateScript(home);
+        // An unparsable test git command makes the script's first git call throw.
+        const result = await runAutoUpdateScript(home, {
+          CC_SETTINGS_TEST_GIT_COMMAND_JSON: "not json",
+        });
         expect(result.exit).toBe(1);
         expect((await readLastRun(home))?.status).toBe("error");
       } finally {
-        await chmod(parent, 0o755).catch(() => {});
         await rm(home, { recursive: true, force: true });
       }
     },

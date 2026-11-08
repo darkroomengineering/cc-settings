@@ -309,6 +309,23 @@ describe("register", () => {
     expect(logs.slice(before).some((l) => l.text.includes("off-task turn 1/"))).toBe(true);
   });
 
+  test("a prompt dropped further down the chain takes no queue slot", async () => {
+    const { on, handlers } = fakeOn();
+    register(on, {});
+    const { $, logs } = fakeEngine(0.05, "k");
+    await startTask(handlers, $);
+    await handlers.get("prompt.submit")!(
+      $,
+      { text: "tick", origin: SCHEDULED, wait: false },
+      async () => ({ drop: "blocked by another plugin" }),
+    );
+
+    await runTurn(handlers, $, { kind: "composer" }, [EDIT]);
+    const before = logs.length;
+    await runTurn(handlers, $, SCHEDULED, [EDIT]);
+    expect(logs.slice(before).some((l) => l.text.includes("off-task turn 1/"))).toBe(true);
+  });
+
   test("an on-task turn between two drifts keeps the fuse closed", async () => {
     const { on, handlers } = fakeOn();
     register(on, {});

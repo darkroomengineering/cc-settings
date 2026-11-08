@@ -24,6 +24,7 @@ import type {
   PluginOptions,
   PromptOrigin,
   PromptSubmitInput,
+  PromptSubmitResult,
   Register,
   ToolCallInput,
   TurnCompleteInput,
@@ -150,6 +151,12 @@ export function parseOnTask(text: string): number | null {
 
 /** Armed counts consecutive drift turns; tripped keeps the trip's own data,
  *  which no later turn rewrites, until a prompt resets the fuse. */
+interface QueuedPrompt {
+  origin: PromptOrigin;
+  contract: string;
+  generation: number;
+}
+
 export type FuseState =
   | { kind: "armed"; strikes: number }
   | { kind: "tripped"; strikesAtTrip: number; actionsAtTrip: readonly string[] };
@@ -241,11 +248,21 @@ export const register: Register = (on: On, options: PluginOptions) => {
   let turnGeneration = 0;
   let fuse: FuseState = { kind: "armed", strikes: 0 };
   // One entry per prompt that starts its own turn, in submit order; shifted
-  // by turn.start. A non-person prompt carrying a turnId is delivered into
-  // the running turn and starts none.
-  const queued: { origin: PromptOrigin; contract: string; generation: number }[] = [];
+  // by turn.start.
+  const queued: QueuedPrompt[] = [];
   let turnUnattended = false;
   let turn: TurnRecord = { actions: [], toolCalls: 0 };
+
+  // A prompt takes a queue slot only once the rest of the chain accepts it:
+  // one dropped (here or below) or whose chain throws starts no turn.
+  const admit = async (
+    result: PromptSubmitResult | Promise<PromptSubmitResult>,
+    slot: QueuedPrompt | undefined,
+  ): Promise<PromptSubmitResult> => {
+    const out = await result;
+    if (slot && out.drop === undefined) queued.push(slot);
+    return out;
+  };
 
   on("prompt.submit", ($, event: PromptSubmitInput, next) => {
     if (isPersonOrigin(event.origin)) {
@@ -253,23 +270,21 @@ export const register: Register = (on: On, options: PluginOptions) => {
       contract = nextContract(contract, event.text);
       contractGeneration += 1;
       fuse = { kind: "armed", strikes: 0 };
-      queued.push({ origin: event.origin, contract, generation: contractGeneration });
-      return next(event);
+      return admit(next(event), { origin: event.origin, contract, generation: contractGeneration });
     }
-    if (fuse.kind === "armed") {
-      if (!event.turnId) queued.push({ origin: event.origin, contract, generation: contractGeneration });
-      return next(event);
-    }
+    // A non-person prompt carrying a turnId is delivered into the running turn.
+    const slot = event.turnId
+      ? undefined
+      : { origin: event.origin, contract, generation: contractGeneration };
+    if (fuse.kind === "armed") return admit(next(event), slot);
     const line = redirectLine(contract, fuse.strikesAtTrip, fuse.actionsAtTrip);
     fuse = { kind: "armed", strikes: 0 };
     if (config.onTrip === "pause") {
-      // A dropped prompt starts no turn, so it must not take a queue slot.
       $.ui.log(`drift-fuse: paused a ${event.origin.kind} prompt after ${config.tripAfter} off-task turns`);
       return { drop: line };
     }
-    if (!event.turnId) queued.push({ origin: event.origin, contract, generation: contractGeneration });
     $.ui.log(`drift-fuse: redirected a ${event.origin.kind} prompt after ${config.tripAfter} off-task turns`);
-    return next({ ...event, context: [...(event.context ?? []), line] });
+    return admit(next({ ...event, context: [...(event.context ?? []), line] }), slot);
   });
 
   on("turn.start", ($, event: TurnStartInput, next) => {
