@@ -21,7 +21,10 @@ import {
   onAgentSpawn,
   onCommit,
   onHeadObserved,
+  onNudged,
+  parseReviewQueueState,
   pushSucceeded,
+  serializeReviewQueueState,
   shouldNudge,
 } from "../src/lib/review-queue.ts";
 
@@ -30,17 +33,73 @@ import {
 const OK_COMMIT = { stdout: "[main 1a2b3c4] wip\n 1 file changed, 2 insertions(+)", stderr: "" };
 
 describe("review-queue lib", () => {
+  test("disk states parse into the union and serialize with the existing fields", () => {
+    const pending = { awaiting: 3, firstSpawnAt: 0, firedAt: 2000, lastHead: "head1" };
+    expect(parseReviewQueueState(pending)).toEqual({ kind: "pending", ...pending });
+    expect(serializeReviewQueueState(parseReviewQueueState(pending))).toEqual(pending);
+    const empty = { awaiting: 0, lastHead: "head1" };
+    expect(parseReviewQueueState(empty)).toEqual({ kind: "empty", lastHead: "head1" });
+    expect(serializeReviewQueueState(parseReviewQueueState(empty))).toEqual(empty);
+  });
+
+  test("invalid or inconsistent disk states become empty and preserve valid lastHead", () => {
+    for (const raw of [
+      null,
+      "invalid JSON",
+      {},
+      { awaiting: 3 },
+      { awaiting: 0, firstSpawnAt: 1000 },
+      { awaiting: -1, firstSpawnAt: 1000 },
+      { awaiting: 1.5, firstSpawnAt: 1000 },
+      { awaiting: "3", firstSpawnAt: 1000 },
+      { awaiting: 3, firstSpawnAt: "1000" },
+      { awaiting: 3, firstSpawnAt: 1000, firedAt: "bad" },
+    ]) {
+      expect(parseReviewQueueState(raw)).toEqual({ kind: "empty" });
+      if (typeof raw === "object" && raw !== null) {
+        expect(parseReviewQueueState({ ...raw, lastHead: "head1" })).toEqual({
+          kind: "empty",
+          lastHead: "head1",
+        });
+      }
+    }
+    expect(parseReviewQueueState({ awaiting: 3, lastHead: 42 })).toEqual({ kind: "empty" });
+  });
+
   test("onAgentSpawn increments and stamps firstSpawnAt on the first spawn", () => {
-    const first = onAgentSpawn({ awaiting: 0 }, 1000);
-    expect(first).toEqual({ awaiting: 1, firstSpawnAt: 1000 });
+    const first = onAgentSpawn({ kind: "empty" }, 1000);
+    expect(first).toEqual({ kind: "pending", awaiting: 1, firstSpawnAt: 1000 });
     // Subsequent spawns keep the original firstSpawnAt.
     const second = onAgentSpawn(first, 2000);
-    expect(second).toEqual({ awaiting: 2, firstSpawnAt: 1000 });
+    expect(second).toEqual({ kind: "pending", awaiting: 2, firstSpawnAt: 1000 });
   });
 
   test("onCommit resets to zero; records HEAD baseline when given", () => {
-    expect(onCommit()).toEqual({ awaiting: 0 });
-    expect(onCommit("abc1234")).toEqual({ awaiting: 0, lastHead: "abc1234" });
+    expect(onCommit()).toEqual({ kind: "empty" });
+    expect(onCommit("abc1234")).toEqual({ kind: "empty", lastHead: "abc1234" });
+  });
+
+  test("onNudged stamps pending queues without changing their count, age, or HEAD", () => {
+    const state = parseReviewQueueState({ awaiting: 3, firstSpawnAt: 1000, lastHead: "head1" });
+    const nudged = onNudged(state, 2000);
+    expect(nudged).toEqual({
+      kind: "pending",
+      awaiting: 3,
+      firstSpawnAt: 1000,
+      firedAt: 2000,
+      lastHead: "head1",
+    });
+    expect(onNudged(nudged, 3000)).toEqual({
+      kind: "pending",
+      awaiting: 3,
+      firstSpawnAt: 1000,
+      firedAt: 3000,
+      lastHead: "head1",
+    });
+    expect(state).not.toHaveProperty("firedAt");
+    expect(shouldNudge(nudged, 3, 2001)).toBe(false);
+    const empty = onCommit("head1");
+    expect(onNudged(empty, 2000)).toBe(empty);
   });
 
   test("maxUnreviewed / minReviewSeconds: defaults, override, bad value falls back", () => {
@@ -67,17 +126,25 @@ describe("review-queue lib", () => {
 
   test("shouldNudge: below max false, at/over max fires, debounced within window", () => {
     const now = 1_000_000;
-    expect(shouldNudge({ awaiting: 2 }, 3, now)).toBe(false);
-    expect(shouldNudge({ awaiting: 3 }, 3, now)).toBe(true);
-    expect(shouldNudge({ awaiting: 5, firedAt: now - 1000 }, 3, now)).toBe(false);
-    expect(shouldNudge({ awaiting: 5, firedAt: now - 120_000 }, 3, now)).toBe(true);
+    expect(shouldNudge({ kind: "empty" }, 3, now)).toBe(false);
+    expect(shouldNudge({ kind: "pending", awaiting: 2, firstSpawnAt: 0 }, 3, now)).toBe(false);
+    expect(shouldNudge({ kind: "pending", awaiting: 3, firstSpawnAt: 0 }, 3, now)).toBe(true);
+    expect(
+      shouldNudge({ kind: "pending", awaiting: 5, firstSpawnAt: 0, firedAt: now - 1000 }, 3, now),
+    ).toBe(false);
+    expect(
+      shouldNudge(
+        { kind: "pending", awaiting: 5, firstSpawnAt: 0, firedAt: now - 120_000 },
+        3,
+        now,
+      ),
+    ).toBe(true);
   });
 
-  test("ageMs: 0 when empty/unstamped, else now - firstSpawnAt (clamped)", () => {
-    expect(ageMs({ awaiting: 0 }, 5000)).toBe(0);
-    expect(ageMs({ awaiting: 3 }, 5000)).toBe(0); // no firstSpawnAt
-    expect(ageMs({ awaiting: 3, firstSpawnAt: 1000 }, 6000)).toBe(5000);
-    expect(ageMs({ awaiting: 3, firstSpawnAt: 1000 }, 500)).toBe(0);
+  test("ageMs: 0 when empty, else now - firstSpawnAt (clamped)", () => {
+    expect(ageMs({ kind: "empty" }, 5000)).toBe(0);
+    expect(ageMs({ kind: "pending", awaiting: 3, firstSpawnAt: 1000 }, 6000)).toBe(5000);
+    expect(ageMs({ kind: "pending", awaiting: 3, firstSpawnAt: 1000 }, 500)).toBe(0);
   });
 
   test("formatAge: seconds, minutes, hours", () => {
@@ -90,17 +157,28 @@ describe("review-queue lib", () => {
   test("isCognitiveSurrender: deep queue committed too fast", () => {
     const min = 60_000;
     // Deep + fast → surrender.
-    expect(isCognitiveSurrender({ awaiting: 3, firstSpawnAt: 1000 }, 1000 + 59_000, 3, min)).toBe(
-      true,
-    );
+    expect(
+      isCognitiveSurrender(
+        { kind: "pending", awaiting: 3, firstSpawnAt: 1000 },
+        1000 + 59_000,
+        3,
+        min,
+      ),
+    ).toBe(true);
     // Deep but slow enough → no surrender.
-    expect(isCognitiveSurrender({ awaiting: 3, firstSpawnAt: 1000 }, 1000 + 61_000, 3, min)).toBe(
-      false,
-    );
+    expect(
+      isCognitiveSurrender(
+        { kind: "pending", awaiting: 3, firstSpawnAt: 1000 },
+        1000 + 61_000,
+        3,
+        min,
+      ),
+    ).toBe(false);
     // Shallow queue → never surrender.
-    expect(isCognitiveSurrender({ awaiting: 2, firstSpawnAt: 1000 }, 1000 + 1, 3, min)).toBe(false);
-    // No marker → can't judge → false.
-    expect(isCognitiveSurrender({ awaiting: 5 }, 9_999_999, 3, min)).toBe(false);
+    expect(
+      isCognitiveSurrender({ kind: "pending", awaiting: 2, firstSpawnAt: 1000 }, 1000 + 1, 3, min),
+    ).toBe(false);
+    expect(isCognitiveSurrender({ kind: "empty" }, 9_999_999, 3, min)).toBe(false);
   });
 
   test("buildNudge mentions count, threshold, concept", () => {
@@ -195,21 +273,22 @@ describe("review-queue lib", () => {
   });
 
   test("onHeadObserved: baseline first, drain on change, no-op when same/unreadable", () => {
+    const pending = { kind: "pending", awaiting: 3, firstSpawnAt: 1000, firedAt: 2000 } as const;
     // First observation → record baseline, no drain.
-    expect(onHeadObserved({ awaiting: 3 }, "head1")).toEqual({ awaiting: 3, lastHead: "head1" });
+    expect(onHeadObserved(pending, "head1")).toEqual({ ...pending, lastHead: "head1" });
     // Same HEAD → unchanged.
-    expect(onHeadObserved({ awaiting: 3, lastHead: "head1" }, "head1")).toEqual({
-      awaiting: 3,
+    expect(onHeadObserved({ ...pending, lastHead: "head1" }, "head1")).toEqual({
+      ...pending,
       lastHead: "head1",
     });
     // HEAD advanced → drain + rebaseline.
-    expect(onHeadObserved({ awaiting: 3, lastHead: "head1" }, "head2")).toEqual({
-      awaiting: 0,
+    expect(onHeadObserved({ ...pending, lastHead: "head1" }, "head2")).toEqual({
+      kind: "empty",
       lastHead: "head2",
     });
     // Unreadable HEAD (undefined) → leave untouched.
-    expect(onHeadObserved({ awaiting: 3, lastHead: "head1" }, undefined)).toEqual({
-      awaiting: 3,
+    expect(onHeadObserved({ ...pending, lastHead: "head1" }, undefined)).toEqual({
+      ...pending,
       lastHead: "head1",
     });
   });

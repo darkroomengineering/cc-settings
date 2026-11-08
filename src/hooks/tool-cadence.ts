@@ -21,9 +21,11 @@ import {
   onAgentSpawn,
   onCommit,
   onHeadObserved,
+  onNudged,
+  parseReviewQueueState,
   pushSucceeded,
   type ReviewQueueState,
-  ReviewQueueStateSchema,
+  serializeReviewQueueState,
   shouldNudge,
 } from "../lib/review-queue.ts";
 
@@ -50,8 +52,7 @@ async function currentHead(cwd: string): Promise<string | undefined> {
  *  instead of feeding garbage into the arithmetic below. Never throws. */
 async function readQueueState(): Promise<ReviewQueueState> {
   const raw = await readState<unknown>(QUEUE_STATE, null);
-  const parsed = ReviewQueueStateSchema.safeParse(raw);
-  return parsed.success ? parsed.data : { awaiting: 0 };
+  return parseReviewQueueState(raw);
 }
 
 async function reviewQueueBranch(
@@ -70,18 +71,21 @@ async function reviewQueueBranch(
     if (isGitCommit(command) && commitSucceeded(payload.tool_response)) {
       const state = await readQueueState();
       const now = Date.now();
-      if (isCognitiveSurrender(state, now, maxUnreviewed(), minReviewSeconds() * 1000)) {
-        const dwellSeconds = Math.round((now - (state.firstSpawnAt ?? now)) / 1000);
+      if (
+        state.kind === "pending" &&
+        isCognitiveSurrender(state, now, maxUnreviewed(), minReviewSeconds() * 1000)
+      ) {
+        const dwellSeconds = Math.round((now - state.firstSpawnAt) / 1000);
         io.context("PostToolUse", buildSurrenderNudge(state.awaiting, dwellSeconds));
       }
-      await writeState(QUEUE_STATE, onCommit(await currentHead(cwd)));
+      await writeState(QUEUE_STATE, serializeReviewQueueState(onCommit(await currentHead(cwd))));
       return;
     }
 
     // Drain: a successful push sent the work off for review/CI — a clean
     // "I'm done with this batch" boundary.
     if (isGitPush(command) && pushSucceeded(payload.tool_response)) {
-      await writeState(QUEUE_STATE, onCommit(await currentHead(cwd)));
+      await writeState(QUEUE_STATE, serializeReviewQueueState(onCommit(await currentHead(cwd))));
       return;
     }
 
@@ -90,7 +94,10 @@ async function reviewQueueBranch(
     // Draining only happens when HEAD actually changed (see onHeadObserved).
     if (movesHead(command)) {
       const state = await readQueueState();
-      await writeState(QUEUE_STATE, onHeadObserved(state, await currentHead(cwd)));
+      await writeState(
+        QUEUE_STATE,
+        serializeReviewQueueState(onHeadObserved(state, await currentHead(cwd))),
+      );
       return;
     }
 
@@ -103,15 +110,15 @@ async function reviewQueueBranch(
   if (!isReviewableAgent(payload.tool_input?.subagent_type)) return;
 
   const now = Date.now();
-  const next = onAgentSpawn(await readQueueState(), now);
+  let next = onAgentSpawn(await readQueueState(), now);
   const max = maxUnreviewed();
 
-  if (shouldNudge(next, max, now)) {
+  if (next.kind === "pending" && shouldNudge(next, max, now)) {
     io.context("PostToolUse", buildNudge(next.awaiting, max));
-    next.firedAt = now;
+    next = onNudged(next, now);
   }
 
-  await writeState(QUEUE_STATE, next);
+  await writeState(QUEUE_STATE, serializeReviewQueueState(next));
 }
 
 export async function main(io: HookIO = processIO): Promise<void> {

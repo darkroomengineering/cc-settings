@@ -23,9 +23,9 @@ import { intEnv } from "./hook-config.ts";
 // consumer (statusline.ts, tool-cadence.ts, session-start.ts, review-batch.ts)
 // must degrade to "absent"/default on corruption instead of feeding
 // NaN/garbage downstream — repo policy stated at version-delta.ts:250-256.
-export const ReviewQueueStateSchema = z.object({
+const ReviewQueueStateSchema = z.object({
   /** Agent tool calls since the last commit. */
-  awaiting: z.number(),
+  awaiting: z.number().int().nonnegative(),
   /** Epoch ms of the FIRST spawn since the last commit (oldest unreviewed work). */
   firstSpawnAt: z.number().optional(),
   /** Epoch ms of the last nudge — debounce so we don't nag on every spawn. */
@@ -37,7 +37,34 @@ export const ReviewQueueStateSchema = z.object({
   lastHead: z.string().optional(),
 });
 
-export type ReviewQueueState = z.infer<typeof ReviewQueueStateSchema>;
+export type ReviewQueueState =
+  | { kind: "empty"; lastHead?: string }
+  | {
+      kind: "pending";
+      awaiting: number;
+      firstSpawnAt: number;
+      firedAt?: number;
+      lastHead?: string;
+    };
+
+export function parseReviewQueueState(raw: unknown): ReviewQueueState {
+  const parsed = ReviewQueueStateSchema.safeParse(raw);
+  const lastHead =
+    typeof raw === "object" && raw !== null && "lastHead" in raw && typeof raw.lastHead === "string"
+      ? raw.lastHead
+      : undefined;
+  if (!parsed.success) return onCommit(lastHead);
+  const state = parsed.data;
+  if (state.awaiting > 0 && state.firstSpawnAt !== undefined) {
+    return { ...state, kind: "pending", firstSpawnAt: state.firstSpawnAt };
+  }
+  return onCommit(lastHead);
+}
+
+export function serializeReviewQueueState(state: ReviewQueueState) {
+  const { kind, ...fields } = state;
+  return kind === "empty" ? { awaiting: 0, ...fields } : fields;
+}
 
 export const DEBOUNCE_MS = 60_000;
 const DEFAULT_MAX = 5;
@@ -109,8 +136,9 @@ export function commitSucceeded(result: BashResult | undefined): boolean {
 export function onAgentSpawn(state: ReviewQueueState, now: number): ReviewQueueState {
   return {
     ...state,
-    awaiting: state.awaiting + 1,
-    firstSpawnAt: state.awaiting === 0 ? now : state.firstSpawnAt,
+    kind: "pending",
+    awaiting: state.kind === "empty" ? 1 : state.awaiting + 1,
+    firstSpawnAt: state.kind === "empty" ? now : state.firstSpawnAt,
   };
 }
 
@@ -118,20 +146,24 @@ export function onAgentSpawn(state: ReviewQueueState, now: number): ReviewQueueS
  *  post-commit HEAD as the new baseline when known, so the subsequent push of
  *  the same commit is a no-op rather than a spurious re-drain. */
 export function onCommit(head?: string): ReviewQueueState {
-  return head ? { awaiting: 0, lastHead: head } : { awaiting: 0 };
+  return head === undefined ? { kind: "empty" } : { kind: "empty", lastHead: head };
+}
+
+export function onNudged(state: ReviewQueueState, now: number): ReviewQueueState {
+  return state.kind === "pending" ? { ...state, firedAt: now } : state;
 }
 
 /** Nudge when the queue is at/over the review rate and we haven't nudged
  *  within DEBOUNCE_MS. */
 export function shouldNudge(state: ReviewQueueState, max: number, now: number): boolean {
-  if (state.awaiting < max) return false;
+  if (state.kind === "empty" || state.awaiting < max) return false;
   if (state.firedAt !== undefined && now - state.firedAt < DEBOUNCE_MS) return false;
   return true;
 }
 
 /** Age of the oldest unreviewed work in ms (0 if the queue is empty). */
 export function ageMs(state: ReviewQueueState, now: number): number {
-  if (state.awaiting === 0 || state.firstSpawnAt === undefined) return 0;
+  if (state.kind === "empty") return 0;
   return Math.max(0, now - state.firstSpawnAt);
 }
 
@@ -154,8 +186,7 @@ export function isCognitiveSurrender(
   max: number,
   minReviewMs: number,
 ): boolean {
-  if (state.awaiting < max) return false;
-  if (state.firstSpawnAt === undefined) return false;
+  if (state.kind === "empty" || state.awaiting < max) return false;
   return now - state.firstSpawnAt < minReviewMs;
 }
 
@@ -226,5 +257,5 @@ export function onHeadObserved(
   if (!head) return state;
   if (state.lastHead === undefined) return { ...state, lastHead: head };
   if (state.lastHead === head) return state;
-  return { awaiting: 0, lastHead: head };
+  return onCommit(head);
 }

@@ -23,7 +23,7 @@ export type SystemPM =
 
 type PythonPM = "pipx" | "pip3" | "pip" | null;
 
-let aptUpdated = false;
+let apt: "stale" | "fresh" | "failed" = "stale";
 
 export function detectSystemPM(): SystemPM {
   const probe = (
@@ -126,12 +126,15 @@ export async function ensureSystemPackage(pkg: string, checkCmd = pkg): Promise<
   };
 
   const ok = await withProgress(`Installing ${pkg} via ${pm}`, async () => {
-    if (pm === "apt" && !aptUpdated) {
-      await runSilent(["sudo", "apt-get", "update", "-qq"]);
-      aptUpdated = true;
+    if (pm === "apt" && apt !== "fresh") {
+      apt = (await runSilent(["sudo", "apt-get", "update", "-qq"])) ? "fresh" : "failed";
+      if (apt === "failed") {
+        apt = (await runSilent(["sudo", "apt-get", "update", "-qq"])) ? "fresh" : "failed";
+      }
     }
     return runSilent(installCmd[pm]);
   });
+  if (pm === "apt" && apt === "failed") progressWarn(`${pkg} - apt-get update failed`);
   if (ok) progressOk(`${pkg} installed`);
   else progressFail(`Failed to install ${pkg}`);
   return ok;

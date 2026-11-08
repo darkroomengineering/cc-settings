@@ -29,8 +29,8 @@ import { CLAUDE_DIR, hasCommand, hookBunArgv, localDatetime } from "../lib/platf
 import { projectAwareness } from "../lib/project-awareness.ts";
 import {
   onHeadObserved,
-  type ReviewQueueState,
-  ReviewQueueStateSchema,
+  parseReviewQueueState,
+  serializeReviewQueueState,
 } from "../lib/review-queue.ts";
 import { LEDGER_DIR, readDigest, toProjectRelative } from "../lib/session-ledger.ts";
 import { linearMapAwareness, teamKnowledgeAwareness } from "../lib/team-knowledge.ts";
@@ -432,11 +432,10 @@ try {
 // avoid a rev-parse on every session start. Fail-soft: any problem ⇒ untouched.
 try {
   const rqRaw = await readState<unknown>("review-queue.json", null);
-  const rqParsed = ReviewQueueStateSchema.safeParse(rqRaw);
-  const rq: ReviewQueueState = rqParsed.success ? rqParsed.data : { awaiting: 0 };
-  if (rq.awaiting > 0) {
+  const rq = parseReviewQueueState(rqRaw);
+  if (rq.kind === "pending") {
     const head = (await runGit(["rev-parse", "HEAD"], { cwd: PROJECT_DIR })).trim() || undefined;
-    await writeState("review-queue.json", onHeadObserved(rq, head));
+    await writeState("review-queue.json", serializeReviewQueueState(onHeadObserved(rq, head)));
   }
 } catch {
   // never let the reconcile disrupt session start

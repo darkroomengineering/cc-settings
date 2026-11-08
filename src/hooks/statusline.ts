@@ -31,7 +31,7 @@ const palette = {
 } as const;
 
 import { runGit as runGitLib, runProcessFull } from "../lib/git.ts";
-import { readHookInput, readValidatedState, writeState } from "../lib/hook-runtime.ts";
+import { readHookInput, readState, readValidatedState, writeState } from "../lib/hook-runtime.ts";
 import { claudePath } from "../lib/platform.ts";
 import {
   computeBand,
@@ -43,13 +43,7 @@ import {
   type SessionRateLimits,
   writeRateLimitsCache,
 } from "../lib/quota.ts";
-import {
-  ageMs,
-  formatAge,
-  maxUnreviewed,
-  type ReviewQueueState,
-  ReviewQueueStateSchema,
-} from "../lib/review-queue.ts";
+import { ageMs, formatAge, maxUnreviewed, parseReviewQueueState } from "../lib/review-queue.ts";
 import {
   refreshSessionModelMap,
   SESSION_MODEL_STATE,
@@ -62,11 +56,6 @@ import {
   SessionInstallMapSchema,
 } from "../lib/version-delta.ts";
 
-// ReviewQueueStateSchema now lives in lib/review-queue.ts, next to the
-// interface it validates (N2) — imported above. Shape-validated the same way
-// quota.ts's RateLimitsCacheSchema is — a malformed review-queue.json/
-// version-drift.json (partial write, future schema change, tampering) must
-// degrade to "absent" instead of feeding NaN/garbage into the visible statusline.
 const VersionDriftSchema = z.object({
   stale: z.boolean().optional(),
   installed: z.string().nullable().optional(),
@@ -358,14 +347,8 @@ async function main(): Promise<void> {
   // Review-queue backpressure: agents spawned since the last commit, awaiting
   // your review (written by tool-cadence.ts). Suppressed at 0 — yellow
   // under the threshold, red at/over CC_MAX_UNREVIEWED.
-  const reviewQueue: ReviewQueueState = await readValidatedState(
-    "review-queue.json",
-    ReviewQueueStateSchema,
-    {
-      awaiting: 0,
-    },
-  );
-  if (reviewQueue.awaiting > 0) {
+  const reviewQueue = parseReviewQueueState(await readState<unknown>("review-queue.json", null));
+  if (reviewQueue.kind === "pending") {
     const color = reviewQueue.awaiting >= maxUnreviewed() ? palette.red : palette.yellow;
     const age = ageMs(reviewQueue, Date.now());
     const ageLabel = age > 0 ? ` (${formatAge(age)})` : "";
