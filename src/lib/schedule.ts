@@ -10,6 +10,7 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { runProcessFull } from "./git.ts";
 import { claudePath, hasCommand, os } from "./platform.ts";
+import { readSentinel } from "./version-delta.ts";
 
 export const AUTO_UPDATE_LABEL = "com.darkroom.cc-settings-autoupdate";
 
@@ -330,25 +331,11 @@ export function parseAutoUpdateState(serialized: string): AutoUpdateStateSnapsho
 async function readScheduledOwnership(
   claudeDir: string,
 ): Promise<{ repoPath: string | null; managed: boolean }> {
-  const sentinel = await readFile(join(claudeDir, ".cc-settings-version"), "utf8").catch(
-    () => null,
-  );
-  if (sentinel === null) return { repoPath: null, managed: false };
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(sentinel);
-  } catch {
-    return { repoPath: null, managed: false };
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { repoPath: null, managed: false };
-  }
-  const sentinelState = parsed as Record<string, unknown>;
-  const repoPath = sentinelState.repo_path;
+  const sentinel = await readSentinel(claudeDir);
+  const repoPath = sentinel.repo_path;
   return {
-    repoPath: typeof repoPath === "string" && isAbsolute(repoPath) ? resolve(repoPath) : null,
-    managed:
-      sentinelState.auto_update === true && sentinelState.managed_files_state !== "managed-absent",
+    repoPath: repoPath !== undefined && isAbsolute(repoPath) ? resolve(repoPath) : null,
+    managed: sentinel.auto_update === true && sentinel.ownership.kind !== "managed-absent",
   };
 }
 

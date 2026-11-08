@@ -34,16 +34,13 @@ import { join, resolve } from "node:path";
 import {
   addGeneratedManagedFiles,
   assertClaudeLifecycleOwnershipUnchanged,
-  type ClaudeMutationPhase,
-  type ClaudeSharedExplicitDrift,
-  type ClaudeSharedExplicitSnapshot,
   captureClaudeSharedExplicitDrift,
-  captureClaudeSharedExplicitDriftAfterFailure,
   captureClaudeSharedExplicitState,
   claudeManagedPath,
   ensurePersonalInstructionsFile,
   prepareClaudeInstallOwnership,
   regularFileHash,
+  unownedClaudeUninstallError,
   validateClaudeManagedFiles,
   writeVersionSentinel,
 } from "./lib/claude-install-ownership.ts";
@@ -81,22 +78,16 @@ import { composeSettings } from "./lib/compose-settings.ts";
 import { reportCopilotSync } from "./lib/copilot-instructions.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
 import { FINGERPRINT_FILENAME } from "./lib/hooks-fingerprint.ts";
-import {
-  ClaudePrewriteOwnershipChangedError,
-  type PreparedClaudeRollback,
-  prepareClaudeCompensation,
-  printHelp,
-} from "./lib/install-cmds.ts";
+import { prepareClaudeCompensation, printHelp } from "./lib/install-cmds.ts";
 import { cmdDryRun, printStatus, showSummary } from "./lib/install-display.ts";
 import { createBackup, createDirectories, preflightInstallSource } from "./lib/install-fs.ts";
 import {
   applyAutoUpdate,
   askAutoUpdateUpfront,
   assertAutoUpdateRequestDoesNotClaimIndependentState,
+  createCombinedTxn,
   createSharedBackupId,
   resolveEnrolledRepoPath,
-  restoreCodexAfterClaudePrewriteChange,
-  restoreCombinedAfterClaudeFailure,
   runFullInstall,
   runSelectedRollback,
   runSelectedUninstall,
@@ -108,7 +99,7 @@ import { retireSkills, scanRetiredSkills } from "./lib/managed-skills.ts";
 import { CLAUDE_JSON_PATH, type McpServers, removeManagedMcpServers } from "./lib/mcp.ts";
 import { CLAUDE_DIR, getTimestamp, installPaths, isWindows } from "./lib/platform.ts";
 import { isInteractive, promptYn } from "./lib/prompts.ts";
-import { type AutoUpdateStateSnapshot, snapshotAutoUpdateState } from "./lib/schedule.ts";
+import { snapshotAutoUpdateState } from "./lib/schedule.ts";
 import {
   BASELINE_FILENAME,
   readSettingsBaseline,
@@ -122,6 +113,8 @@ import {
   readDestructiveSentinel,
   readSentinel,
   readSentinelInfo,
+  SentinelSchema,
+  sentinelOwnership,
 } from "./lib/version-delta.ts";
 
 export type { InstallTarget } from "./lib/install-types.ts";
@@ -243,17 +236,13 @@ async function readClaudeInstalledVersionForGuard(): Promise<ClaudeInstalledVers
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error(`Claude Code install metadata has no valid version: ${sentinelPath}`);
   }
-  const sentinel = value as Record<string, unknown>;
-  const version = sentinel.version;
-  if (version === undefined && sentinel.managed_files_state === "managed-absent") return null;
+  const version = (value as Record<string, unknown>).version;
+  const ownership = sentinelOwnership(SentinelSchema.parse(value));
+  if (version === undefined && ownership.kind === "managed-absent") return null;
   if (typeof version !== "string") {
     throw new Error(`Claude Code install metadata has no valid version: ${sentinelPath}`);
   }
-  return {
-    version,
-    usesHistoricalOwnership:
-      sentinel.managed_files === undefined && sentinel.managed_files_state === undefined,
-  };
+  return { version, usesHistoricalOwnership: ownership.kind === "legacy" };
 }
 
 async function normalInstallVersionGuard(target: Exclude<InstallTarget, "auto">): Promise<boolean> {
@@ -357,12 +346,15 @@ async function main(): Promise<number> {
   if (args.uninstall) {
     if (includesTarget(target, "claude")) {
       const destructiveSentinel = await readDestructiveSentinel(CLAUDE_DIR);
-      await validateClaudeManagedFiles(
-        destructiveSentinel === null ? null : (destructiveSentinel.managed_files ?? {}),
-        args.sourceDir,
-        destructiveSentinel?.profile ?? "full",
-        destructiveSentinel?.managed_files_manifest_version,
-      );
+      if (destructiveSentinel !== null) {
+        const { ownership } = destructiveSentinel;
+        if (ownership.kind === "legacy") throw unownedClaudeUninstallError();
+        await validateClaudeManagedFiles(
+          ownership,
+          args.sourceDir,
+          destructiveSentinel.profile ?? "full",
+        );
+      }
     }
     const code = await underInstallLock(target, () => runSelectedUninstall(target, args.sourceDir));
     if (code === 0 && includesTarget(target, "claude")) await reportCopilotSync();
@@ -462,12 +454,11 @@ async function main(): Promise<number> {
   // branches it already takes on a genuine first install (see the --fresh
   // cleanup block inside underInstallLock).
   let priorDestructiveSentinel = await readDestructiveSentinel(CLAUDE_DIR);
-  if (priorDestructiveSentinel?.managed_files) {
+  if (priorDestructiveSentinel !== null) {
     await validateClaudeManagedFiles(
-      priorDestructiveSentinel.managed_files,
+      priorDestructiveSentinel.ownership,
       args.sourceDir,
       priorDestructiveSentinel.profile ?? "full",
-      priorDestructiveSentinel.managed_files_manifest_version,
     );
   }
   const preparedClaudeInstallOwnership = await prepareClaudeInstallOwnership(
@@ -535,65 +526,51 @@ async function main(): Promise<number> {
   let managedFiles = sentinelState.managed_files ?? null;
   const installCode = await underInstallLock(target, async () => {
     if (!(await normalInstallVersionGuard(target))) return 1;
-    let claudeCompensation: PreparedClaudeRollback | null = null;
-    let codexCompensation: string | null = null;
-    let autoUpdateSnapshot: AutoUpdateStateSnapshot | null = null;
-    let claudeSharedDrift: ClaudeSharedExplicitDrift = {};
-    let schedulerSharedBaseline: ClaudeSharedExplicitSnapshot | null = null;
-    let compensationAttempted = false;
-    let claudePhase: ClaudeMutationPhase = "unstarted";
+    const txn = createCombinedTxn("install");
     const backupId = target === "both" ? createSharedBackupId() : undefined;
-    const compensate = async (cause: unknown): Promise<void> => {
-      compensationAttempted = true;
-      if (cause instanceof ClaudePrewriteOwnershipChangedError) {
-        await restoreCodexAfterClaudePrewriteChange(codexCompensation, cause, "install");
-        return;
-      }
-      if (claudePhase === "scheduler" && schedulerSharedBaseline) {
-        claudeSharedDrift = {
-          ...claudeSharedDrift,
-          ...(await captureClaudeSharedExplicitDriftAfterFailure(schedulerSharedBaseline)),
-        };
-      }
-      await restoreCombinedAfterClaudeFailure(
-        claudeCompensation,
-        codexCompensation,
-        autoUpdateSnapshot,
-        cause,
-        claudePhase,
-        claudeSharedDrift,
-      );
-    };
-    try {
-      autoUpdateSnapshot = await snapshotAutoUpdateState();
-      assertAutoUpdateRequestDoesNotClaimIndependentState(args, autoUpdateSnapshot);
-      claudeCompensation = await prepareClaudeCompensation(
-        await createBackup({
-          temporary: true,
-          backupId,
-          managedFiles: preparedClaudeInstallOwnership.files,
-        }),
-        preparedClaudeInstallOwnership.targetPaths,
-      );
-      const claudeSharedBaseline = await captureClaudeSharedExplicitState();
-      if (includesTarget(target, "codex")) {
-        phase("Codex");
-        codexCompensation = await installCodex({
-          sourceDir: args.sourceDir,
-          version: VERSION,
-          profile: args.profile,
-          backupId,
+    return txn.run([
+      async () => {
+        const autoUpdateSnapshot = await snapshotAutoUpdateState();
+        txn.dispatch({ type: "autoUpdate", snapshot: autoUpdateSnapshot });
+        assertAutoUpdateRequestDoesNotClaimIndependentState(args, autoUpdateSnapshot);
+        txn.dispatch({
+          type: "claude",
+          compensation: await prepareClaudeCompensation(
+            await createBackup({
+              temporary: true,
+              backupId,
+              managedFiles: preparedClaudeInstallOwnership.files,
+            }),
+            preparedClaudeInstallOwnership.targetPaths,
+          ),
         });
-      }
-      claudeSharedDrift = await captureClaudeSharedExplicitDrift(claudeSharedBaseline);
-
-      claudePhase = "files";
-      // Read the previous install's settings baseline BEFORE any file work —
-      // runFullInstall deletes the managed footprint (baseline included)
-      // ahead of installSettings, which threads this into the merge to prune
-      // env keys cc-settings retired between versions.
-      let priorSettingsBaseline: SettingsBaseline | null = null;
-      const claudeCode = await (async (): Promise<number> => {
+      },
+      async () => {
+        const claudeSharedBaseline = await captureClaudeSharedExplicitState();
+        if (includesTarget(target, "codex")) {
+          phase("Codex");
+          txn.dispatch({
+            type: "codex",
+            compensation: await installCodex({
+              sourceDir: args.sourceDir,
+              version: VERSION,
+              profile: args.profile,
+              backupId,
+            }),
+          });
+        }
+        txn.dispatch({
+          type: "drift",
+          drift: await captureClaudeSharedExplicitDrift(claudeSharedBaseline),
+        });
+      },
+      async () => {
+        txn.dispatch({ type: "files" });
+        // Read the previous install's settings baseline BEFORE any file work —
+        // runFullInstall deletes the managed footprint (baseline included)
+        // ahead of installSettings, which threads this into the merge to prune
+        // env keys cc-settings retired between versions.
+        let priorSettingsBaseline: SettingsBaseline | null = null;
         // Dispatch to migrate-only or full install path.
         if (args.migrateOnly) {
           priorSettingsBaseline = await readSettingsBaseline(CLAUDE_DIR);
@@ -721,21 +698,16 @@ async function main(): Promise<number> {
         if (!args.dryRun) await restrictKeyedSettings();
         if (!args.dryRun && args.profile === "full") await ensurePersonalInstructionsFile();
 
-        schedulerSharedBaseline = await captureClaudeSharedExplicitState();
-        claudePhase = "scheduler";
+        await txn.schedulerPhase.before();
         phase("Auto-update");
         const autoUpdateEnrolled = await applyAutoUpdate(
           args,
           priorAutoUpdate,
-          autoUpdateSnapshot,
+          txn.state.autoUpdate,
           enrolledRepoPath,
           autoUpdateAnswer,
         );
-        claudeSharedDrift = {
-          ...claudeSharedDrift,
-          ...(await captureClaudeSharedExplicitDrift(schedulerSharedBaseline)),
-        };
-        schedulerSharedBaseline = null;
+        await txn.schedulerPhase.after();
         if (args.profile === "light" && priorDestructiveSentinel?.profile === "full") {
           const baselinePath = claudeManagedPath(".cc-settings-baseline.json");
           const baselineHash =
@@ -773,19 +745,8 @@ async function main(): Promise<number> {
             : undefined,
         );
         return 0;
-      })();
-      if (claudeCode !== 0) {
-        await compensate(new Error(`Claude install exited ${claudeCode}`));
-      }
-      return claudeCode;
-    } catch (cause) {
-      if (!compensationAttempted && (claudeCompensation || codexCompensation)) {
-        await compensate(cause);
-      }
-      throw cause;
-    } finally {
-      await claudeCompensation?.cleanup();
-    }
+      },
+    ]);
   });
   if (installCode !== 0) return installCode;
   startPhases(0);

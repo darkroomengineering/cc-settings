@@ -24,7 +24,13 @@ import type { Profile } from "./light-profile.ts";
 import { CLAUDE_JSON_PATH, type McpServers } from "./mcp.ts";
 import { CLAUDE_DIR, sha256 } from "./platform.ts";
 import { plistPath } from "./schedule.ts";
-import { readDestructiveSentinel, type Sentinel, writeSentinel } from "./version-delta.ts";
+import {
+  type Ownership,
+  type ParsedSentinel,
+  readDestructiveSentinel,
+  type Sentinel,
+  writeSentinel,
+} from "./version-delta.ts";
 
 export function claudeManagedPath(relativePath: string): string {
   if (!relativePath || isAbsolute(relativePath) || relativePath.split(/[\\/]+/).includes("..")) {
@@ -95,8 +101,6 @@ export interface ClaudeSharedExplicitDrift {
   settings?: ClaudeSharedFileState;
   global?: ClaudeSharedFileState;
 }
-
-export type ClaudeMutationPhase = "unstarted" | "files" | "scheduler";
 
 async function captureClaudeSharedFileState(path: string): Promise<ClaudeSharedFileState> {
   const metadata = await lstat(path).catch((cause) => {
@@ -314,8 +318,8 @@ export async function validateClaudeNodeModulesOwnership(
   } else if (
     metadata.isDirectory() &&
     !metadata.isSymbolicLink() &&
-    sentinel?.managed_files &&
-    sentinel.managed_files_manifest_version
+    sentinel?.ownership.kind === "owned" &&
+    sentinel.ownership.manifestVersion !== undefined
   ) {
     expectedTarget = await realpath(installedPath);
   }
@@ -367,7 +371,8 @@ export async function validateClaudeInstallBoundaries(): Promise<void> {
   };
 
   const sentinel = await readDestructiveSentinel(CLAUDE_DIR);
-  const managedFiles = Object.keys(sentinel?.managed_files ?? {});
+  const managedFiles =
+    sentinel?.ownership.kind === "owned" ? Object.keys(sentinel.ownership.files) : [];
   const fileDestinations = new Set([
     ...currentClaudeManagedSourceFiles("full").map(({ destination }) => destination),
     ...managedFiles,
@@ -618,34 +623,12 @@ export async function prepareClaudeInstallOwnership(
 ): Promise<PreparedClaudeInstallOwnership> {
   const nodeModulesTarget = await validateClaudeNodeModulesOwnership(sentinel);
   let files: Record<string, string> = {};
-  if (sentinel?.managed_files) {
-    files = Object.fromEntries(
-      Object.entries(sentinel.managed_files).map(([path, hash]) => [path, hash.toLowerCase()]),
-    );
-  } else if (
-    sentinel?.managed_files_state === "managed-absent" &&
-    options.claimManagedAbsentGenerated !== false
-  ) {
+  const claimHistorical = async (prior: ParsedSentinel): Promise<void> => {
+    files = await historicalClaudeOwnership(sourceDir, prior.profile ?? "full", prior.version);
     for (const generated of [
       ".cc-settings-hooks-fingerprint",
       ".cc-settings-src-manifest",
-      ".cc-settings-baseline.json",
-    ]) {
-      if (await isStrictLegacyGeneratedFile(generated)) {
-        const hash = await regularFileHash(claudeManagedPath(generated));
-        if (hash) files[generated] = hash;
-      }
-    }
-  } else if (sentinel) {
-    files = await historicalClaudeOwnership(
-      sourceDir,
-      sentinel.profile ?? "full",
-      sentinel.version,
-    );
-    for (const generated of [
-      ".cc-settings-hooks-fingerprint",
-      ".cc-settings-src-manifest",
-      ...(sentinel.profile === "light" ? [] : [".cc-settings-baseline.json"]),
+      ...(prior.profile === "light" ? [] : [".cc-settings-baseline.json"]),
     ]) {
       const metadata = await lstat(claudeManagedPath(generated)).catch(() => null);
       if (metadata && !(await isStrictLegacyGeneratedFile(generated))) {
@@ -656,6 +639,34 @@ export async function prepareClaudeInstallOwnership(
         if (hash) files[generated] = hash;
       }
     }
+  };
+  switch (sentinel?.ownership.kind) {
+    case undefined:
+      break;
+    case "owned":
+      files = Object.fromEntries(
+        Object.entries(sentinel.ownership.files).map(([path, hash]) => [path, hash.toLowerCase()]),
+      );
+      break;
+    case "managed-absent":
+      if (options.claimManagedAbsentGenerated === false) {
+        await claimHistorical(sentinel);
+        break;
+      }
+      for (const generated of [
+        ".cc-settings-hooks-fingerprint",
+        ".cc-settings-src-manifest",
+        ".cc-settings-baseline.json",
+      ]) {
+        if (await isStrictLegacyGeneratedFile(generated)) {
+          const hash = await regularFileHash(claudeManagedPath(generated));
+          if (hash) files[generated] = hash;
+        }
+      }
+      break;
+    case "legacy":
+      await claimHistorical(sentinel);
+      break;
   }
 
   if (options.validateTargetCollisions !== false) await adoptUserEditedClaudeFiles(files);
@@ -724,13 +735,43 @@ export async function addGeneratedManagedFiles(
   return managed;
 }
 
+/**
+ * Uninstall refuses a legacy sentinel: with no hash map it cannot tell
+ * cc-settings' files from the user's. A managed-absent sentinel owns no files,
+ * so its uninstall removes none and proceeds.
+ */
+export function unownedClaudeUninstallError(): Error {
+  return new Error(
+    "Claude sentinel records no managed_files ownership (legacy). " +
+      "Reinstall cc-settings once to establish versioned ownership metadata.",
+  );
+}
+
 export async function validateClaudeManagedFiles(
-  managedFiles: Record<string, string> | null,
+  ownership: Ownership,
   sourceDir: string,
   profile: Profile,
-  manifestVersion?: number,
 ): Promise<void> {
-  if (!managedFiles) return;
+  switch (ownership.kind) {
+    case "legacy":
+    case "managed-absent":
+      return;
+    case "owned":
+      return validateOwnedClaudeFiles(
+        ownership.files,
+        sourceDir,
+        profile,
+        ownership.manifestVersion,
+      );
+  }
+}
+
+async function validateOwnedClaudeFiles(
+  managedFiles: Record<string, string>,
+  sourceDir: string,
+  profile: Profile,
+  manifestVersion: number | undefined,
+): Promise<void> {
   const inferredLegacy = manifestVersion === undefined;
   await validateClaudeManagedFileOwnership(
     managedFiles,
@@ -755,21 +796,25 @@ export async function validateClaudeManagedFiles(
 export async function removeOwnedClaudeFiles(
   sourceDir: string,
   profile: Profile,
-  managedFiles: Record<string, string> | null,
-  manifestVersion?: number,
+  ownership: Ownership,
   nodeModulesTarget: string | null = null,
 ): Promise<void> {
   const candidates = new Map<string, string>();
-  if (managedFiles) {
-    await validateClaudeManagedFiles(managedFiles, sourceDir, profile, manifestVersion);
-    for (const [relativePath, hash] of Object.entries(managedFiles)) {
-      candidates.set(relativePath, hash.toLowerCase());
-    }
-  } else {
-    for (const [source, relativeDestination] of await profileFileMappings(sourceDir, profile)) {
-      const sourceHash = await regularFileHash(source);
-      if (sourceHash !== null) candidates.set(relativeDestination, sourceHash);
-    }
+  switch (ownership.kind) {
+    case "owned":
+      await validateClaudeManagedFiles(ownership, sourceDir, profile);
+      for (const [relativePath, hash] of Object.entries(ownership.files)) {
+        candidates.set(relativePath, hash.toLowerCase());
+      }
+      break;
+    case "legacy":
+      for (const [source, relativeDestination] of await profileFileMappings(sourceDir, profile)) {
+        const sourceHash = await regularFileHash(source);
+        if (sourceHash !== null) candidates.set(relativeDestination, sourceHash);
+      }
+      break;
+    case "managed-absent":
+      break;
   }
 
   await removeClaudeFilesWithHashes(Object.fromEntries(candidates), nodeModulesTarget);

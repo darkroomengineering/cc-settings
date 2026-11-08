@@ -2353,6 +2353,30 @@ describe("install E2E — uninstall ownership", () => {
     240_000,
   );
 
+  test("a managed-absent Claude install uninstalls without removing any files", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-migrate-only-uninstall-"));
+    const claudeDir = join(home, ".claude");
+    try {
+      await mkdir(claudeDir);
+      const personal = join(claudeDir, "personal.txt");
+      await writeFile(personal, "keep me\n");
+
+      const migrate = await runInstall(home, ["--migrate-only"], "claude");
+      expect(migrate.exitCode, `${migrate.stdout}\n${migrate.stderr}`).toBe(0);
+      const sentinel = JSON.parse(
+        await readFile(join(claudeDir, ".cc-settings-version"), "utf8"),
+      ) as Record<string, unknown>;
+      expect(sentinel.managed_files_state).toBe("managed-absent");
+
+      const uninstall = await runInstall(home, ["--uninstall"], "claude");
+      expect(uninstall.exitCode, `${uninstall.stdout}\n${uninstall.stderr}`).toBe(0);
+      expect(existsSync(join(claudeDir, ".cc-settings-version"))).toBe(false);
+      expect(await readFile(personal, "utf8")).toBe("keep me\n");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 240_000);
+
   test("a modified currently owned Claude file blocks paired rollback before Codex mutation", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-e2e-rollback-modified-claude-"));
     const claudeDir = join(home, ".claude");
