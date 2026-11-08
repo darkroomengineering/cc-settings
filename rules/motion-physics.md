@@ -164,6 +164,10 @@ user controls, fast on the phase the system controls.
 - Anchor popovers/menus/tooltips to their trigger via `transform-origin` — modals
   are the exception, they stay centered.
 
+## Tune in the browser, not in chat
+
+When values need judging by eye (durations, easing, springs, distances, colors, spacing), add a dev-only control panel bound to the real values in the component, with an action that copies the tuned values as code. The user drags until it feels right and pastes the values back once; twenty rounds of "a bit slower" each re-read the whole session. Use the panel the project already has (Theatre.js, Leva, Tweakpane); if it has none, ask which to add. Load it behind a dev check with a dynamic import so it never reaches the production bundle, and write the final values into the code before shipping. Idea adapted from [claude-workflow-kit](https://github.com/seb-astian-wieser/claude-workflow-kit) (MIT).
+
 ## Translucent materials
 
 Translucent surfaces (`backdrop-filter`): pair with `prefers-reduced-transparency: reduce` → raise background opacity and drop the blur. Reduced-motion behavior lives in `rules/accessibility.md`.
