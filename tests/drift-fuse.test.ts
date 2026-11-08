@@ -109,19 +109,18 @@ describe("scoring", () => {
 });
 
 describe("foldTurn", () => {
-  test("two drift turns trip; an on-task turn clears strikes", () => {
-    let s = foldTurn({ strikes: 0, tripped: false }, 0.1, CONFIG);
-    expect(s).toEqual({ strikes: 1, tripped: false });
-    s = foldTurn(s, 0.9, CONFIG);
-    expect(s).toEqual({ strikes: 0, tripped: false });
-    s = foldTurn(foldTurn(s, 0.2, CONFIG), 0.3, CONFIG);
-    expect(s).toEqual({ strikes: 2, tripped: true });
+  test("two drift turns trip with their own actions; an on-task turn clears strikes", () => {
+    let s = foldTurn({ kind: "armed", strikes: 0 }, 0.1, ["a"], CONFIG);
+    expect(s).toEqual({ kind: "armed", strikes: 1 });
+    s = foldTurn(s, 0.9, ["b"], CONFIG);
+    expect(s).toEqual({ kind: "armed", strikes: 0 });
+    s = foldTurn(foldTurn(s, 0.2, ["c"], CONFIG), 0.3, ["d"], CONFIG);
+    expect(s).toEqual({ kind: "tripped", strikesAtTrip: 2, actionsAtTrip: ["d"] });
   });
-  test("a tripped fuse stays tripped through an on-task turn until the prompt hook resets it", () => {
-    expect(foldTurn({ strikes: 2, tripped: true }, 0.9, CONFIG)).toEqual({
-      strikes: 0,
-      tripped: true,
-    });
+  test("a tripped fuse keeps the trip's data through later turns until a prompt resets it", () => {
+    const tripped = { kind: "tripped", strikesAtTrip: 2, actionsAtTrip: ["d"] } as const;
+    expect(foldTurn(tripped, 0.9, ["e"], CONFIG)).toEqual(tripped);
+    expect(foldTurn(tripped, 0.1, ["e"], CONFIG)).toEqual(tripped);
   });
 });
 
@@ -195,6 +194,17 @@ async function runTurn(
   return submitted;
 }
 
+/** The person's task prompt and its (unscored) turn, as the engine delivers them. */
+async function startTask(h: Map<string, Handler>, $: Any) {
+  await h.get("prompt.submit")!($, TASK, passthrough);
+  await h.get("turn.start")!($, { text: TASK.text, turnId: "t0" }, passthrough);
+  await h.get("turn.complete")!(
+    $,
+    { answer: "ok", durationMs: 1, isAborted: false, turnId: "t0" },
+    passthrough,
+  );
+}
+
 const TASK = {
   text: "fix the flaky login test in tests/login.test.ts",
   origin: { kind: "composer" },
@@ -246,7 +256,7 @@ describe("register", () => {
     const { on, handlers } = fakeOn();
     register(on, { onTrip: "pause" });
     const { $, logs } = fakeEngine(0.05, "k");
-    await handlers.get("prompt.submit")!($, TASK, passthrough);
+    await startTask(handlers, $);
     await runTurn(handlers, $, SCHEDULED, [EDIT]);
     await runTurn(handlers, $, SCHEDULED, [EDIT]);
     const dropped = await handlers.get("prompt.submit")!(
@@ -277,6 +287,45 @@ describe("register", () => {
     expect(next.drop).toBeUndefined();
   });
 
+  test("a paused prompt starts no turn, so the next turn keeps its own origin", async () => {
+    const { on, handlers } = fakeOn();
+    register(on, { onTrip: "pause" });
+    const { $, logs } = fakeEngine(0.05, "k");
+    await startTask(handlers, $);
+    await runTurn(handlers, $, SCHEDULED, [EDIT]);
+    await runTurn(handlers, $, SCHEDULED, [EDIT]);
+    const dropped = await handlers.get("prompt.submit")!(
+      $,
+      { text: "tick", origin: SCHEDULED, wait: false },
+      passthrough,
+    );
+    expect(dropped.drop).toContain("drift-fuse");
+
+    // A stale queue slot would shift every later turn onto the previous
+    // prompt's origin, leaving this machine turn unscored.
+    await runTurn(handlers, $, { kind: "composer" }, [EDIT]);
+    const before = logs.length;
+    await runTurn(handlers, $, SCHEDULED, [EDIT]);
+    expect(logs.slice(before).some((l) => l.text.includes("off-task turn 1/"))).toBe(true);
+  });
+
+  test("a prompt dropped further down the chain takes no queue slot", async () => {
+    const { on, handlers } = fakeOn();
+    register(on, {});
+    const { $, logs } = fakeEngine(0.05, "k");
+    await startTask(handlers, $);
+    await handlers.get("prompt.submit")!(
+      $,
+      { text: "tick", origin: SCHEDULED, wait: false },
+      async () => ({ drop: "blocked by another plugin" }),
+    );
+
+    await runTurn(handlers, $, { kind: "composer" }, [EDIT]);
+    const before = logs.length;
+    await runTurn(handlers, $, SCHEDULED, [EDIT]);
+    expect(logs.slice(before).some((l) => l.text.includes("off-task turn 1/"))).toBe(true);
+  });
+
   test("an on-task turn between two drifts keeps the fuse closed", async () => {
     const { on, handlers } = fakeOn();
     register(on, {});
@@ -286,7 +335,7 @@ describe("register", () => {
       ok: true,
       text: JSON.stringify({ answers: { on_task: { noul: onTask } } }),
     });
-    await handlers.get("prompt.submit")!($, TASK, passthrough);
+    await startTask(handlers, $);
     await runTurn(handlers, $, SCHEDULED, [EDIT]);
     onTask = 0.9;
     await runTurn(handlers, $, SCHEDULED, [EDIT]);
@@ -303,7 +352,7 @@ describe("register", () => {
       const { on, handlers } = fakeOn();
       register(on, {});
       const { $, logs } = fakeEngine(onTask, key);
-      await handlers.get("prompt.submit")!($, TASK, passthrough);
+      await startTask(handlers, $);
       await runTurn(handlers, $, SCHEDULED, [EDIT]);
       await runTurn(handlers, $, SCHEDULED, [EDIT]);
       expect(logs.filter((l) => l.text.includes("tripped"))).toHaveLength(0);
@@ -311,7 +360,7 @@ describe("register", () => {
     const { on, handlers } = fakeOn();
     register(on, {});
     const { $, bodies } = fakeEngine(0.1, "k");
-    await handlers.get("prompt.submit")!($, TASK, passthrough);
+    await startTask(handlers, $);
     await runTurn(handlers, $, SCHEDULED, [{ ...EDIT, agentId: "sub" }]);
     await handlers.get("turn.complete")!(
       $,
@@ -325,7 +374,7 @@ describe("register", () => {
     const { on, handlers } = fakeOn();
     register(on, {});
     const { $, logs, bodies } = fakeEngine(0.1, "k", false);
-    await handlers.get("prompt.submit")!($, TASK, passthrough);
+    await startTask(handlers, $);
     await runTurn(handlers, $, SCHEDULED, [EDIT]);
     await runTurn(handlers, $, SCHEDULED, [EDIT]);
     expect(bodies).toHaveLength(0);
@@ -355,7 +404,7 @@ describe("register", () => {
     const { on, handlers } = fakeOn();
     register(on, { tripAfter: 1 });
     const { $, logs, bodies } = fakeEngine(0.1, "k");
-    await handlers.get("prompt.submit")!($, TASK, passthrough);
+    await startTask(handlers, $);
     await handlers.get("prompt.submit")!(
       $,
       { text: "tick", origin: SCHEDULED, wait: false },
@@ -397,5 +446,89 @@ describe("register", () => {
       passthrough,
     );
     expect(bodies).toHaveLength(1);
+  });
+
+  test("an on-task turn queued before the trip does not rewrite the redirect's data", async () => {
+    const { on, handlers } = fakeOn();
+    register(on, {});
+    let onTask = 0.1;
+    const { $ } = fakeEngine(0.1, "k");
+    $.http.fetch = async () => ({
+      ok: true,
+      text: JSON.stringify({ answers: { on_task: { noul: onTask } } }),
+    });
+    await startTask(handlers, $);
+    await runTurn(handlers, $, SCHEDULED, [EDIT]);
+    // A notification queued while turn 2 runs; the fuse is not tripped yet.
+    await handlers.get("prompt.submit")!(
+      $,
+      { text: "n", origin: { kind: "task-notification" }, wait: false },
+      passthrough,
+    );
+    await handlers.get("prompt.submit")!(
+      $,
+      { text: "t", origin: SCHEDULED, wait: false },
+      passthrough,
+    );
+    await handlers.get("turn.start")!($, { text: "t", turnId: "t2" }, passthrough);
+    await handlers.get("tool.call")!($, EDIT, passthrough);
+    await handlers.get("turn.complete")!(
+      $,
+      { answer: "x", durationMs: 1, isAborted: false, turnId: "t2" },
+      passthrough,
+    );
+    onTask = 0.9;
+    await handlers.get("turn.start")!($, { text: "n", turnId: "t3" }, passthrough);
+    await handlers.get("tool.call")!($, { tool: "Bash", command: "ls" }, passthrough);
+    await handlers.get("turn.complete")!(
+      $,
+      { answer: "y", durationMs: 1, isAborted: false, turnId: "t3" },
+      passthrough,
+    );
+    const redirected = await handlers.get("prompt.submit")!(
+      $,
+      { text: "tick", origin: SCHEDULED, wait: false },
+      passthrough,
+    );
+    expect(redirected.context[0]).toContain("the last 2 turns drifted");
+    expect(redirected.context[0]).toContain("Edit /repo/src/billing.ts");
+    expect(redirected.context[0]).not.toContain("Bash");
+  });
+
+  test("a peer message delivered into a running turn does not change who owns a queued person prompt", async () => {
+    const { on, handlers } = fakeOn();
+    register(on, {});
+    const { $, bodies } = fakeEngine(0.1, "k");
+    await startTask(handlers, $);
+    await handlers.get("prompt.submit")!(
+      $,
+      { text: "a", origin: SCHEDULED, wait: false },
+      passthrough,
+    );
+    await handlers.get("turn.start")!($, { text: "a", turnId: "ta" }, passthrough);
+    // The person queues B; a peer message is delivered into A (turnId set).
+    await handlers.get("prompt.submit")!(
+      $,
+      { text: "b", origin: { kind: "composer" }, wait: false, turnId: "ta" },
+      passthrough,
+    );
+    await handlers.get("prompt.submit")!(
+      $,
+      { text: "p", origin: { kind: "task-notification" }, wait: false, turnId: "ta" },
+      passthrough,
+    );
+    await handlers.get("turn.complete")!(
+      $,
+      { answer: "x", durationMs: 1, isAborted: false, turnId: "ta" },
+      passthrough,
+    );
+    await handlers.get("turn.start")!($, { text: "b", turnId: "tb" }, passthrough);
+    await handlers.get("tool.call")!($, EDIT, passthrough);
+    await handlers.get("turn.complete")!(
+      $,
+      { answer: "y", durationMs: 1, isAborted: false, turnId: "tb" },
+      passthrough,
+    );
+    expect(bodies).toHaveLength(0);
   });
 });

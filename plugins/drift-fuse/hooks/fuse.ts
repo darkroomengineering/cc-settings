@@ -24,6 +24,7 @@ import type {
   PluginOptions,
   PromptOrigin,
   PromptSubmitInput,
+  PromptSubmitResult,
   Register,
   ToolCallInput,
   TurnCompleteInput,
@@ -148,20 +149,34 @@ export function parseOnTask(text: string): number | null {
   }
 }
 
-export type FuseState = {
-  /** Consecutive drift turns so far. */
-  strikes: number;
-  tripped: boolean;
-};
+/** Armed counts consecutive drift turns; tripped keeps the trip's own data,
+ *  which no later turn rewrites, until a prompt resets the fuse. */
+interface QueuedPrompt {
+  origin: PromptOrigin;
+  contract: string;
+  generation: number;
+}
+
+export type FuseState =
+  | { kind: "armed"; strikes: number }
+  | { kind: "tripped"; strikesAtTrip: number; actionsAtTrip: readonly string[] };
 
 /**
  * Pure: fold one scored turn into the fuse. A turn at or above `driftBelow`
  * clears the strikes; one below adds a strike, and `tripAfter` strikes trip.
  */
-export function foldTurn(state: FuseState, onTask: number, config: FuseConfig): FuseState {
-  if (onTask >= config.driftBelow) return { strikes: 0, tripped: state.tripped };
+export function foldTurn(
+  state: FuseState,
+  onTask: number,
+  actions: readonly string[],
+  config: FuseConfig,
+): FuseState {
+  if (state.kind === "tripped") return state;
+  if (onTask >= config.driftBelow) return { kind: "armed", strikes: 0 };
   const strikes = state.strikes + 1;
-  return { strikes, tripped: state.tripped || strikes >= config.tripAfter };
+  return strikes >= config.tripAfter
+    ? { kind: "tripped", strikesAtTrip: strikes, actionsAtTrip: actions }
+    : { kind: "armed", strikes };
 }
 
 /** The line a tripped fuse puts in front of the model on the next prompt. */
@@ -231,40 +246,52 @@ export const register: Register = (on: On, options: PluginOptions) => {
   let contractGeneration = 0;
   let turnContract = "";
   let turnGeneration = 0;
-  let fuse: FuseState = { strikes: 0, tripped: false };
-  let lastActions: string[] = [];
-  // The origin of the prompt whose turn is about to start; set at
-  // prompt.submit for an idle session, read at turn.start.
-  let pendingOrigin: PromptOrigin | undefined;
+  let fuse: FuseState = { kind: "armed", strikes: 0 };
+  // One entry per prompt that starts its own turn, in submit order; shifted
+  // by turn.start.
+  const queued: QueuedPrompt[] = [];
   let turnUnattended = false;
   let turn: TurnRecord = { actions: [], toolCalls: 0 };
+
+  // A prompt takes a queue slot only once the rest of the chain accepts it:
+  // one dropped (here or below) or whose chain throws starts no turn.
+  const admit = async (
+    result: PromptSubmitResult | Promise<PromptSubmitResult>,
+    slot: QueuedPrompt | undefined,
+  ): Promise<PromptSubmitResult> => {
+    const out = await result;
+    if (slot && out.drop === undefined) queued.push(slot);
+    return out;
+  };
 
   on("prompt.submit", ($, event: PromptSubmitInput, next) => {
     if (isPersonOrigin(event.origin)) {
       // A person redirecting is never drift: the contract follows them.
       contract = nextContract(contract, event.text);
       contractGeneration += 1;
-      fuse = { strikes: 0, tripped: false };
-      pendingOrigin = event.origin;
-      return next(event);
+      fuse = { kind: "armed", strikes: 0 };
+      return admit(next(event), { origin: event.origin, contract, generation: contractGeneration });
     }
-    pendingOrigin = event.origin;
-    if (!fuse.tripped) return next(event);
-    const line = redirectLine(contract, fuse.strikes, lastActions);
-    fuse = { strikes: 0, tripped: false };
+    // A non-person prompt carrying a turnId is delivered into the running turn.
+    const slot = event.turnId
+      ? undefined
+      : { origin: event.origin, contract, generation: contractGeneration };
+    if (fuse.kind === "armed") return admit(next(event), slot);
+    const line = redirectLine(contract, fuse.strikesAtTrip, fuse.actionsAtTrip);
+    fuse = { kind: "armed", strikes: 0 };
     if (config.onTrip === "pause") {
       $.ui.log(`drift-fuse: paused a ${event.origin.kind} prompt after ${config.tripAfter} off-task turns`);
       return { drop: line };
     }
     $.ui.log(`drift-fuse: redirected a ${event.origin.kind} prompt after ${config.tripAfter} off-task turns`);
-    return next({ ...event, context: [...(event.context ?? []), line] });
+    return admit(next({ ...event, context: [...(event.context ?? []), line] }), slot);
   });
 
   on("turn.start", ($, event: TurnStartInput, next) => {
-    turnUnattended = !isPersonOrigin(pendingOrigin);
-    pendingOrigin = undefined;
-    turnContract = contract;
-    turnGeneration = contractGeneration;
+    const entry = queued.shift();
+    turnUnattended = !isPersonOrigin(entry?.origin);
+    turnContract = entry?.contract ?? contract;
+    turnGeneration = entry?.generation ?? contractGeneration;
     turn = { actions: [], toolCalls: 0 };
     return next(event);
   });
@@ -290,11 +317,10 @@ export const register: Register = (on: On, options: PluginOptions) => {
           // turn served the old one and must not count against the new.
           if (onTask !== null && turnGeneration === contractGeneration) {
             const before = fuse;
-            fuse = foldTurn(fuse, onTask, config);
-            lastActions = turn.actions;
-            if (fuse.tripped && !before.tripped) {
-              $.ui.log(`drift-fuse: tripped after ${fuse.strikes} off-task turns (on-task ${onTask.toFixed(2)})`);
-            } else if (fuse.strikes > 0) {
+            fuse = foldTurn(fuse, onTask, turn.actions, config);
+            if (fuse.kind === "tripped" && before.kind === "armed") {
+              $.ui.log(`drift-fuse: tripped after ${fuse.strikesAtTrip} off-task turns (on-task ${onTask.toFixed(2)})`);
+            } else if (fuse.kind === "armed" && fuse.strikes > 0) {
               $.ui.log(`drift-fuse: off-task turn ${fuse.strikes}/${config.tripAfter} (on-task ${onTask.toFixed(2)})`, { to: "debug" });
             }
           }

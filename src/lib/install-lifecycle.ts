@@ -656,10 +656,13 @@ export async function runFullInstall(
   // in parallel. Both must follow the clean above. For light, installConfigFiles
   // owns the full footprint: it copies the LIGHT_SKILLS subset and prunes every
   // full-only target (CLAUDE.md, AGENTS.md, agents/, rules/, profiles/, docs/).
-  await Promise.all([
+  // allSettled so no copy is still writing into ~/.claude when a failure
+  // unwinds into compensation.
+  const copies = await Promise.allSettled([
     installConfigFiles(args.sourceDir, args.profile),
     installTsSources(args.sourceDir),
   ]);
+  for (const copy of copies) if (copy.status === "rejected") throw copy.reason;
   // Content manifest of the just-installed ~/.claude/src tree — the
   // supply-chain layer that catches dropped/patched script content. A failed
   // write aborts because the sentinel must never claim missing metadata.

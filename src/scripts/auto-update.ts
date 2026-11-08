@@ -43,7 +43,8 @@ type RunStatus =
   | "setup-failed"
   | "no-repo"
   | "blocked-origin"
-  | "blocked-path";
+  | "blocked-path"
+  | "error";
 
 let logDirEnsured = false;
 
@@ -177,7 +178,7 @@ async function userEditBackups(claudeDir: string): Promise<Set<string>> {
 export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<void> {
   let fromVersion: string | null = null;
   let toVersion: string | null = null;
-  let status: RunStatus = "no-repo";
+  let status: RunStatus | "running" = "running";
   let stagingPath: string | null = null;
 
   try {
@@ -349,11 +350,14 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
         ? `cc-settings v${toVersion ?? "?"} installed — replaced your edited ${replaced.join(", ")}; a copy is in ~/.claude/backups, keep yours in ~/.claude/personal.md`
         : `cc-settings v${toVersion ?? "?"} installed — restart Claude Code sessions to apply`,
     );
+  } catch (err) {
+    status = "error";
+    throw err;
   } finally {
     if (stagingPath) await rm(stagingPath, { recursive: true, force: true }).catch(() => {});
     await writeState("auto-update-last-run.json", {
       at: isoNow(),
-      status,
+      status: status === "running" ? "error" : status,
       fromVersion,
       toVersion,
     });

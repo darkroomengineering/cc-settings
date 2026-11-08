@@ -182,6 +182,32 @@ process.exit(await child.exited);
   );
 
   test(
+    "a run that throws is recorded as error, not no-repo",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-autoupdate-throw-"));
+      try {
+        const repo = join(home, "repo");
+        await mkdir(repo, { recursive: true });
+        await git(["init", "-b", "main"], repo);
+        await git(
+          ["remote", "add", "origin", "https://github.com/darkroomengineering/cc-settings.git"],
+          repo,
+        );
+        await writeSentinel(home, repo);
+        // An unparsable test git command makes the script's first git call throw.
+        const result = await runAutoUpdateScript(home, {
+          CC_SETTINGS_TEST_GIT_COMMAND_JSON: "not json",
+        });
+        expect(result.exit).toBe(1);
+        expect((await readLastRun(home))?.status).toBe("error");
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    { timeout: 30_000 },
+  );
+
+  test(
     "an older enrolled checkout does not reinstall when the installed version matches official main",
     async () => {
       const fakeHome = await mkdtemp(join(tmpdir(), "cc-autoupdate-official-home-"));
