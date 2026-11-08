@@ -97,6 +97,15 @@ Escalate to `/poke-holes` when the diff touches auth, payments, crypto, input va
 
 ---
 
+## Implicit State Checklist
+
+Fires when the diff adds a boolean, status field, or `setState` call to a component, hook, or store. The signs and the target shape are in AGENTS.md → No Implicit State Machines.
+
+- **New flag on an existing lifecycle:** a second or third boolean (or a status plus optional fields) describing the same thing. Warning: name the states, the impossible combination the diff makes possible, and the discriminated union that replaces them.
+- **Reachable impossible state:** a path in the diff that leaves two flags in a contradictory pair (loading and errored, open and closing with no exit). Critical when it shows wrong UI or loses data.
+- **Unconverted machine in edited code:** a pre-existing machine inside a function, component, hook, or store the diff edits. Suggestion in feature work, since the guardrail says to convert it in the same diff; in a bug fix it goes under Pre-existing unless it caused the bug.
+- Machines in code the diff does not edit go under Pre-existing, not as blockers.
+
 ## Animation & Motion Checklist
 
 Fires when the diff touches CSS transitions/animations or motion-library code (GSAP, Motion, Framer Motion, Lenis calls, animation props, spring configs, WAAPI), not just added imports. Values live in `rules/motion-physics.md`; it is path-scoped and may not be loaded in this fork, so read it before flagging. Default to flagging; approval is earned, not assumed. Adapted from emilkowalski/skills `review-animations` (MIT).

@@ -148,7 +148,7 @@ when the first pass shows that depth is warranted.
 
 ### Audit a whole repository
 
-`audit` has ten modes. It reads the repository and writes its full report under `docs/audits/`;
+`audit` has eleven modes. It reads the repository and writes its full report under `docs/audits/`;
 optional GitHub issue filing is a separate external-state action:
 
 - **Full:** "full audit" or "audit everything" runs every mode that applies to the repository in
@@ -160,6 +160,7 @@ optional GitHub issue filing is a separate external-state action:
 - **Process:** walks documented journeys and maps the real state machine and dead ends.
 - **Performance:** reports only measured findings and names the budget or leverage behind severity.
 - **Tests:** finds tests that cost maintenance without guarding behavior.
+- **State:** "find all the implicit state machines" maps each lifecycle spread across flags, proves which impossible states are reachable, and offers to convert or ticket each one.
 - **Threat model:** maps trust boundaries, attacker capabilities, abuse paths, and mitigations.
 - **Motion:** reviews animation leverage, interruption, performance, and accessibility.
 - **SEO:** reviews search and answer-engine discoverability.

@@ -56,6 +56,10 @@ The 2-iteration limit does not fire on an OS, device, vendor, or network blocker
 
 Keep a bug fix confined to directly related files. Do not refactor adjacent code, upgrade dependencies, or touch outside the immediate blast radius. The PR should be reviewable in under 2 minutes.
 
+### No Implicit State Machines
+
+One lifecycle spread across flags (`isLoading` beside `isError`, a `status` beside fields valid only in some statuses, updates that must happen together, run-twice guard refs) lets impossible states exist. Model it as one tagged union that carries each state's data, with transitions in one function or reducer; use a library only if the project has one. Never add a flag to an existing lifecycle. Feature work converts those in code the diff edits; a bug fix converts one only when it caused the bug, else names it and files a follow-up. `/audit state` finds the rest.
+
 ### Completeness Is Cheap
 
 Once the ladder says a bounded unit should exist, finish its edge cases and error paths when that costs only minutes more; do not ship 90% and defer the rest. Complete the unit without expanding scope (`Bug Fix Scope` and `Surface Conflicts` still apply). Commit tests only where the task asks or the repository already keeps that kind; scratch checks stay scratch.
@@ -179,7 +183,6 @@ These defaults apply to Darkroom web clients. A project's config and lockfile wi
 
 - No `any`; use `unknown` and narrow it.
 - Prefer `interface` over `type` for objects.
-- Use discriminated unions for state.
 
 ### React
 

@@ -6,7 +6,7 @@ paths:
 
 # TypeScript
 
-> `AGENTS.md` owns strict mode, no `any`, interface-over-type, and discriminated unions. This file holds the rest.
+> `AGENTS.md` owns strict mode, no `any`, interface-over-type, discriminated unions, and implicit state machines. This file holds the rest.
 
 - `tsconfig`: `"strict": true` plus `"noUncheckedIndexedAccess": true`.
 - Validate `unknown` at trust boundaries with a schema (`UserSchema.parse(data)`), not `data as User`.
