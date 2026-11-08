@@ -182,6 +182,33 @@ process.exit(await child.exited);
   );
 
   test(
+    "a run that throws is recorded as error, not no-repo",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-autoupdate-throw-"));
+      const parent = join(home, "parent");
+      try {
+        const repo = join(parent, "repo");
+        await mkdir(repo, { recursive: true });
+        await git(["init", "-b", "main"], repo);
+        await git(
+          ["remote", "add", "origin", "https://github.com/darkroomengineering/cc-settings.git"],
+          repo,
+        );
+        await writeSentinel(home, repo);
+        // The staging directory is made beside the repo; an unwritable parent makes mkdtemp throw.
+        await chmod(parent, 0o555);
+        const result = await runAutoUpdateScript(home);
+        expect(result.exit).toBe(1);
+        expect((await readLastRun(home))?.status).toBe("error");
+      } finally {
+        await chmod(parent, 0o755).catch(() => {});
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    { timeout: 30_000 },
+  );
+
+  test(
     "an older enrolled checkout does not reinstall when the installed version matches official main",
     async () => {
       const fakeHome = await mkdtemp(join(tmpdir(), "cc-autoupdate-official-home-"));
