@@ -4,6 +4,25 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.100.0] — 2026-11-08
+
+Synced with Claude Code v2.1.319 (Codex unchanged at v0.167.0). A settings file that sets the new `permissions.denyInsteadOfPrompting` now validates, and four new env vars are documented. Nothing to remove (OSS-136).
+
+**Adopted:**
+- `permissions.denyInsteadOfPrompting` (v2.1.319): with it on, a tool call that would wait on a permission prompt is denied and the turn continues. Added to `src/schemas/permissions.ts`, which is strict, so a settings file with the key failed to parse before. cc-settings documents the key but does not set it, because it would turn the `AskUserQuestion` retry for denied commands into silent denials.
+- `CLAUDE_CODE_DISABLE_MCP_TASKS`, `CLAUDE_CODE_DISABLE_MCP_TASK_BACKGROUND`, `CLAUDE_CODE_DISABLE_FEATURE_FLAGS`, `CLAUDE_CODE_LOOP_KEEPALIVE` (v2.1.319): tracked and documented, not set.
+
+**Docs only:**
+- `CLAUDE_CODE_AUTO_MODE_SERVER`: when telemetry or feature flags are off, or behind an LLM gateway, auto mode no longer falls back to the built-in classifier. `"1"` now works even with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS` set.
+- A self-paced `/loop` ends when a turn finishes without rescheduling.
+- `PostToolUse` hooks run on a tool call that finishes after a new message interrupts the turn, and get up to 10 s to finish.
+
+**Files changed:**
+- `src/schemas/permissions.ts`, `schemas/settings.schema.json`
+- `docs/settings-reference.md`, `docs/hooks-reference.md`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts` (version)
+
 ## [15.99.0] — 2026-11-08
 
 Claude and Codex now steer away from implicit state machines: one lifecycle spread across booleans, a status next to fields valid only in some statuses, paired updates, or re-entry guard refs. New code models the lifecycle as one tagged union. Feature work converts the machines inside code it already edits, and a bug fix converts one only when it caused the bug. `/audit state` finds the rest across the repo and ranks them (OSS-133).

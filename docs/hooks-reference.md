@@ -90,7 +90,7 @@ This surface may change between Claude Code releases without notice — regenera
 | Event | When | Matcher Values | Blocking |
 |-------|------|----------------|----------|
 | `PreToolUse` | Before a tool executes | Tool name (e.g., `Bash`, `Edit`, `Write`) | Yes |
-| `PostToolUse` | After a tool executes successfully | Tool name | Optional (supports async) |
+| `PostToolUse` | After a tool executes successfully, including a call that finishes after a new message interrupts the turn, which gets up to 10 s (v2.1.319) | Tool name | Optional (supports async) |
 | `PostToolBatch` | After a batch of tool calls completes | -- | No |
 | `PostToolUseFailure` | After a tool execution fails | Tool name | Optional |
 | `PermissionRequest` | When a tool needs user permission | Tool name | Yes |

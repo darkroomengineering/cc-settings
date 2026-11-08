@@ -39,6 +39,7 @@ export const Permissions = z.object({
   autoMode: AutoModeConfig.optional(),
   blockReadsOutsideWorkingDirectories: z.boolean().optional(), // 2.1.257 — auto mode: refuse file reads outside the working directories instead of asking once
   blockWritesOutsideWorkingDirectories: z.boolean().optional(), // 2.1.314 — Write, Edit and NotebookEdit refuse paths outside the working directories in every permission mode
+  denyInsteadOfPrompting: z.boolean().optional(), // 2.1.319 — a tool call that would wait on a permission prompt is denied and the turn continues, in terminal sessions, subagents and teammates
 });
 export type Permissions = z.infer<typeof Permissions>;
 export type PermissionMode = z.infer<typeof PermissionMode>;

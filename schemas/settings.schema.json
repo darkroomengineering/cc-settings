@@ -269,6 +269,9 @@
         },
         "blockWritesOutsideWorkingDirectories": {
           "type": "boolean"
+        },
+        "denyInsteadOfPrompting": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false
