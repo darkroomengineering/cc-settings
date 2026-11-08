@@ -4,6 +4,27 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.100.1] — 2026-11-08
+
+Fixes from the 2026-11-08 state audit. Each one replaces a lifecycle spread across flags with one explicit state, which removes a bug a user could hit.
+
+**Fixed:**
+- An auto-update run that crashes now records that it crashed. Before, it reported that the repo was missing (OSS-139, #301).
+- The drift-fuse redirect quotes the turns that actually tripped it. A prompt typed mid-turn is no longer scored as if a machine sent it, and a prompt another plugin drops no longer shifts later turns (OSS-139, #301).
+- The installer waits for both of its parallel copies to stop before it rolls back (OSS-139, #301).
+- A review queue saved without its timestamp no longer switches off the "agents waiting on review" warning (OSS-147, #302).
+- compaction-trigger no longer asks for a second compaction while one is running, and subagent turns no longer count toward its spacing (OSS-148, #302).
+- On Linux, a failed `apt-get update` is retried once and reported instead of being treated as done (OSS-149, #302).
+- A Codex call that times out no longer overwrites a "rate-limited" or "no access" verdict saved a moment earlier. Old verdict files still parse (OSS-146, #303).
+- An install made with `--migrate-only` can now be uninstalled and rolled back. Uninstall removes the cc-settings settings, MCP and scheduler entries and deletes no files (OSS-144, OSS-145, #304).
+
+**Changed:**
+- Install, rollback and uninstall share one transaction with one compensation path, and the Claude sentinel's ownership is parsed once into legacy, owned or managed-absent (OSS-144, OSS-145, #304).
+- Uninstall of a legacy sentinel says to reinstall once, with the same exit code as before.
+
+**Files changed:**
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts` (version)
+
 ## [15.100.0] — 2026-11-08
 
 Synced with Claude Code v2.1.319 (Codex unchanged at v0.167.0). A settings file that sets the new `permissions.denyInsteadOfPrompting` now validates, and four new env vars are documented. Nothing to remove (OSS-136).
