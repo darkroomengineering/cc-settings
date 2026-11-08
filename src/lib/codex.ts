@@ -75,10 +75,6 @@ const CodexVerdictSchema = z.object({
   ]),
   /** ISO timestamp this verdict was recorded. */
   checkedAt: z.string(),
-  /** True when the verdict came from a real `codex exec` (no-access / rate-limited).
-   *  The cheap login-status check can't observe entitlement or quota, so it must
-   *  not silently overwrite a fresh sticky verdict with "available". */
-  sticky: z.boolean(),
   /** Short human note (an error snippet, usually) for the statusline / logs. */
   detail: z.string().optional(),
 });
@@ -186,9 +182,7 @@ export async function checkCodexAvailability(): Promise<LiveAvailability> {
 export async function readCodexVerdict(): Promise<CodexVerdict> {
   const raw = await readState<unknown>(VERDICT_FILE, null);
   const parsed = CodexVerdictSchema.safeParse(raw);
-  return parsed.success
-    ? parsed.data
-    : { state: "unknown", checkedAt: new Date(0).toISOString(), sticky: false };
+  return parsed.success ? parsed.data : { state: "unknown", checkedAt: new Date(0).toISOString() };
 }
 
 export async function writeCodexVerdict(v: CodexVerdict): Promise<void> {
@@ -203,7 +197,6 @@ function ageMs(iso: string): number {
 /** A sticky negative is honored only until its TTL; past that we let a fresh call
  *  re-probe, so an upgraded plan or reset window is picked up automatically. */
 function isStickyVerdictFresh(v: CodexVerdict): boolean {
-  if (!v.sticky) return false;
   if (v.state === "no-access") return ageMs(v.checkedAt) < NO_ACCESS_TTL_MS;
   if (v.state === "rate-limited") return ageMs(v.checkedAt) < RATE_LIMIT_TTL_MS;
   return false;
@@ -218,14 +211,14 @@ export function reconcile(live: LiveAvailability, cached: CodexVerdict): CodexVe
   // Definitive negatives (binary gone / logged out) always win — they override any
   // stale sticky, because the cache can't express "the user just removed access".
   if (live === "not-installed" || live === "unauthenticated") {
-    return { state: live, checkedAt: now, sticky: false };
+    return { state: live, checkedAt: now };
   }
   // "available" or inconclusive "unknown": a still-fresh sticky L2 negative wins,
   // since the cheap check can't observe entitlement (no-access) or quota (rate-limited).
   if (isStickyVerdictFresh(cached)) return cached;
-  if (live === "available") return { state: "available", checkedAt: now, sticky: false };
+  if (live === "available") return { state: "available", checkedAt: now };
   // Inconclusive L1 with no fresh sticky → let the real exec probe classify it.
-  return { state: "unknown", checkedAt: now, sticky: false };
+  return { state: "unknown", checkedAt: now };
 }
 
 /** Persist a reconciled verdict, guarding the cross-process read-check-write race:
@@ -237,7 +230,7 @@ export function reconcile(live: LiveAvailability, cached: CodexVerdict): CodexVe
  *  TOCTOU window (there is no cross-process file lock). Returns the verdict that
  *  ended up authoritative so callers reflect a concurrent L2 result. */
 async function commitReconciled(v: CodexVerdict): Promise<CodexVerdict> {
-  if (!v.sticky && (v.state === "available" || v.state === "unknown")) {
+  if (v.state === "available" || v.state === "unknown") {
     const current = await readCodexVerdict();
     if (isStickyVerdictFresh(current)) return current;
   }
@@ -423,14 +416,14 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
     const code = (err as { code?: string } | null)?.code;
     const now2 = new Date().toISOString();
     if (code === "ENOENT" || /\benoent\b|not found|no such file/i.test(msg)) {
-      await writeCodexVerdict({ state: "not-installed", checkedAt: now2, sticky: false });
+      await writeCodexVerdict({ state: "not-installed", checkedAt: now2 });
       return blocked(
         "not-installed",
         "Codex CLI could not be launched (not on PATH). Reinstall it and run `codex login`. Continuing Claude-only.",
       );
     }
     // Any other launch failure is a one-off: don't sticky-disable the bridge.
-    await commitReconciled({ state: "available", checkedAt: now2, sticky: false });
+    await commitReconciled({ state: "available", checkedAt: now2 });
     return {
       ok: false,
       output: "",
@@ -442,7 +435,7 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   const now = new Date().toISOString();
 
   if (exit === 0) {
-    await writeCodexVerdict({ state: "available", checkedAt: now, sticky: false });
+    await writeCodexVerdict({ state: "available", checkedAt: now });
     return { ok: true, output: sanitizeOutput(stdout.trim()), state: "available" };
   }
 
@@ -451,7 +444,7 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   // the effective limit. The partial stdout (captured before the kill) is surfaced
   // so the caller has context. Timeouts are not sticky-cached — the bridge stays open.
   if (signalCode !== null || (exit !== 0 && elapsed >= timeout)) {
-    await writeCodexVerdict({ state: "available", checkedAt: now, sticky: false });
+    await commitReconciled({ state: "available", checkedAt: now });
     const minutes = Math.round(timeout / 60_000);
     return {
       ok: false,
@@ -467,7 +460,7 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   // cache reading "available" but report the failure to the caller. Guarded so it
   // can't clobber a fresher sticky L2 verdict a concurrent exec just wrote.
   if (cls.state === "unknown") {
-    await commitReconciled({ state: "available", checkedAt: now, sticky: false });
+    await commitReconciled({ state: "available", checkedAt: now });
   } else if (opts.model) {
     // A pinned model (e.g. CODEX_REVIEW_MODEL) can 403/quota out on its own —
     // that's model-specific, not "the account has no Codex access" or "the
@@ -478,7 +471,6 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
     await writeCodexVerdict({
       state: cls.state,
       checkedAt: now,
-      sticky: cls.state !== "unauthenticated",
       detail: cls.detail,
     });
   }

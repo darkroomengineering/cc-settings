@@ -1,7 +1,7 @@
-// Unit tests for pure exported functions in src/lib/codex.ts.
-// No filesystem I/O, no subprocess spawning — pure logic only.
-
 import { describe, expect, test } from "bun:test";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import {
   assessWorkerResult,
   buildExecPrompt,
@@ -19,6 +19,96 @@ import {
   type WorkerResult,
   workerResultJsonSchema,
 } from "../src/lib/codex.ts";
+import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
+
+async function verdictScenario(scenario: string): Promise<unknown> {
+  const dir = await mkdtemp(join(tmpdir(), "cc-codex-verdict-"));
+  try {
+    const fake = join(dir, "codex");
+    await writeFile(
+      fake,
+      `#!/bin/sh\nif [ "$1" = "login" ]; then exit 0; fi\ntouch '${gitBashPath(join(dir, "started"))}'\nwhile [ ! -f '${gitBashPath(join(dir, "release"))}' ]; do sleep 0.01; done\necho ok\n`,
+    );
+    await chmod(fake, 0o755);
+    const script = `
+      import { readCodexVerdict, reconcile, runCodexExec } from ${JSON.stringify(resolve(import.meta.dir, "../src/lib/codex.ts"))};
+      import { writeState } from ${JSON.stringify(resolve(import.meta.dir, "../src/lib/hook-runtime.ts"))};
+      const started = ${JSON.stringify(join(dir, "started"))};
+      const release = ${JSON.stringify(join(dir, "release"))};
+      ${scenario}
+    `;
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      HOME: dir,
+      USERPROFILE: dir,
+      PATH: prependTestPath(dir),
+    };
+    delete env.CODEX_THREAD_ID;
+    delete env.CODEX_SANDBOX;
+    const child = Bun.spawn([process.execPath, "--eval", script], {
+      env,
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout: 10_000,
+    });
+    const [stdout, stderr, exit] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+    expect(exit, stderr).toBe(0);
+    return JSON.parse(stdout);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+describe("persisted Codex verdict transitions", () => {
+  test("a legacy rate-limited verdict with sticky false still blocks within its TTL", async () => {
+    const result = await verdictScenario(`
+      await writeState("codex-verdict.json", {
+        state: "rate-limited", checkedAt: new Date().toISOString(), sticky: false,
+      });
+      console.log(JSON.stringify(reconcile("available", await readCodexVerdict()).state));
+    `);
+    expect(result).toBe("rate-limited");
+  });
+
+  test.each(["timeout", "success"] as const)(
+    "%s after a fresh concurrent rate-limit verdict preserves the evidence priority",
+    async (outcome) => {
+      const result = await verdictScenario(`
+        await writeState("codex-verdict.json", {
+          state: "available", checkedAt: new Date().toISOString(), sticky: false,
+        });
+        const pending = runCodexExec({ prompt: "test", timeoutMs: 2000 });
+        const deadline = Date.now() + 3000;
+        while (!(await Bun.file(started).exists())) {
+          if (Date.now() > deadline) throw new Error("Codex exec did not start");
+          await Bun.sleep(5);
+        }
+        await writeState("codex-verdict.json", {
+          state: "rate-limited", checkedAt: new Date().toISOString(), sticky: true,
+          detail: "concurrent quota exceeded",
+        });
+        ${outcome === "success" ? 'await Bun.write(release, "go");' : ""}
+        const run = await pending;
+        const verdict = await readCodexVerdict();
+        console.log(JSON.stringify({ ok: run.ok, timedOut: run.timedOut ?? false, state: verdict.state, detail: verdict.detail ?? null }));
+      `);
+      expect(result).toEqual(
+        outcome === "timeout"
+          ? {
+              ok: false,
+              timedOut: true,
+              state: "rate-limited",
+              detail: "concurrent quota exceeded",
+            }
+          : { ok: true, timedOut: false, state: "available", detail: null },
+      );
+    },
+  );
+});
 
 // ---------------------------------------------------------------------------
 // classifyCodexError — state classification
@@ -182,33 +272,27 @@ describe("reconcile — live 'not-installed' always wins", () => {
     const cached: CodexVerdict = {
       state: "no-access",
       checkedAt: new Date().toISOString(),
-      sticky: true,
     };
     const result = reconcile("not-installed", cached);
     expect(result.state).toBe("not-installed");
-    expect(result.sticky).toBe(false);
   });
 
   test("live not-installed + cached available → not-installed", () => {
     const cached: CodexVerdict = {
       state: "available",
       checkedAt: new Date().toISOString(),
-      sticky: false,
     };
     const result = reconcile("not-installed", cached);
     expect(result.state).toBe("not-installed");
-    expect(result.sticky).toBe(false);
   });
 
   test("live not-installed + cached rate-limited (sticky, fresh) → not-installed", () => {
     const cached: CodexVerdict = {
       state: "rate-limited",
       checkedAt: new Date().toISOString(),
-      sticky: true,
     };
     const result = reconcile("not-installed", cached);
     expect(result.state).toBe("not-installed");
-    expect(result.sticky).toBe(false);
   });
 });
 
@@ -219,22 +303,18 @@ describe("reconcile — live 'unauthenticated' always wins", () => {
     const cached: CodexVerdict = {
       state: "no-access",
       checkedAt: new Date().toISOString(),
-      sticky: true,
     };
     const result = reconcile("unauthenticated", cached);
     expect(result.state).toBe("unauthenticated");
-    expect(result.sticky).toBe(false);
   });
 
   test("live unauthenticated + cached rate-limited (sticky, fresh) → unauthenticated", () => {
     const cached: CodexVerdict = {
       state: "rate-limited",
       checkedAt: new Date().toISOString(),
-      sticky: true,
     };
     const result = reconcile("unauthenticated", cached);
     expect(result.state).toBe("unauthenticated");
-    expect(result.sticky).toBe(false);
   });
 });
 
@@ -246,12 +326,10 @@ describe("reconcile — live 'available' + fresh sticky negatives are kept", () 
     const cached: CodexVerdict = {
       state: "no-access",
       checkedAt: new Date().toISOString(),
-      sticky: true,
       detail: "forbidden: no plan",
     };
     const result = reconcile("available", cached);
     expect(result.state).toBe("no-access");
-    expect(result.sticky).toBe(true);
     expect(result).toBe(cached); // identity: same object, not a copy
   });
 
@@ -261,11 +339,9 @@ describe("reconcile — live 'available' + fresh sticky negatives are kept", () 
     const cached: CodexVerdict = {
       state: "rate-limited",
       checkedAt: new Date().toISOString(),
-      sticky: true,
     };
     const result = reconcile("available", cached);
     expect(result.state).toBe("rate-limited");
-    expect(result.sticky).toBe(true);
     expect(result).toBe(cached);
   });
 });
@@ -282,35 +358,28 @@ describe("reconcile — live 'available' + stale sticky negatives expire", () =>
     const cached: CodexVerdict = {
       state: "no-access",
       checkedAt: staleTimestamp,
-      sticky: true,
     };
     const result = reconcile("available", cached);
     expect(result.state).toBe("available");
-    expect(result.sticky).toBe(false);
   });
 
   test("live available + stale rate-limited sticky → returns available", () => {
     const cached: CodexVerdict = {
       state: "rate-limited",
       checkedAt: staleTimestamp,
-      sticky: true,
     };
     const result = reconcile("available", cached);
     expect(result.state).toBe("available");
-    expect(result.sticky).toBe(false);
   });
 
-  test("live available + non-sticky cached no-access → returns available", () => {
-    // A cached no-access without sticky:true was not written by a real exec;
-    // the cheap check's 'available' should win.
+  test("live available + fresh cached no-access without a flag → cached verdict returned", () => {
     const cached: CodexVerdict = {
       state: "no-access",
       checkedAt: new Date().toISOString(),
-      sticky: false,
     };
     const result = reconcile("available", cached);
-    expect(result.state).toBe("available");
-    expect(result.sticky).toBe(false);
+    expect(result.state).toBe("no-access");
+    expect(result).toBe(cached);
   });
 });
 
@@ -401,15 +470,13 @@ describe("sanitizeOutput — multi-line credential redaction", () => {
 });
 
 describe("reconcile — live 'available' + cached available", () => {
-  test("live available + cached available (sticky:false) → available", () => {
+  test("live available + cached available → available", () => {
     const cached: CodexVerdict = {
       state: "available",
       checkedAt: new Date(0).toISOString(),
-      sticky: false,
     };
     const result = reconcile("available", cached);
     expect(result.state).toBe("available");
-    expect(result.sticky).toBe(false);
   });
 
   test("result checkedAt is a valid ISO string close to now", () => {
@@ -417,7 +484,6 @@ describe("reconcile — live 'available' + cached available", () => {
     const cached: CodexVerdict = {
       state: "available",
       checkedAt: new Date(0).toISOString(),
-      sticky: false,
     };
     const result = reconcile("available", cached);
     const after = Date.now();
@@ -438,22 +504,18 @@ describe("reconcile — live 'unknown' (inconclusive L1) lets L2 probe", () => {
     const cached: CodexVerdict = {
       state: "available",
       checkedAt: new Date(0).toISOString(),
-      sticky: false,
     };
     const result = reconcile("unknown", cached);
     expect(result.state).toBe("unknown");
-    expect(result.sticky).toBe(false);
   });
 
   test("live unknown + fresh sticky rate-limited → cached kept (quota invisible to L1)", () => {
     const cached: CodexVerdict = {
       state: "rate-limited",
       checkedAt: new Date().toISOString(),
-      sticky: true,
     };
     const result = reconcile("unknown", cached);
     expect(result.state).toBe("rate-limited");
-    expect(result.sticky).toBe(true);
     expect(result).toBe(cached);
   });
 
@@ -461,7 +523,6 @@ describe("reconcile — live 'unknown' (inconclusive L1) lets L2 probe", () => {
     const cached: CodexVerdict = {
       state: "no-access",
       checkedAt: new Date().toISOString(),
-      sticky: true,
     };
     const result = reconcile("unknown", cached);
     expect(result.state).toBe("no-access");
@@ -472,11 +533,9 @@ describe("reconcile — live 'unknown' (inconclusive L1) lets L2 probe", () => {
     const cached: CodexVerdict = {
       state: "no-access",
       checkedAt: new Date(0).toISOString(),
-      sticky: true,
     };
     const result = reconcile("unknown", cached);
     expect(result.state).toBe("unknown");
-    expect(result.sticky).toBe(false);
   });
 });
 
