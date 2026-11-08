@@ -11,8 +11,12 @@ import {
   compareVersion,
   entriesBetween,
   formatVersionDelta,
+  type Ownership,
   parseChangelogEntries,
+  readDestructiveSentinel,
   readInstalledVersion,
+  readSentinel,
+  sentinelOwnership,
   stripInlineMarkdown,
 } from "../src/lib/version-delta.ts";
 
@@ -40,6 +44,77 @@ describe("readInstalledVersion", () => {
         JSON.stringify({ installed_at: "2026-05-04T00:00:00Z" }),
       );
       expect(await readInstalledVersion(dir)).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+const HASH = "a".repeat(64);
+
+describe("sentinel ownership", () => {
+  test("a sentinel without managed_files or a state marker is legacy", () => {
+    expect(sentinelOwnership({ version: "15.0.0" })).toEqual({ kind: "legacy" });
+    expect(sentinelOwnership({ managed_files_manifest_version: 2 })).toEqual({ kind: "legacy" });
+  });
+
+  test("managed_files is owned, with or without a manifest version", () => {
+    expect(
+      sentinelOwnership({
+        managed_files: { "CLAUDE.md": HASH },
+        managed_files_manifest_version: 2,
+      }),
+    ).toEqual({ kind: "owned", files: { "CLAUDE.md": HASH }, manifestVersion: 2 });
+    expect(sentinelOwnership({ managed_files: {} })).toEqual({
+      kind: "owned",
+      files: {},
+      manifestVersion: undefined,
+    });
+  });
+
+  test("the managed-absent marker is managed-absent", () => {
+    expect(sentinelOwnership({ managed_files_state: "managed-absent" })).toEqual({
+      kind: "managed-absent",
+    });
+  });
+
+  test("managed-absent beside managed_files: lenient reader claims nothing, strict reader rejects", async () => {
+    const dir = await sandbox();
+    try {
+      await writeFile(
+        join(dir, ".cc-settings-version"),
+        JSON.stringify({
+          version: "15.0.0",
+          managed_files: { "CLAUDE.md": HASH },
+          managed_files_manifest_version: 2,
+          managed_files_state: "managed-absent",
+        }),
+      );
+      expect((await readSentinel(dir)).ownership).toEqual({ kind: "managed-absent" });
+      await expect(readDestructiveSentinel(dir)).rejects.toThrow(
+        "managed-absent sentinel cannot claim managed file ownership",
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("both readers attach the parsed ownership; a missing file is legacy to the lenient reader and null to the strict one", async () => {
+    const dir = await sandbox();
+    try {
+      expect((await readSentinel(dir)).ownership).toEqual({ kind: "legacy" });
+      expect(await readDestructiveSentinel(dir)).toBeNull();
+      await writeFile(
+        join(dir, ".cc-settings-version"),
+        JSON.stringify({ version: "15.0.0", managed_files: { "CLAUDE.md": HASH } }),
+      );
+      const expected: Ownership = {
+        kind: "owned",
+        files: { "CLAUDE.md": HASH },
+        manifestVersion: undefined,
+      };
+      expect((await readSentinel(dir)).ownership).toEqual(expected);
+      expect((await readDestructiveSentinel(dir))?.ownership).toEqual(expected);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

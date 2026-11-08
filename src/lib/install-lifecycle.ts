@@ -4,7 +4,6 @@ import { join } from "node:path";
 import {
   assertClaudeLifecycleOwnershipUnchanged,
   type ClaudeLifecycleOwnershipSnapshot,
-  type ClaudeMutationPhase,
   type ClaudeSharedExplicitDrift,
   type ClaudeSharedExplicitSnapshot,
   captureClaudeLifecycleOwnership,
@@ -15,6 +14,7 @@ import {
   removeClaudeFilesWithHashes,
   removeOwnedClaudeFiles,
   restoreClaudeSharedExplicitDrift,
+  unownedClaudeUninstallError,
   validateClaudeInstallBoundaries,
   validateClaudeManagedFiles,
   validateClaudeNodeModulesOwnership,
@@ -70,7 +70,7 @@ import {
   unregisterAutoUpdate,
 } from "./schedule.ts";
 import { readSettingsBaseline } from "./settings-baseline.ts";
-import { readDestructiveSentinel, type Sentinel } from "./version-delta.ts";
+import { type ParsedSentinel, readDestructiveSentinel } from "./version-delta.ts";
 
 let sharedBackupSequence = 0;
 
@@ -202,7 +202,7 @@ export async function resolveEnrolledRepoPath(sourceDir: string): Promise<string
 
 interface PreparedClaudeUninstall {
   sourceDir: string;
-  sentinel: Sentinel;
+  sentinel: ParsedSentinel;
   full: Awaited<ReturnType<typeof composeSettings>>;
   settingsPath: string;
   nodeModulesTarget: string | null;
@@ -211,24 +211,18 @@ interface PreparedClaudeUninstall {
 }
 
 async function prepareClaudeUninstall(sourceDir: string): Promise<PreparedClaudeUninstall | null> {
-  const sentinelState = await readDestructiveSentinel(CLAUDE_DIR);
-  if (sentinelState === null) return null;
-  const sentinel = sentinelState;
+  const sentinel = await readDestructiveSentinel(CLAUDE_DIR);
+  if (sentinel === null) return null;
   const nodeModulesTarget = await validateClaudeNodeModulesOwnership(sentinel);
-  await validateClaudeManagedFiles(
-    sentinel.managed_files_state === "managed-absent" ? null : (sentinel.managed_files ?? {}),
-    sourceDir,
-    sentinel.profile ?? "full",
-    sentinel.managed_files_manifest_version,
-  );
+  if (sentinel.ownership.kind === "legacy") throw unownedClaudeUninstallError();
+  await validateClaudeManagedFiles(sentinel.ownership, sourceDir, sentinel.profile ?? "full");
   const full = await composeSettings(sourceDir);
   const settingsPath = join(CLAUDE_DIR, "settings.json");
   // Parse every config the uninstall may rewrite before another product is
   // mutated. The cleanup helpers read again during execution, but deterministic
   // corrupt-state failures have already failed closed here.
   await Promise.all([readJsonOrNull(settingsPath), readJsonOrNull(CLAUDE_JSON_PATH)]);
-  const managedFiles =
-    sentinel.managed_files_state === "managed-absent" ? {} : (sentinel.managed_files ?? {});
+  const managedFiles = sentinel.ownership.kind === "owned" ? sentinel.ownership.files : {};
   const snapshot = await captureClaudeLifecycleOwnership(
     managedFiles,
     Object.keys(managedFiles),
@@ -287,8 +281,7 @@ async function uninstallClaude(
   await removeOwnedClaudeFiles(
     sourceDir,
     sentinel.profile ?? "full",
-    sentinel.managed_files_state === "managed-absent" ? {} : (sentinel.managed_files ?? null),
-    sentinel.managed_files_manifest_version,
+    sentinel.ownership,
     nodeModulesTarget,
   );
   await schedulerPhase?.before();
@@ -302,39 +295,95 @@ async function uninstallClaude(
   await schedulerPhase?.after();
 }
 
-export async function restoreCombinedAfterClaudeFailure(
-  claudeCompensation: PreparedClaudeRollback | null,
-  codexCompensation: string | null,
-  autoUpdateSnapshot: AutoUpdateStateSnapshot | null,
-  cause: unknown,
-  claudePhase: ClaudeMutationPhase,
-  claudeSharedDrift: ClaudeSharedExplicitDrift = {},
-): Promise<void> {
+type CombinedOperation = "install" | "rollback" | "uninstall";
+
+interface CombinedHeld {
+  codex: string | null;
+  autoUpdate: AutoUpdateStateSnapshot | null;
+  drift: ClaudeSharedExplicitDrift;
+}
+
+/**
+ * One combined Claude/Codex lifecycle. Compensation restores Codex in every
+ * phase, Claude files from "files" on, and the auto-update job only in
+ * "scheduler". `baseline` is the shared-state snapshot taken when the scheduler
+ * step began; null once its drift has been recorded.
+ */
+export type CombinedTxn =
+  | (CombinedHeld & { phase: "unstarted"; claude: PreparedClaudeRollback | null })
+  | (CombinedHeld & { phase: "files"; claude: PreparedClaudeRollback })
+  | (CombinedHeld & {
+      phase: "scheduler";
+      claude: PreparedClaudeRollback;
+      baseline: ClaudeSharedExplicitSnapshot | null;
+    });
+
+export type CombinedTxnEvent =
+  | { type: "autoUpdate"; snapshot: AutoUpdateStateSnapshot | null }
+  | { type: "claude"; compensation: PreparedClaudeRollback }
+  | { type: "codex"; compensation: string | null }
+  | { type: "drift"; drift: ClaudeSharedExplicitDrift }
+  | { type: "files" }
+  | { type: "scheduler"; baseline: ClaudeSharedExplicitSnapshot }
+  | { type: "scheduled"; drift: ClaudeSharedExplicitDrift };
+
+function advanceCombinedTxn(txn: CombinedTxn, event: CombinedTxnEvent): CombinedTxn {
+  switch (event.type) {
+    case "autoUpdate":
+    case "claude":
+    case "codex":
+      if (txn.phase !== "unstarted") {
+        throw new Error(`Combined ${event.type} compensation must be held before Claude mutates`);
+      }
+      if (event.type === "autoUpdate") return { ...txn, autoUpdate: event.snapshot };
+      if (event.type === "claude") return { ...txn, claude: event.compensation };
+      return { ...txn, codex: event.compensation };
+    case "drift":
+      return { ...txn, drift: { ...txn.drift, ...event.drift } };
+    case "files":
+      if (txn.phase !== "unstarted" || txn.claude === null) {
+        throw new Error("Claude files phase requires prepared Claude compensation");
+      }
+      return { ...txn, phase: "files", claude: txn.claude };
+    case "scheduler":
+      if (txn.phase === "unstarted") {
+        throw new Error("Claude scheduler phase requires the files phase");
+      }
+      return { ...txn, phase: "scheduler", baseline: event.baseline };
+    case "scheduled":
+      if (txn.phase !== "scheduler") {
+        throw new Error("Claude scheduler drift recorded outside the scheduler phase");
+      }
+      return { ...txn, drift: { ...txn.drift, ...event.drift }, baseline: null };
+  }
+}
+
+async function restoreCombinedAfterClaudeFailure(txn: CombinedTxn, cause: unknown): Promise<void> {
   const restoreFailures: unknown[] = [];
-  if (codexCompensation) {
+  if (txn.codex) {
     try {
-      await restoreCodexCompensation(codexCompensation);
+      await restoreCodexCompensation(txn.codex);
     } catch (restoreCause) {
       restoreFailures.push(restoreCause);
     }
   }
-  if (claudePhase !== "unstarted" && claudeCompensation) {
+  if (txn.phase !== "unstarted") {
     try {
-      await claudeCompensation.execute();
+      await txn.claude.execute();
     } catch (restoreCause) {
       restoreFailures.push(restoreCause);
     }
   }
-  if (claudePhase === "scheduler") {
+  if (txn.phase === "scheduler") {
     try {
-      await restoreAutoUpdateState(autoUpdateSnapshot);
+      await restoreAutoUpdateState(txn.autoUpdate);
     } catch (restoreCause) {
       restoreFailures.push(restoreCause);
     }
   }
-  if (claudePhase !== "unstarted") {
+  if (txn.phase !== "unstarted") {
     try {
-      await restoreClaudeSharedExplicitDrift(claudeSharedDrift);
+      await restoreClaudeSharedExplicitDrift(txn.drift);
     } catch (restoreCause) {
       restoreFailures.push(restoreCause);
     }
@@ -347,10 +396,10 @@ export async function restoreCombinedAfterClaudeFailure(
   }
 }
 
-export async function restoreCodexAfterClaudePrewriteChange(
+async function restoreCodexAfterClaudePrewriteChange(
   codexCompensation: string | null,
   cause: ClaudePrewriteOwnershipChangedError,
-  operation: "install" | "uninstall",
+  operation: CombinedOperation,
 ): Promise<void> {
   if (!codexCompensation) return;
   try {
@@ -361,6 +410,88 @@ export async function restoreCodexAfterClaudePrewriteChange(
       `Combined ${operation} detected a concurrent Claude edit and Codex compensation failed`,
     );
   }
+}
+
+/** A forward step. A nonzero exit code stops the run and compensates. */
+export type CombinedStep = () => Promise<number | undefined>;
+
+export interface CombinedTransaction {
+  readonly state: CombinedTxn;
+  dispatch(event: CombinedTxnEvent): void;
+  /** Wraps the step that changes the auto-update job (uninstallClaude, prepareClaudeRollback). */
+  readonly schedulerPhase: { before(): Promise<void>; after(): Promise<void> };
+  /**
+   * Runs the steps in order and compensates at most once, on a throw or a
+   * nonzero exit code. `cleanup` runs before the held Claude compensation's.
+   */
+  run(steps: readonly CombinedStep[], cleanup?: () => Promise<void>): Promise<number>;
+}
+
+export function createCombinedTxn(operation: CombinedOperation): CombinedTransaction {
+  let txn: CombinedTxn = {
+    phase: "unstarted",
+    claude: null,
+    codex: null,
+    autoUpdate: null,
+    drift: {},
+  };
+  const dispatch = (event: CombinedTxnEvent): void => {
+    txn = advanceCombinedTxn(txn, event);
+  };
+  const compensate = async (cause: unknown): Promise<void> => {
+    const held = txn;
+    if (held.claude === null && held.codex === null) return;
+    if (cause instanceof ClaudePrewriteOwnershipChangedError) {
+      await restoreCodexAfterClaudePrewriteChange(held.codex, cause, operation);
+      return;
+    }
+    if (held.phase === "scheduler" && held.baseline) {
+      const drift = await captureClaudeSharedExplicitDriftAfterFailure(held.baseline);
+      await restoreCombinedAfterClaudeFailure(
+        { ...held, drift: { ...held.drift, ...drift } },
+        cause,
+      );
+      return;
+    }
+    await restoreCombinedAfterClaudeFailure(held, cause);
+  };
+  return {
+    get state() {
+      return txn;
+    },
+    dispatch,
+    schedulerPhase: {
+      before: async () => {
+        dispatch({ type: "scheduler", baseline: await captureClaudeSharedExplicitState() });
+      },
+      after: async () => {
+        if (txn.phase !== "scheduler" || txn.baseline === null) return;
+        dispatch({
+          type: "scheduled",
+          drift: await captureClaudeSharedExplicitDrift(txn.baseline),
+        });
+      },
+    },
+    run: async (steps, cleanup) => {
+      try {
+        let code = 0;
+        try {
+          for (const step of steps) {
+            code = (await step()) ?? 0;
+            if (code !== 0) break;
+          }
+        } catch (cause) {
+          await compensate(cause);
+          throw cause;
+        }
+        if (code !== 0) await compensate(new Error(`Claude ${operation} exited ${code}`));
+        return code;
+      } finally {
+        await cleanup?.();
+        await txn.claude?.cleanup();
+      }
+    },
+  };
 }
 
 export async function runSelectedRollback(
@@ -397,23 +528,7 @@ export async function runSelectedRollback(
       selectedBackup = matches[0] as string;
     }
   }
-  let claudePhase: ClaudeMutationPhase = "unstarted";
-  let schedulerSharedBaseline: ClaudeSharedExplicitSnapshot | null = null;
-  let claudeSharedDrift: ClaudeSharedExplicitDrift = {};
-  const schedulerPhase = {
-    before: async (): Promise<void> => {
-      schedulerSharedBaseline = await captureClaudeSharedExplicitState();
-      claudePhase = "scheduler";
-    },
-    after: async (): Promise<void> => {
-      if (!schedulerSharedBaseline) return;
-      claudeSharedDrift = {
-        ...claudeSharedDrift,
-        ...(await captureClaudeSharedExplicitDrift(schedulerSharedBaseline)),
-      };
-      schedulerSharedBaseline = null;
-    },
-  };
+  const txn = createCombinedTxn("rollback");
   const claudePreparation = includesTarget(target, "claude")
     ? await prepareClaudeRollback(selectedBackup, {
         prepareManagedAbsent: async () => {
@@ -422,92 +537,56 @@ export async function runSelectedRollback(
           return {
             execute: () => {
               execution ??= prepared
-                ? uninstallClaude(prepared, false, schedulerPhase).then(() => 0)
+                ? uninstallClaude(prepared, false, txn.schedulerPhase).then(() => 0)
                 : Promise.resolve(0);
               return execution;
             },
             cleanup: async () => {},
           };
         },
-        schedulerPhase,
+        schedulerPhase: txn.schedulerPhase,
       })
     : null;
   if (typeof claudePreparation === "number") return claudePreparation;
 
-  let claudeCompensation: PreparedClaudeRollback | null = null;
-  let codexCompensation: string | null = null;
   let restoredCodexBackup: string | null = null;
-  let claudeCode = 0;
-  let autoUpdateSnapshot: AutoUpdateStateSnapshot | null = null;
-  let compensationAttempted = false;
   const backupId = target === "both" ? createSharedBackupId() : undefined;
-  const compensate = async (cause: unknown): Promise<void> => {
-    compensationAttempted = true;
-    if (cause instanceof ClaudePrewriteOwnershipChangedError) {
-      if (!codexCompensation) return;
-      try {
-        await restoreCodexCompensation(codexCompensation);
-      } catch (restoreCause) {
-        throw new AggregateError(
-          [cause, restoreCause],
-          "Combined rollback detected a concurrent Claude edit and Codex compensation failed",
-        );
-      }
-      return;
-    }
-    if (claudePhase === "scheduler" && schedulerSharedBaseline) {
-      claudeSharedDrift = {
-        ...claudeSharedDrift,
-        ...(await captureClaudeSharedExplicitDriftAfterFailure(schedulerSharedBaseline)),
-      };
-    }
-    await restoreCombinedAfterClaudeFailure(
-      claudeCompensation,
-      codexCompensation,
-      autoUpdateSnapshot,
-      cause,
-      claudePhase,
-      claudeSharedDrift,
-    );
-  };
-  try {
-    if (claudePreparation) {
-      autoUpdateSnapshot = await snapshotAutoUpdateState();
-      if (target === "both") {
-        await createBackup({
-          preserveBackupName: claudePreparation?.selectedArchiveName,
-          backupId,
+  const code = await txn.run(
+    [
+      async () => {
+        if (!claudePreparation) return;
+        txn.dispatch({ type: "autoUpdate", snapshot: await snapshotAutoUpdateState() });
+        if (target === "both") {
+          await createBackup({
+            preserveBackupName: claudePreparation.selectedArchiveName,
+            backupId,
+          });
+        }
+        txn.dispatch({
+          type: "claude",
+          compensation: await prepareClaudeCompensation(
+            await createBackup({ temporary: true, backupId }),
+            claudePreparation.targetManagedPaths,
+          ),
         });
-      }
-      claudeCompensation = await prepareClaudeCompensation(
-        await createBackup({ temporary: true, backupId }),
-        claudePreparation.targetManagedPaths,
-      );
-    }
-    if (includesTarget(target, "codex")) {
-      const result = await rollbackCodex({ target: selectedBackup, backupId });
-      codexCompensation = result.compensationBackup;
-      restoredCodexBackup = result.restoredBackup;
-    }
-    if (claudePreparation) {
-      claudePhase = "files";
-      claudeCode = await claudePreparation.execute();
-    }
-    if (claudeCode !== 0) {
-      if (claudeCompensation || codexCompensation) {
-        await compensate(new Error(`Claude rollback exited ${claudeCode}`));
-      }
-      return claudeCode;
-    }
-  } catch (cause) {
-    if (!compensationAttempted && (claudeCompensation || codexCompensation)) {
-      await compensate(cause);
-    }
-    throw cause;
-  } finally {
-    await claudePreparation?.cleanup();
-    await claudeCompensation?.cleanup();
-  }
+      },
+      async () => {
+        if (!includesTarget(target, "codex")) return;
+        const result = await rollbackCodex({ target: selectedBackup, backupId });
+        txn.dispatch({ type: "codex", compensation: result.compensationBackup });
+        restoredCodexBackup = result.restoredBackup;
+      },
+      async () => {
+        if (!claudePreparation) return;
+        txn.dispatch({ type: "files" });
+        return claudePreparation.execute();
+      },
+    ],
+    async () => {
+      await claudePreparation?.cleanup();
+    },
+  );
+  if (code !== 0) return code;
   if (restoredCodexBackup) success(`Codex restored from backup ${restoredCodexBackup}`);
   return 0;
 }
@@ -519,79 +598,49 @@ export async function runSelectedUninstall(
   const claudePreparation = includesTarget(target, "claude")
     ? await prepareClaudeUninstall(sourceDir)
     : null;
-  let claudeCompensation: PreparedClaudeRollback | null = null;
-  let codexCompensation: string | null = null;
-  let autoUpdateSnapshot: AutoUpdateStateSnapshot | null = null;
-  let claudeSharedDrift: ClaudeSharedExplicitDrift = {};
-  let schedulerSharedBaseline: ClaudeSharedExplicitSnapshot | null = null;
-  let claudePhase: ClaudeMutationPhase = "unstarted";
-  const currentClaudePhase = (): ClaudeMutationPhase => claudePhase;
+  const txn = createCombinedTxn("uninstall");
   const backupId = target === "both" ? createSharedBackupId() : undefined;
-  try {
-    if (includesTarget(target, "claude") && target === "both") {
-      await createBackup({ backupId, managedAbsent: claudePreparation === null });
-    }
-    if (claudePreparation) {
-      autoUpdateSnapshot = await snapshotAutoUpdateState();
-      claudeCompensation = await prepareClaudeCompensation(
-        await createBackup({ temporary: true, backupId }),
-      );
-    }
-    const claudeSharedBaseline = claudePreparation
-      ? await captureClaudeSharedExplicitState()
-      : null;
-    if (includesTarget(target, "codex")) {
-      codexCompensation = await uninstallCodex({ sourceDir, backupId });
-    }
-    if (claudeSharedBaseline) {
-      claudeSharedDrift = await captureClaudeSharedExplicitDrift(claudeSharedBaseline);
-    }
-    if (claudePreparation) {
-      claudePhase = "files";
+  await txn.run([
+    async () => {
+      if (includesTarget(target, "claude") && target === "both") {
+        await createBackup({ backupId, managedAbsent: claudePreparation === null });
+      }
+      if (!claudePreparation) return;
+      txn.dispatch({ type: "autoUpdate", snapshot: await snapshotAutoUpdateState() });
+      txn.dispatch({
+        type: "claude",
+        compensation: await prepareClaudeCompensation(
+          await createBackup({ temporary: true, backupId }),
+        ),
+      });
+    },
+    async () => {
+      const claudeSharedBaseline = claudePreparation
+        ? await captureClaudeSharedExplicitState()
+        : null;
+      if (includesTarget(target, "codex")) {
+        txn.dispatch({
+          type: "codex",
+          compensation: await uninstallCodex({ sourceDir, backupId }),
+        });
+      }
+      if (claudeSharedBaseline) {
+        txn.dispatch({
+          type: "drift",
+          drift: await captureClaudeSharedExplicitDrift(claudeSharedBaseline),
+        });
+      }
+    },
+    async () => {
+      if (!claudePreparation) return;
+      txn.dispatch({ type: "files" });
       await uninstallClaude(
         claudePreparation,
-        autoUpdateSnapshot?.restoreMode === "independent-preserve-only",
-        {
-          before: async () => {
-            schedulerSharedBaseline = await captureClaudeSharedExplicitState();
-            claudePhase = "scheduler";
-          },
-          after: async () => {
-            if (!schedulerSharedBaseline) return;
-            claudeSharedDrift = {
-              ...claudeSharedDrift,
-              ...(await captureClaudeSharedExplicitDrift(schedulerSharedBaseline)),
-            };
-            schedulerSharedBaseline = null;
-          },
-        },
+        txn.state.autoUpdate?.restoreMode === "independent-preserve-only",
+        txn.schedulerPhase,
       );
-    }
-  } catch (cause) {
-    if (cause instanceof ClaudePrewriteOwnershipChangedError) {
-      await restoreCodexAfterClaudePrewriteChange(codexCompensation, cause, "uninstall");
-      throw cause;
-    }
-    if (currentClaudePhase() === "scheduler" && schedulerSharedBaseline) {
-      claudeSharedDrift = {
-        ...claudeSharedDrift,
-        ...(await captureClaudeSharedExplicitDriftAfterFailure(schedulerSharedBaseline)),
-      };
-    }
-    if (claudeCompensation || codexCompensation) {
-      await restoreCombinedAfterClaudeFailure(
-        claudeCompensation,
-        codexCompensation,
-        autoUpdateSnapshot,
-        cause,
-        currentClaudePhase(),
-        claudeSharedDrift,
-      );
-    }
-    throw cause;
-  } finally {
-    await claudeCompensation?.cleanup();
-  }
+    },
+  ]);
   success(`Removed cc-settings from ${target === "both" ? "Claude and Codex" : target}`);
   // Plugins are never auto-removed (a user may still want fast-jev-compaction
   // or compaction-trigger without the rest of cc-settings) — just point at

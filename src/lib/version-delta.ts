@@ -108,14 +108,43 @@ export const DestructiveSentinelSchema = SentinelSchema.extend({
 });
 
 /**
- * Parse `~/.claude/.cc-settings-version` against {@link SentinelSchema}. The
- * single low-level sentinel reader — every other reader (readSentinelInfo
- * below, gatherStatus in status.ts) builds on this instead of re-parsing the
- * file itself. Returns `{}` (every field undefined) on a missing sentinel,
- * malformed JSON, or a top-level shape that isn't an object. Never throws.
+ * Which Claude files the sentinel says cc-settings owns, read from
+ * `managed_files`, `managed_files_manifest_version` and `managed_files_state`.
+ * - legacy: written before content-aware ownership; no hash map.
+ * - owned: the hash map, plus the manifest version it was validated against
+ *   (absent on the first versionless hash maps).
+ * - managed-absent: cc-settings recorded that it manages no Claude files.
  */
-export async function readSentinel(claudeDir: string): Promise<Sentinel> {
-  const sentinelPath = join(claudeDir, ".cc-settings-version");
+export type Ownership =
+  | { kind: "legacy" }
+  | { kind: "owned"; files: Record<string, string>; manifestVersion: number | undefined }
+  | { kind: "managed-absent" };
+
+export type ParsedSentinel = Sentinel & { ownership: Ownership };
+
+/**
+ * Derive {@link Ownership} from the three sentinel fields. A managed-absent
+ * marker beside `managed_files` resolves to managed-absent:
+ * {@link DestructiveSentinelSchema} rejects that pair outright, and the lenient
+ * reader degrades it to the state that claims no files.
+ */
+export function sentinelOwnership(sentinel: Sentinel): Ownership {
+  if (sentinel.managed_files_state === "managed-absent") return { kind: "managed-absent" };
+  if (sentinel.managed_files !== undefined) {
+    return {
+      kind: "owned",
+      files: sentinel.managed_files,
+      manifestVersion: sentinel.managed_files_manifest_version,
+    };
+  }
+  return { kind: "legacy" };
+}
+
+function withOwnership(sentinel: Sentinel): ParsedSentinel {
+  return { ...sentinel, ownership: sentinelOwnership(sentinel) };
+}
+
+async function readLenientSentinel(sentinelPath: string): Promise<Sentinel> {
   if (!existsSync(sentinelPath)) return {};
   try {
     const parsed = JSON.parse(await readFile(sentinelPath, "utf8"));
@@ -127,11 +156,23 @@ export async function readSentinel(claudeDir: string): Promise<Sentinel> {
 }
 
 /**
+ * Parse `~/.claude/.cc-settings-version` against {@link SentinelSchema}. The
+ * single low-level sentinel reader — every other reader (readSentinelInfo
+ * below, gatherStatus in status.ts) builds on this instead of re-parsing the
+ * file itself. Every field is undefined (and ownership legacy) on a missing
+ * sentinel, malformed JSON, or a top-level shape that isn't an object. Never
+ * throws.
+ */
+export async function readSentinel(claudeDir: string): Promise<ParsedSentinel> {
+  return withOwnership(await readLenientSentinel(join(claudeDir, ".cc-settings-version")));
+}
+
+/**
  * Read ownership state for uninstall. Missing is a supported legacy state;
  * an existing malformed sentinel is not, because destructive callers cannot
  * safely infer ownership from corrupt data.
  */
-export async function readDestructiveSentinel(claudeDir: string): Promise<Sentinel | null> {
+export async function readDestructiveSentinel(claudeDir: string): Promise<ParsedSentinel | null> {
   const sentinelPath = join(claudeDir, ".cc-settings-version");
   if (!existsSync(sentinelPath)) return null;
   let parsed: unknown;
@@ -148,7 +189,7 @@ export async function readDestructiveSentinel(claudeDir: string): Promise<Sentin
         .join("; ")}`,
     );
   }
-  return result.data;
+  return withOwnership(result.data);
 }
 
 /**
@@ -157,7 +198,10 @@ export async function readDestructiveSentinel(claudeDir: string): Promise<Sentin
  * writeVersionSentinel(). Keeps the on-disk field set in one typed place
  * instead of an anonymous object literal.
  */
-export async function writeSentinel(claudeDir: string, data: Sentinel): Promise<void> {
+export async function writeSentinel(
+  claudeDir: string,
+  data: Sentinel & { ownership?: never },
+): Promise<void> {
   await atomicWriteJson(join(claudeDir, ".cc-settings-version"), data);
 }
 
