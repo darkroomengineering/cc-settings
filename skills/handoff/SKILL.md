@@ -1,7 +1,7 @@
 ---
 name: handoff
 argument-hint: "[save|resume]"
-description: Save state at the end of a session or before switching to different work, or resume from the last one. Triggers "wrapping up", "running out of context", "done for today", "let's switch to", "new topic", "continue where we left off", "resume".
+description: Save state at the end of a session or before unrelated work, or resume from the last one. Triggers "wrapping up", "running out of context", "done for today", "switching to unrelated work", "new topic", "continue where we left off", "resume".
 context: fork
 ---
 
@@ -28,7 +28,7 @@ unavailable until the host exposes the same plugin-data path to the session.
 
 ## Mode: Save
 
-Save current session state for later resumption. This is the **end-of-session boundary** skill. A topic switch or a landed milestone (a PR opened, a direction picked) is a session boundary too: save, then tell the user to continue in a fresh session with `/handoff resume`, because every turn re-reads the whole session. For mid-task rollback points before risky operations, commit or use Claude Code's built-in `/rewind`.
+Save current session state for later resumption. This is the **end-of-session boundary** skill. A switch to an unrelated topic, or work that has ended (merged, or the user says they are moving on), is a session boundary too: offer to save and continue in a fresh session with `/handoff resume`, because every turn re-reads the whole session, and let the user decide. Work still in flight, such as CI, the merge, or the closing comment, stays in the current session. For mid-task rollback points before risky operations, commit or use Claude Code's built-in `/rewind`.
 
 ### Usage
 

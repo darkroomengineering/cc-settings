@@ -179,8 +179,10 @@ cc-settings leaves it unset so implementers keep the session's depth.
 Treat **200K tokens as the working context ceiling even on a 1M-window model**:
 giant contexts drain usage limits and degrade attention, and every turn
 re-reads the whole session. Keep one session per piece of work: when the work
-switches topic or a milestone lands (a PR opened, a direction picked),
-`/handoff` and continue in a fresh session instead of carrying the old context.
+switches to an unrelated topic or has ended (merged, or the user says they are
+moving on), offer `/handoff` and a fresh session instead of carrying the old
+context, and let the user decide. Work still in flight, such as CI, the merge,
+or the closing comment, stays in the current session.
 `/clear` between unrelated tasks; compact or `/handoff` by ~150K; break
 subtasks to finish within that. Reserve a `[1m]` model for sessions that genuinely need it, via
 `/model`, and drop it after. Per-model defaults and pricing:
