@@ -320,6 +320,25 @@ describe("evaluate_script", () => {
         });
       }
     });
+  test("location writes blocked, location reads allowed", () => {
+    const run = (fn: string) =>
+      decide(chrome("evaluate_script"), { function: fn, dialogAction: "dismiss" }, HOME);
+    for (const fn of [
+      "() => { location = 'http://localhost:3000' }",
+      "() => { window.location.href = 'http://10.0.0.1' }",
+      "() => location . assign('http://127.0.0.1')",
+      "() => document.location.replace('http://intranet')",
+    ]) {
+      expectBlock(run(fn));
+    }
+    for (const fn of [
+      "() => location.href",
+      "() => location.href === 'https://example.com/'",
+      "() => ({ path: location.pathname })",
+    ]) {
+      expect(run(fn)).toEqual({ kind: "allow" });
+    }
+  });
   read("ordinary DOM reads and GET fetches stay allowed", [
     "() => document.querySelector('input[type=submit]')?.value",
     "() => fetch('/api', { method: 'GET', cache: 'no-store' }).then((r) => r.json())",
@@ -400,6 +419,26 @@ describe("navigate_page and new_page", () => {
         "http://[::ffff:127.0.0.1]",
         "http://[fd00::1]",
         "http://[fe80::1]",
+        "http://[fc00::1]",
+        "http://[febf::1]",
+        "http://[fec0::1]",
+        "http://[::ffff:10.0.0.1]",
+        "http://[::ffff:169.254.169.254]",
+        "http://[::127.0.0.1]",
+        "http://[::ffff:0:127.0.0.1]",
+        "http://[64:ff9b::10.0.0.5]",
+        "http://[64:ff9b:1::a00:5]",
+        "http://0177.0.0.1",
+        "http://127.0.0.1.",
+        "http://localhost..",
+        "http://127.0.0.1..",
+        "http://192.0.0.192",
+        "http://198.18.0.1",
+        "http://224.0.0.1",
+        "http://255.255.255.255",
+        "http://localhost.localdomain",
+        "http://myapp.test",
+        "http://100.127.255.255",
         "http://intranet",
         "http://printer.local",
         "http://db.internal",
@@ -420,6 +459,15 @@ describe("navigate_page and new_page", () => {
         "http://localhost.example.com",
         "http://[2001:db8::1]",
         "http://[::ffff:8.8.8.8]",
+        "http://[64:ff9b::8.8.8.8]",
+        "http://100.63.255.255",
+        "http://100.128.0.0",
+        "http://172.15.255.255",
+        "http://169.253.0.1",
+        "http://192.167.0.1",
+        "http://192.0.1.1",
+        "http://198.20.0.1",
+        "http://223.255.255.255",
       ]) {
         expect(nav(tool, { url })).toEqual({ kind: "allow" });
       }
@@ -447,6 +495,16 @@ describe("navigate_page and new_page", () => {
       expectBlock(nav(tool, { url: 1 }));
       expectBlock(nav(tool, { url: null }));
       expectBlock(nav(tool, { url: { href: "https://example.com" } }));
+    });
+
+    test(`${tool}: URLs with a username or password blocked`, () => {
+      for (const url of [
+        "http://dash.example.com@localhost/",
+        "https://user:pass@example.com/",
+        "https://:pass@example.com/",
+      ]) {
+        expectBlock(nav(tool, { url }));
+      }
     });
 
     test(`${tool}: initScript blocked, whatever its value`, () => {
@@ -482,23 +540,29 @@ describe("navigate_page and new_page", () => {
 describe("isLocalHost", () => {
   test("matches parsed hostnames, not raw strings", () => {
     expect(isLocalHost(new URL("http://0x7f.1").hostname)).toBe(true);
+    // The raw spelling is a public-looking name: callers must pass URL.hostname.
+    expect(isLocalHost("0x7f.1")).toBe(false);
     expect(isLocalHost("example.com")).toBe(false);
   });
 });
 
 describe("secureFindingsDir", () => {
-  test("creates the dir owner-only and tightens an open one", async () => {
-    const base = realpathSync(await mkdtemp(join(tmpdir(), "cc-browser-dir-")));
-    try {
-      expect(secureFindingsDir(base)).toBeUndefined();
-      expect(statSync(findingsDir(base)).mode & 0o777).toBe(0o700);
-      chmodSync(findingsDir(base), 0o777);
-      expect(secureFindingsDir(base)).toBeUndefined();
-      expect(statSync(findingsDir(base)).mode & 0o777).toBe(0o700);
-    } finally {
-      await rm(base, { recursive: true, force: true });
-    }
-  });
+  // Windows synthesizes mode bits from file attributes, so 0o700 never reads back.
+  test.skipIf(process.platform === "win32")(
+    "creates the dir owner-only and tightens an open one",
+    async () => {
+      const base = realpathSync(await mkdtemp(join(tmpdir(), "cc-browser-dir-")));
+      try {
+        expect(secureFindingsDir(base)).toBeUndefined();
+        expect(statSync(findingsDir(base)).mode & 0o777).toBe(0o700);
+        chmodSync(findingsDir(base), 0o777);
+        expect(secureFindingsDir(base)).toBeUndefined();
+        expect(statSync(findingsDir(base)).mode & 0o777).toBe(0o700);
+      } finally {
+        await rm(base, { recursive: true, force: true });
+      }
+    },
+  );
 
   test("refuses a symlink or a file in its place", async () => {
     const base = realpathSync(await mkdtemp(join(tmpdir(), "cc-browser-dir-")));

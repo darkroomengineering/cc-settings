@@ -41,13 +41,14 @@ export const ALLOWED_CHROME_TOOLS: ReadonlySet<string> = new Set([
 // `[ 'a' + ` catches computed names built by concatenation (`window['local'+'Storage']`).
 const STORAGE_RE = /[cC]ookie|Storage|indexedDB|\bcaches\b|\[\s*['"`][^'"`]*['"`]\s*\+/;
 // Channels that can send non-GET requests or run code the regexes never see:
-// XHR and window.open (`.open(`), beacons (always POST), sockets, form submits,
+// XHR and window.open (`.open(`), location changes (a script-driven visit skips
+// the local-host ask), beacons (always POST), sockets, form submits,
 // dynamic code, scripted clicks and events (they drive the app's own writes),
 // and `\u`/`\x` escapes (`document.\u0063ookie`). This is a tripwire for
 // accidental use, not a sandbox: the prompt rule is the defense against an
 // adversarial page.
 const STATE_CHANGE_RE =
-  /\.open\s*\(|XMLHttpRequest|sendBeacon|WebSocket|\.submit\b|\[\s*['"`]submit|requestSubmit|\beval\b|\bFunction\b|\bimport\s*\(|\batob\b|fromCharCode|setTimeout\s*\(\s*['"`]|\.click\s*\(|dispatchEvent|\\[ux]/;
+  /\blocation\s*(\.\s*href\s*)?=(?!=)|\blocation\s*\.\s*(assign|replace)\s*\(|\.open\s*\(|XMLHttpRequest|sendBeacon|WebSocket|\.submit\b|\[\s*['"`]submit|requestSubmit|\beval\b|\bFunction\b|\bimport\s*\(|\batob\b|fromCharCode|setTimeout\s*\(\s*['"`]|\.click\s*\(|dispatchEvent|\\[ux]/;
 const METHOD_TOKEN_RE = /\bmethod\b/gi;
 const METHOD_GET_RE = /['"`]?\bmethod\b['"`]?\s*:\s*['"`]GET['"`]/gi;
 
@@ -116,37 +117,49 @@ function isPrivateIPv4(host: string): boolean {
   if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
     return false;
   }
-  const [a = -1, b = -1] = parts;
+  const [a = -1, b = -1, c = -1] = parts;
   return (
     a === 0 ||
+    a >= 224 ||
     a === 10 ||
     a === 127 ||
     (a === 100 && b >= 64 && b <= 127) ||
     (a === 169 && b === 254) ||
     (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168)
+    (a === 192 && b === 168) ||
+    (a === 192 && b === 0 && c === 0) ||
+    (a === 198 && (b === 18 || b === 19))
   );
 }
 
-/** A host on this machine or the local network. The WHATWG parser has already
- *  normalized IPv4 spellings (`0x7f.1`, `2130706433`) to dotted decimal. A public
- *  name that resolves to a private address (DNS rebinding) is not caught. */
+// IPv4 embedded in IPv6: compatible (`::a.b.c.d`), mapped, SIIT, and NAT64
+// (64:ff9b::/96), as the WHATWG serializer prints them (`::ffff:7f00:1`).
+const EMBEDDED_V4_RE = /^(?:::|::ffff:|::ffff:0:|64:ff9b::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/;
+
+/** A host on this machine or the local network. Pass `URL.hostname`: the WHATWG
+ *  parser has already normalized IPv4 spellings (`0x7f.1`, `2130706433`) to dotted
+ *  decimal. A public name that resolves to a private address (DNS rebinding) is
+ *  not caught, and neither is a redirect or in-page navigation. */
 export function isLocalHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/\.$/, "");
+  const host = hostname.toLowerCase().replace(/\.+$/, "");
   if (host.startsWith("[")) {
     const v6 = host.slice(1, -1);
     if (v6 === "::" || v6 === "::1") return true;
-    if (/^f[cd]/.test(v6) || /^fe[89ab]/.test(v6)) return true;
-    const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(v6);
-    if (mapped) {
-      const hi = Number.parseInt(mapped[1] ?? "", 16);
-      const lo = Number.parseInt(mapped[2] ?? "", 16);
+    // fc00::/7 unique local, fe80::/10 link-local, fec0::/10 site-local, NAT64 local-use.
+    if (/^f[cd]/.test(v6) || /^fe[89a-f]/.test(v6) || v6.startsWith("64:ff9b:1:")) return true;
+    const embedded = EMBEDDED_V4_RE.exec(v6);
+    if (embedded) {
+      const hi = Number.parseInt(embedded[1] ?? "", 16);
+      const lo = Number.parseInt(embedded[2] ?? "", 16);
       return isPrivateIPv4(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
     }
     return false;
   }
   if (isPrivateIPv4(host)) return true;
-  return !host.includes(".") || /\.(localhost|local|internal|lan|home\.arpa)$/.test(host);
+  return (
+    !host.includes(".") ||
+    /\.(localhost|localdomain|local|internal|lan|test|home\.arpa)$/.test(host)
+  );
 }
 
 function checkUrl(tool: string, input: Record<string, unknown>): Decision | undefined {
@@ -154,6 +167,10 @@ function checkUrl(tool: string, input: Record<string, unknown>): Decision | unde
   const url = typeof input.url === "string" ? webUrl(input.url) : undefined;
   if (!url) {
     return block(`${tool} accepts only http and https URLs, got ${String(input.url)}.`);
+  }
+  // `https://dash.example.com@localhost/` would put a trusted-looking name first in the prompt.
+  if (url.username || url.password) {
+    return block(`${tool} does not take URLs with a username or password, got ${url.href}.`);
   }
   // A page can tell the agent to visit a local admin URL; the user decides.
   if (isLocalHost(url.hostname)) {
@@ -253,7 +270,7 @@ export function secureFindingsDir(base: string): string | undefined {
   if (!stat.isDirectory()) return `${dir} is not a directory; remove it and retry.`;
   const uid = process.getuid?.();
   if (uid !== undefined && stat.uid !== uid) {
-    return `${dir} belongs to another user; remove it and retry.`;
+    return `${dir} belongs to another user. Set TMPDIR to a directory only you can write, then restart Claude Code.`;
   }
   if ((stat.mode & 0o077) !== 0) chmodSync(dir, 0o700);
   return undefined;

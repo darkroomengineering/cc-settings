@@ -330,6 +330,9 @@ describe("mcp — claude.json installer", () => {
     expect(pin(browser)).toBe(pin(tester));
     expect(tester).toContain("--no-usage-statistics");
     expect(browser).toContain("--no-usage-statistics");
+    // The server enforces these on redirects and subresources, which the guard hook never sees.
+    expect(browser).toContain("*://169.254.169.254/*");
+    expect(browser).toContain("*://metadata.google.internal/*");
     expect(browser.some((a) => /^--(userDataDir|user-data-dir|isolated)\b/.test(a))).toBe(false);
     expect(tester).toContain("--isolated");
   });
