@@ -113,7 +113,10 @@ export interface EvalReport {
   cases?: {
     name: string;
     aggregates?: { score?: number };
-    arms?: Record<string, { score?: number; error?: string | null }[]>;
+    arms?: Record<
+      string,
+      { score?: number; error?: string | null; graders?: { explanation?: string }[] }[]
+    >;
   }[];
 }
 
@@ -249,19 +252,42 @@ function scores(report: EvalReport): Map<string, number> {
   return new Map((report.cases ?? []).map((c) => [c.name, c.aggregates?.score ?? 0]));
 }
 
-/** Aggregate and per-run scores per case; errored runs are left out of `runs`. */
-export function caseRuns(report: EvalReport): Map<string, CaseRuns> {
-  return new Map(
-    (report.cases ?? []).map((c) => {
-      const score = c.aggregates?.score ?? 0;
-      if (!c.arms) return [c.name, { score, runs: [score] }];
-      const runs = Object.values(c.arms)
-        .flat()
-        .filter((r) => !r.error && typeof r.score === "number")
-        .map((r) => r.score as number);
-      return [c.name, { score, runs }];
-    }),
-  );
+// The runner scores a run 0 when the judge call itself fails (an API overload),
+// without setting `error`; that is an outage, not a verdict on the skill.
+const GRADER_THREW = /^grader threw:/;
+
+/**
+ * Score and per-run scores per case, from graded runs only: a run that errored
+ * or whose grader threw is left out. A case with arms but no graded run is
+ * omitted, so the gate cannot block on it; `ungraded` names those cases.
+ */
+export function caseRuns(report: EvalReport, ungraded: string[] = []): Map<string, CaseRuns> {
+  const out = new Map<string, CaseRuns>();
+  for (const c of report.cases ?? []) {
+    const score = c.aggregates?.score ?? 0;
+    if (!c.arms) {
+      out.set(c.name, { score, runs: [score] });
+      continue;
+    }
+    const all = Object.values(c.arms).flat();
+    const runs = all
+      .filter(
+        (r) =>
+          !r.error &&
+          typeof r.score === "number" &&
+          !(r.graders ?? []).some((g) => GRADER_THREW.test(g.explanation ?? "")),
+      )
+      .map((r) => r.score as number);
+    if (runs.length === 0) {
+      ungraded.push(c.name);
+      continue;
+    }
+    out.set(c.name, {
+      score: runs.length === all.length ? score : runs.reduce((x, y) => x + y, 0) / runs.length,
+      runs,
+    });
+  }
+  return out;
 }
 
 function loadQuarantine(): Quarantine {
@@ -488,8 +514,15 @@ function main(): never {
     const err = current.stderr.trim().split("\n").slice(-5).join("\n");
     console.error(`[eval-changed] eval could not run; not blocking.\n${err}`);
   } else {
+    const ungraded: string[] = [];
+    const candidate = caseRuns(current.report, ungraded);
+    for (const name of ungraded) {
+      console.error(
+        `  ungraded  ${name}: no run was graded (runner or judge error); not blocking.`,
+      );
+    }
     const verdicts = gate({
-      candidate: caseRuns(current.report),
+      candidate,
       base: baseRuns,
       critical,
       removed: [],

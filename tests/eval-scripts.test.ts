@@ -283,6 +283,36 @@ describe("eval-changed gate", () => {
     expect(parsed.get("a")).toEqual({ score: 0.5, runs: [1, 0] });
     expect(parsed.get("b")).toEqual({ score: 0.9, runs: [0.9] });
   });
+
+  test("caseRuns leaves out runs whose judge call failed and names fully ungraded cases", () => {
+    const threw = { explanation: "grader threw: judge call failed: API Error: 529 Overloaded." };
+    const ungraded: string[] = [];
+    const parsed = caseRuns(
+      {
+        cases: [
+          {
+            name: "outage",
+            aggregates: { score: 0 },
+            arms: { with: [{ score: 0, graders: [threw] }] },
+          },
+          {
+            name: "mixed",
+            aggregates: { score: 0.5 },
+            arms: {
+              with: [
+                { score: 1, graders: [{ explanation: "PASS" }] },
+                { score: 0, graders: [threw] },
+              ],
+            },
+          },
+        ],
+      },
+      ungraded,
+    );
+    expect(parsed.has("outage")).toBe(false);
+    expect(ungraded).toEqual(["outage"]);
+    expect(parsed.get("mixed")).toEqual({ score: 1, runs: [1] });
+  });
 });
 
 describe("eval-changed quarantine", () => {

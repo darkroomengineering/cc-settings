@@ -26,7 +26,8 @@ async function readCommand(): Promise<string> {
 }
 
 const command = await readCommand();
-if (!/\bgit\s+(?:-C\s+\S+\s+)?push\b/.test(command)) process.exit(0);
+// Command position only: a `git push` inside a quoted grep pattern or a commit message must not spend eval money.
+if (!/(?:^|[;&|(\n])\s*git\s+(?:-C\s+\S+\s+)?push\b/.test(command)) process.exit(0);
 
 const root = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 try {
