@@ -180,13 +180,18 @@ export function* iterCommandHooks(
  *  a `$` so rules that refuse unresolved expansions still see one. */
 export const SUBSTITUTION = "$(SUB)";
 
+// A substitution that only looks a command up (`which git`, `command -v git`,
+// `type -p git`, `whence -p git`) expands to that command's path.
+const COMMAND_LOOKUP_RE =
+  /^\s*(?:(?:\S*\/)?which|command\s+-v|type\s+-[pP]|whence\s+-p)\s+([A-Za-z0-9_.+-]+)\s*$/;
+
 /** Stands in for a `<(...)` / `>(...)` process substitution; the digits index
  *  into the segment's `subs`. */
 export const PROCESS_SUBSTITUTION_RE = /^\$\(PSUB(\d+)\)$/;
 
 export interface ShellSegment {
   /** The simple command text: quotes kept, substitutions replaced by
-   *  SUBSTITUTION, heredoc bodies removed. Pipes (`|`) stay inside. */
+   *  SUBSTITUTION, heredoc bodies removed. */
   clean: string;
   /** Raw text of the `$(...)` / backtick / `<(...)` substitutions in this
    *  segment, in the order their placeholders appear. */
@@ -195,6 +200,8 @@ export interface ShellSegment {
   heredocs: Array<{ word: string; body: string }>;
   /** Subshell scope the segment runs in; 0 is the top level. */
   scope: number;
+  /** Operator following this segment; null at a scope boundary or end of input. */
+  joiner: "&&" | "||" | ";" | "&" | "\n" | "|" | null;
 }
 
 export interface ShellScan {
@@ -323,19 +330,77 @@ function run(cmd: string, shared: Shared, startScope: number): void {
     }
   }
 
+  // Reads the delimiter word after `<<` / `<<-` starting at `j`. Bash removes
+  // quotes and backslashes from it, as shellWords does for `heredocWords`, and
+  // any quoting at all (`'EOF'`, `"E"OF`, `E\OF`) leaves the body unexpanded.
+  function readHeredocWord(j: number): { word: string; quoted: boolean; end: number } | null {
+    let word = "";
+    let quoted = false;
+    while (j < n) {
+      const c = cmd[j] as string;
+      if (c === "'" || (c === "$" && cmd[j + 1] === "'")) {
+        const ansi = c === "$";
+        const start = j + (ansi ? 2 : 1);
+        let k = start;
+        while (k < n && cmd[k] !== "'") k += ansi && cmd[k] === "\\" ? 2 : 1;
+        if (k >= n) return null;
+        const body = cmd.slice(start, k);
+        word += ansi ? decodeAnsiC(body) : body;
+        quoted = true;
+        j = k + 1;
+      } else if (c === '"') {
+        let k = j + 1;
+        while (k < n && cmd[k] !== '"') {
+          if (cmd[k] === "\\" && /["\\$`]/.test(cmd[k + 1] ?? "")) k++;
+          word += cmd[k] ?? "";
+          k++;
+        }
+        if (k >= n) return null;
+        quoted = true;
+        j = k + 1;
+      } else if (c === "\\") {
+        word += cmd[j + 1] ?? "";
+        quoted = true;
+        j += 2;
+      } else if (/[\s;&|()<>]/.test(c)) {
+        break;
+      } else {
+        word += c;
+        j++;
+      }
+    }
+    return word === "" && !quoted ? null : { word, quoted, end: j };
+  }
+
   // Scans simple commands until the end of input or, when `nested`, the `)`
   // closing a `$(`. Returns the index of that `)` (or the end of input).
   function scan(nested: boolean): number {
     let cur = "";
     let subs: string[] = [];
     let depth = 0; // bare `(` groups opened in this scan
+    // Index just past the last backslash escape: `\ ` is part of a word, so a
+    // `#` right after it does not start a comment.
+    let escapedUntil = -1;
     const heredocs: Heredoc[] = [];
-    const flush = (): void => {
+    // `$(which git) push`: a lookup in command position names the command.
+    const substitute = (inner: string): void => {
+      const lookup = /^\s*$|\|\s*$/.test(cur) ? inner.match(COMMAND_LOOKUP_RE) : null;
+      if (lookup) {
+        cur += lookup[1];
+      } else {
+        cur += SUBSTITUTION;
+        subs.push(inner);
+      }
+    };
+    const flush = (joiner: ShellSegment["joiner"] = null): void => {
       const clean = cur.trim();
       if (clean) {
-        const seg: ShellSegment = { clean, subs, heredocs: [], scope: curScope };
+        const seg: ShellSegment = { clean, subs, heredocs: [], scope: curScope, joiner };
         shared.segments.push(seg);
         for (const h of heredocs) h.owner ??= seg;
+      } else if (joiner !== null) {
+        const previous = shared.segments.at(-1);
+        if (previous && previous.joiner === null) previous.joiner = joiner;
       }
       cur = "";
       subs = [];
@@ -347,6 +412,7 @@ function run(cmd: string, shared: Shared, startScope: number): void {
       if (ch === "\\") {
         cur += cmd.slice(i, i + 2);
         i += 2;
+        escapedUntil = i;
       } else if (ch === "'") {
         const end = cmd.indexOf("'", i + 1);
         if (end < 0) {
@@ -390,57 +456,53 @@ function run(cmd: string, shared: Shared, startScope: number): void {
       } else if (ch === "$" && cmd[i + 1] === "(" && cmd[i + 2] === "(") {
         cur += skipArithmetic();
       } else if (ch === "$" && cmd[i + 1] === "(") {
-        cur += SUBSTITUTION;
-        subs.push(readSubstitution());
+        substitute(readSubstitution());
       } else if ((ch === "<" || ch === ">") && cmd[i + 1] === "(") {
         cur += `$(PSUB${subs.length})`;
         subs.push(readSubstitution());
       } else if (ch === "`") {
-        cur += SUBSTITUTION;
-        subs.push(readBacktick());
-      } else if (ch === "#" && (cur === "" || /\s$/.test(cur))) {
+        substitute(readBacktick());
+      } else if (ch === "#" && escapedUntil !== i && (cur === "" || /\s$/.test(cur))) {
         // A comment runs to the end of the line.
         while (i < n && cmd[i] !== "\n" && cmd[i] !== "\r") i++;
       } else if (ch === "<" && cmd[i + 1] === "<" && cmd[i + 2] !== "<") {
-        const marker = cmd
-          .slice(i)
-          .match(/^<<(-?)[ \t]*(?:'([^']*)'|"([^"]*)"|(\\?[^\s;&|()<>'"]+))/);
+        const strip = cmd[i + 2] === "-";
+        let j = i + (strip ? 3 : 2);
+        while (cmd[j] === " " || cmd[j] === "\t") j++;
+        const marker = readHeredocWord(j);
         if (marker) {
-          const quotedWord = marker[2] ?? marker[3];
-          const bareWord = marker[4] ?? "";
-          heredocs.push({
-            word: quotedWord ?? bareWord.replace(/^\\/, ""),
-            strip: marker[1] === "-",
-            expand: quotedWord === undefined && !bareWord.startsWith("\\"),
-          });
-          cur += marker[0];
-          i += marker[0].length;
+          heredocs.push({ word: marker.word, strip, expand: !marker.quoted });
+          cur += cmd.slice(i, marker.end);
+          i = marker.end;
         } else {
           cur += "<<";
           i += 2;
         }
       } else if (ch === "\n" || ch === "\r" || ch === "\u2028" || ch === "\u2029") {
-        flush();
+        flush("\n");
         i += ch === "\r" && cmd[i + 1] === "\n" ? 2 : 1;
         if (heredocs.length > 0) readHeredocBodies(heredocs.splice(0));
       } else if (ch === ";") {
-        flush();
+        flush(";");
         i++;
       } else if (ch === "&") {
         // `&&` and a lone `&` separate commands; `>&`, `<&`, `&>` do not.
         if (cmd[i + 1] === "&") {
-          flush();
+          flush("&&");
           i += 2;
         } else if (cmd[i - 1] === ">" || cmd[i - 1] === "<" || cmd[i + 1] === ">") {
           cur += ch;
           i++;
         } else {
-          flush();
+          flush("&");
           i++;
         }
       } else if (ch === "|" && cmd[i + 1] === "|") {
-        flush();
+        flush("||");
         i += 2;
+      } else if (ch === "|" && cmd[i - 1] !== ">") {
+        flush("|");
+        i++;
       } else if (ch === "(") {
         flush();
         depth++;
@@ -604,15 +666,22 @@ export interface ParsedShellCommand {
   heredocWords: string[];
   /** Operands of here-strings (`<<< text`). */
   hereStrings: string[];
+  /** The command runs under `xargs`, so stdin can add arguments. */
+  viaXargs: boolean;
+  /** Directories a wrapper moves into first (`env -C DIR`, `sudo -D DIR`), in order. */
+  chdirs: string[];
 }
 
-const KEYWORDS = new Set(["!", "{", "time", "then", "do", "else", "elif", "if", "while", "until"]);
+const KEYWORDS = new Set(["!", "{", "then", "do", "else", "elif", "if", "while", "until"]);
 // Wrapper commands and the options of theirs that take a separate value.
 const WRAPPER_VALUE_FLAGS: Record<string, string[]> = {
   sudo: ["-u", "-g", "-h", "-p", "-C", "-D", "-R", "-T", "-U"],
   env: ["-u", "-C", "-S"],
+  // The shell keyword (`time -p`) and /usr/bin/time.
+  time: ["-o", "-f", "--output", "--format"],
+  caffeinate: ["-t", "-w"],
   command: [],
-  exec: [],
+  exec: ["-a"],
   builtin: [],
   nohup: [],
   nice: ["-n"],
@@ -655,6 +724,8 @@ export function parseShellCommand(stage: string): ParsedShellCommand {
   }
 
   const env: Record<string, string> = {};
+  let viaXargs = false;
+  const chdirs: string[] = [];
   let i = 0;
   while (i < words.length) {
     const t = words[i] as string;
@@ -671,9 +742,37 @@ export function parseShellCommand(stage: string): ParsedShellCommand {
     const wrapper = basename(t);
     const valueFlags = WRAPPER_VALUE_FLAGS[wrapper];
     if (!valueFlags) break;
+    if (wrapper === "xargs") viaXargs = true;
     i++;
     while (i < words.length && (words[i] as string).startsWith("-")) {
       const flag = words[i] as string;
+      // `env -S 'git push'` splits its value into words that env reads again.
+      const separate = flag === "-S" || flag === "--split-string";
+      const split =
+        wrapper !== "env"
+          ? undefined
+          : separate
+            ? words[i + 1]
+            : flag.match(/^(?:-S|--split-string=)(.+)$/s)?.[1];
+      if (split !== undefined) {
+        const parts = shellWords(split.replaceAll("\\_", " ")).filter((w) => !w.startsWith(OP));
+        words.splice(i, separate ? 2 : 1, ...parts);
+        continue;
+      }
+      // `env -C DIR` / `env --chdir=DIR` / `sudo -D DIR` run the command in DIR.
+      const chdirFlag =
+        (wrapper === "env" && flag === "-C") || (wrapper === "sudo" && flag === "-D");
+      const chdir = chdirFlag
+        ? words[i + 1]
+        : wrapper === "env"
+          ? flag.match(/^(?:-C|--chdir=)(.+)$/s)?.[1]
+          : undefined;
+      if (chdir !== undefined) chdirs.push(chdir);
+      if (wrapper === "env" && flag === "--chdir") {
+        if (words[i + 1] !== undefined) chdirs.push(words[i + 1] as string);
+        i += 2;
+        continue;
+      }
       i += flag === "--" ? 1 : valueFlags.includes(flag) ? 2 : 1;
       if (flag === "--") break;
     }
@@ -686,5 +785,7 @@ export function parseShellCommand(stage: string): ParsedShellCommand {
     reads,
     heredocWords,
     hereStrings,
+    viaXargs,
+    chdirs,
   };
 }

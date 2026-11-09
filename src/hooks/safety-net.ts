@@ -25,7 +25,7 @@
 // is allowed. Hooks run as `bun --no-env-file`, so a project .env cannot set it.
 // CC_SAFETY_TEST_CRASH makes the hook throw, to exercise the fail-closed path.
 
-import { writeSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, writeSync } from "node:fs";
 import { appendFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
@@ -34,6 +34,7 @@ import {
   PROCESS_SUBSTITUTION_RE,
   parseShellCommand,
   type ShellSegment,
+  SUBSTITUTION,
   scanShell,
   shellWords,
   splitPipes,
@@ -382,23 +383,24 @@ function analyzeGitAfterVerb(afterVerb: string, cmd: string): void {
         block("git reset --merge can discard uncommitted changes", cmd);
       return;
     }
+    case "send-pack":
     case "push": {
       if (subargs.includes("--force-with-lease")) {
         const targets = subargs.split(/\s+/).filter((t) => t && !t.startsWith("-"));
         // Without a refspec (`git push --force-with-lease [remote]`) the
         // destination is the current branch, so resolve it.
-        const refspecs = targets.length > 1 ? targets.slice(1) : [currentBranch()];
+        const refspecs = targets.length > 1 ? targets.slice(1) : [currentBranch() ?? ""];
         if (refspecs.some((t) => /(^|:)(refs\/heads\/)?(main|master)$/.test(t)))
-          block("git push --force-with-lease to main or master rewrites shared history", cmd);
+          block(`git ${sub} --force-with-lease to main or master rewrites shared history`, cmd);
         return;
       }
       const padded = ` ${subargs} `;
       if (/(^|\s)--force(\s|$)/.test(padded))
-        block("git push --force can overwrite remote history", cmd);
+        block(`git ${sub} --force can overwrite remote history`, cmd);
       // Bundled short flags: `-uf`, `-fu`, etc. all include a force flag
       // even though the literal string "-f" never appears standalone.
       if (/(^|\s)-[a-zA-Z]*f[a-zA-Z]*(\s|$)/.test(padded))
-        block("git push --force can overwrite remote history", cmd);
+        block(`git ${sub} --force can overwrite remote history`, cmd);
       return;
     }
     // `git branch -D` and `git stash drop` are reflog-recoverable, so the
@@ -415,13 +417,83 @@ function analyzeGitAfterVerb(afterVerb: string, cmd: string): void {
   }
 }
 
-// Fails open to "" (no match) when git is unavailable or HEAD is detached.
-function currentBranch(dir?: string): string {
+const branchCache = new Map<string, string | null>();
+
+// The branch checked out in `dir`: its name, "" when HEAD is detached, null
+// when it cannot be read (git missing or failing, not a repository). HEAD is
+// read from disk so that a push spends its one git process on the `git config`
+// read below; git is asked only when the file cannot answer.
+function currentBranch(dir?: string): string | null {
+  const key = dir ?? safeCwd() ?? "";
+  let branch = branchCache.get(key);
+  if (branch === undefined) {
+    branch = headFileBranch(key) ?? gitCurrentBranch(dir);
+    branchCache.set(key, branch);
+  }
+  return branch;
+}
+
+function gitCurrentBranch(dir?: string): string | null {
   try {
-    const r = Bun.spawnSync(["git", "branch", "--show-current"], { stderr: "ignore", cwd: dir });
-    return r.exitCode === 0 ? r.stdout.toString().trim() : "";
+    const r = Bun.spawnSync(["git", "branch", "--show-current"], {
+      stderr: "ignore",
+      cwd: dir,
+      timeout: 1000,
+    });
+    return r.exitCode === 0 ? r.stdout.toString().trim() : null;
   } catch {
-    return ""; // git not installed or cwd gone
+    return null; // git not installed or cwd gone
+  }
+}
+
+// A small regular file's text; null for anything else (a FIFO or device would
+// block the read, a symlink can point anywhere, a huge file is not git's).
+function smallFile(path: string): string | null {
+  const stat = lstatSync(path, { throwIfNoEntry: false });
+  if (!stat?.isFile() || stat.size >= 4096) return null;
+  return readFileSync(path, "utf8");
+}
+
+// A bare git directory is a repository boundary, never a child of the worktree
+// that happens to contain it.
+function repoLocation(dir: string): { top: string; gitDir: string } | null {
+  if (!dir || process.env.GIT_DIR || process.env.GIT_WORK_TREE) return null;
+  try {
+    for (let d = resolve(dir); ; d = dirname(d)) {
+      const dotGit = join(d, ".git");
+      const stat = lstatSync(dotGit, { throwIfNoEntry: false });
+      if (stat) {
+        // A worktree or submodule has a `.git` file pointing at its git dir.
+        const linked = stat.isDirectory()
+          ? dotGit
+          : smallFile(dotGit)?.match(/^gitdir:\s*(.+?)\s*$/m)?.[1];
+        if (!linked) return null;
+        return { top: d, gitDir: resolve(d, linked) };
+      }
+      if (
+        existsSync(join(d, "HEAD")) &&
+        lstatSync(join(d, "objects"), { throwIfNoEntry: false })?.isDirectory() &&
+        lstatSync(join(d, "refs"), { throwIfNoEntry: false })?.isDirectory()
+      )
+        return null;
+      if (dirname(d) === d) return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
+function headFileBranch(dir: string): string | null {
+  const repo = repoLocation(dir);
+  if (!repo) return null;
+  try {
+    const head = smallFile(join(repo.gitDir, "HEAD"))?.trim();
+    if (head === undefined) return null;
+    const ref = head.match(/^ref:\s*refs\/heads\/(.+)$/)?.[1];
+    if (ref) return ref === ".invalid" ? null : ref;
+    return /^[0-9a-f]{40,64}$/.test(head) ? "" : null;
+  } catch {
+    return null;
   }
 }
 
@@ -432,7 +504,7 @@ function checkGhApiRepoDelete(cmd: string): void {
   const m = cmd.match(/(^|\s)gh\s+api\s+(.*)$/s);
   if (!m?.[2]) return;
   const rest = m[2];
-  if (!/(-X\s*|--method[\s=]+)['"]?DELETE\b/i.test(rest)) return;
+  if (!/(-X[\s=]*|--method[\s=]+)['"]?DELETE\b/i.test(rest)) return;
   const tokens = rest.split(/\s+/).map((t) => t.replace(/^['"]|['"]$/g, ""));
   if (tokens.some((t) => /^\/?repos\/[^/\s]+\/[^/\s]+\/?$/.test(t)))
     block("gh api DELETE on a repository endpoint deletes the repository", cmd);
@@ -546,6 +618,18 @@ interface ShellCtx {
   dir: string | null;
   /** The line has a quote or substitution that never closed. */
   unterminated: boolean;
+  /** Shared by every scope of one line: repositories change on disk. */
+  repo: RepoState;
+}
+
+interface RepoState {
+  /** Branch an earlier `git checkout`/`git switch` left in a directory: a name,
+   *  "" for a detached HEAD, null when it cannot be read. */
+  heads: Map<string, string | null>;
+  configChanged: Set<string>;
+  /** An earlier `git worktree`, `git clone`, or a checkout in a directory the
+   *  hook cannot read: no branch can be trusted after it. */
+  changed: boolean;
 }
 
 // The hook's working directory: the payload's `cwd`, else the process's.
@@ -560,7 +644,14 @@ function safeCwd(): string | null {
 }
 
 function rootCtx(): ShellCtx {
-  return { env: {}, vars: {}, exported: new Set(), dir: baseDir ?? safeCwd(), unterminated: false };
+  return {
+    env: {},
+    vars: {},
+    exported: new Set(),
+    dir: baseDir ?? safeCwd(),
+    unterminated: false,
+    repo: { heads: new Map(), configChanged: new Set(), changed: false },
+  };
 }
 
 function cloneCtx(ctx: ShellCtx): ShellCtx {
@@ -703,47 +794,563 @@ function checkGitHookSkips(c: ParsedShellCommand, ctx: ShellCtx, cmd: string): v
   }
 }
 
-// --- Rule: push to main or master ------------------------------------------
+// --- Rule: updates of main or master ----------------------------------------
 //
 // A push to main or master asks the user through the permission prompt. Org repos
 // whose rulesets require a PR reject it anyway, but repos without one accept it,
 // and an agent reads a history of direct pushes as permission. GitHub org rulesets
 // already block deleting and force-pushing main, so deletes are not checked here.
+//
+// The rule reads `git push`, `git subtree push` and `git send-pack` (and `gh api`
+// branch writes, in the gh rule). A forced update of main blocks. A destination,
+// remote, branch or repository that cannot be read (a variable not set earlier
+// on the line, a command substitution, xargs input, an earlier checkout, an
+// unreadable `-C`, `--git-dir`, config set on the command line) asks, and so
+// does a push that recurses into submodules, whose branches are not known. A
+// push to a remote on the local disk is not checked. A bare push reads the push
+// settings in git config, with one `git config` call made only when the answer
+// matters. SECURITY.md lists what the rule does not see.
 
 const pendingAsks: string[] = [];
-const PUSH_VALUE_OPTS = new Set(["-o", "--push-option", "--repo", "--recurse-submodules"]);
 const MAIN_PUSH_ASK =
   "git push to main or master: approve only if the user asked for a direct push in this conversation; otherwise push a branch and open a PR";
+const UNKNOWN_PUSH_ASK =
+  "git push to a branch or repository the hook cannot read (a variable, command substitution, xargs input, an earlier checkout, or config set on the command line): approve only if it does not update main or master, or the user asked for a direct push";
+const SUBMODULE_PUSH_ASK =
+  "git push --recurse-submodules=on-demand also pushes each submodule's current branch, which may be main or master: approve only if the user asked for that push";
 
-function checkMainPush(c: ParsedShellCommand, ctx: ShellCtx): void {
-  if (c.word !== "git") return;
-  const a = c.args;
+// Options of each ref-updating command that take a separate value.
+const REF_UPDATE_VALUE_OPTS = {
+  push: new Set([
+    "-o",
+    "--push-option",
+    "--repo",
+    "--recurse-submodules",
+    "--receive-pack",
+    "--exec",
+  ]),
+  "send-pack": new Set(["--receive-pack", "--exec", "--remote", "--push-option"]),
+  "subtree push": new Set([
+    "-P",
+    "--prefix",
+    "-m",
+    "--message",
+    "--annotate",
+    "-b",
+    "--branch",
+    "--onto",
+  ]),
+};
+
+interface RefUpdate {
+  verb: keyof typeof REF_UPDATE_VALUE_OPTS;
+  /** The repository argument as written; undefined when git picks the remote. */
+  remote: string | undefined;
+  /** Refspecs as written; null when git picks them (`git push`, `git push origin`). */
+  refspecs: string[] | null;
+  everyBranch: boolean;
+  /** `--force`, `-f` or `--force-with-lease`. */
+  forced: boolean;
+  /** `send-pack --stdin` reads its refs from stdin. */
+  fromStdin: boolean;
+  submodules: boolean;
+}
+
+// Options in front of a git subcommand: the directories `-C` moves into, whether
+// `--git-dir`/`--work-tree` point git at another repository, and the config keys
+// `-c`/`--config-env` set. `sub` is the index of the subcommand.
+interface GitGlobals {
+  sub: number;
+  dirs: string[];
+  otherRepo: boolean;
+  configKeys: string[];
+}
+
+function readGitGlobals(args: string[]): GitGlobals {
+  const g: GitGlobals = { sub: 0, dirs: [], otherRepo: false, configKeys: [] };
   let i = 0;
-  while (i < a.length && (a[i] as string).startsWith("-")) {
-    const t = a[i] as string;
+  while (i < args.length && (args[i] as string).startsWith("-")) {
+    const t = args[i] as string;
+    const next = args[i + 1] ?? "";
+    if (t === "-C") g.dirs.push(next);
+    else if (t === "-c" || t === "--config-env") g.configKeys.push(next.split("=")[0] as string);
+    else if (t.startsWith("--config-env=")) {
+      g.configKeys.push(t.slice("--config-env=".length).split("=")[0] as string);
+    } else if (/^--(?:git-dir|work-tree)(?:=|$)/.test(t)) g.otherRepo = true;
     i += t === "-c" || t === "--config-env" || GIT_VALUE_OPTS.has(t) ? 2 : 1;
   }
-  if (a[i] !== "push") return;
-  const targets: string[] = [];
+  g.sub = i;
+  return g;
+}
+
+// Null when the args are not a ref update, or one that changes nothing
+// (`--dry-run`, `--delete`, a subtree push without its ref).
+function readRefUpdate(args: string[]): (RefUpdate & { globals: GitGlobals }) | null {
+  const globals = readGitGlobals(args);
+  let i = globals.sub;
+  let verb: RefUpdate["verb"];
+  if (args[i] === "push" || args[i] === "send-pack") verb = args[i] as RefUpdate["verb"];
+  else if (args[i] === "subtree" && args[i + 1] === "push") {
+    verb = "subtree push";
+    i++;
+  } else return null;
+  const subtree = verb === "subtree push";
+  const positional: string[] = [];
   let everyBranch = false;
   let tagsOnly = false;
-  for (let j = i + 1; j < a.length; j++) {
-    const t = a[j] as string;
-    if (t === "-n" || t === "--dry-run" || t === "-d" || t === "--delete") return;
-    if (t === "--all" || t === "--mirror") everyBranch = true;
+  let forced = false;
+  let fromStdin = false;
+  let submodules = false;
+  let optionsEnded = false;
+  let repoRemote: string | undefined;
+  for (let j = i + 1; j < args.length; j++) {
+    const t = args[j] as string;
+    if (optionsEnded || !t.startsWith("-")) positional.push(t);
+    else if (t === "--") optionsEnded = true;
+    // For `git subtree`, `-d` is --debug.
+    else if (!subtree && /^(?:-n|--dry-run|-d|--delete)$/.test(t)) return null;
+    else if (t === "--all" || t === "--branches" || t === "--mirror") everyBranch = true;
     else if (t === "--tags") tagsOnly = true;
-    else if (PUSH_VALUE_OPTS.has(t)) j++;
-    else if (!t.startsWith("-")) targets.push(t);
+    else if (t === "--stdin") fromStdin = true;
+    else if (t === "--force" || t.startsWith("--force-with-lease")) forced = true;
+    else if (!subtree && /^-[a-zA-Z]*f[a-zA-Z]*$/.test(t)) forced = true;
+    else if (/^--recurse-submodules=(?:on-demand|only)$/.test(t)) submodules = true;
+    else if (t === "--recurse-submodules") {
+      submodules ||= /^(?:on-demand|only)$/.test(args[j + 1] ?? "");
+      j++;
+    } else if (verb === "push" && t === "--repo") repoRemote = args[++j];
+    else if (verb === "push" && t.startsWith("--repo=")) repoRemote = t.slice("--repo=".length);
+    else if (REF_UPDATE_VALUE_OPTS[verb].has(t)) j++;
   }
-  const current = () => currentBranch(ctx.dir ?? undefined);
-  const refspecs = targets.length > 1 ? targets.slice(1) : tagsOnly ? [] : [current()];
-  const toMain = refspecs.some((spec) => {
-    const s = spec.replace(/^\+/, "");
-    return (
-      !s.startsWith(":") && /(^|:)(refs\/heads\/)?(main|master)$/.test(s === "HEAD" ? current() : s)
-    );
+  const remote = repoRemote ?? positional[0];
+  const refs = repoRemote === undefined ? positional.slice(1) : positional;
+  let refspecs: string[] | null;
+  if (subtree) {
+    if (refs.length === 0) return null;
+    refspecs = refs.slice(0, 1);
+  } else if (verb === "send-pack") {
+    // Without refs, send-pack updates every ref both sides have.
+    refspecs = refs.length > 0 || everyBranch || fromStdin ? refs : [":"];
+  } else {
+    refspecs = refs.length > 0 ? refs : tagsOnly ? [] : null;
+  }
+  return { verb, remote, refspecs, everyBranch, forced, fromStdin, submodules, globals };
+}
+
+// `git config` values a push depends on, by canonical key (section and name
+// lowercased). Null when git failed, so callers fall back to the current
+// branch and grant no local-remote exemption: the hook fails open on its own
+// errors, toward asking.
+type GitConfig = Map<string, string[]>;
+const PUSH_CONFIG_RE =
+  "^(push\\.default|remote\\.pushdefault|remote\\..+\\.(url|pushurl|push|mirror)|branch\\..+\\.(merge|remote|pushremote)|url\\..+\\.(insteadof|pushinsteadof))$";
+const configCache = new Map<string, GitConfig | null>();
+
+function pushConfig(dir: string): GitConfig | null {
+  const cached = configCache.get(dir);
+  if (cached !== undefined) return cached;
+  let config: GitConfig | null = null;
+  try {
+    const r = Bun.spawnSync(["git", "config", "-z", "--get-regexp", PUSH_CONFIG_RE], {
+      cwd: dir,
+      stderr: "ignore",
+      timeout: 1000,
+    });
+    // Exit 1 means no key matched.
+    if (r.exitCode === 0 || r.exitCode === 1) {
+      config = new Map();
+      for (const entry of r.stdout.toString().split("\0")) {
+        if (!entry) continue;
+        const nl = entry.indexOf("\n");
+        const name = nl < 0 ? entry : entry.slice(0, nl);
+        config.set(name, [...(config.get(name) ?? []), nl < 0 ? "" : entry.slice(nl + 1)]);
+      }
+    }
+  } catch {
+    // git missing or the directory is gone
+  }
+  configCache.set(dir, config);
+  return config;
+}
+
+// Config set on the command line or in the environment, which the hook's own
+// `git config` read does not see. `url` keys change where a remote points, so
+// the local-remote exemption no longer holds; `route` keys change which refs a
+// push without refspecs sends. A config file swapped in through the
+// environment can do both.
+const URL_KEY_RE = /^(?:url\..+\.(?:insteadof|pushinsteadof)|remote\..+\.(?:url|pushurl))$/;
+const ROUTE_KEY_RE =
+  /^(?:push\.default|remote\.pushdefault|remote\..+\.(?:push|mirror)|branch\..+\.(?:merge|remote|pushremote))$/;
+
+function configOverride(
+  keys: string[],
+  env: Record<string, string>,
+): { url: boolean; route: boolean } {
+  let url = false;
+  let route = false;
+  const all = [...keys];
+  for (const [name, value] of Object.entries(env)) {
+    if (/^GIT_CONFIG_KEY_\d+$/.test(name)) all.push(value);
+    else if (name === "GIT_CONFIG_PARAMETERS") {
+      const text = value.toLowerCase();
+      url ||= /url\..*\.(?:insteadof|pushinsteadof)|remote\..*\.(?:url|pushurl)/.test(text);
+      route ||=
+        /push\.default|remote\.pushdefault|remote\..*\.(?:push|mirror)|branch\..*\.(?:merge|remote|pushremote)/.test(
+          text,
+        );
+    } else if (/^GIT_CONFIG(?:_GLOBAL|_SYSTEM)?$/.test(name)) {
+      url = true;
+      route = true;
+    }
+  }
+  for (const key of all) {
+    url ||= URL_KEY_RE.test(key.toLowerCase());
+    route ||= ROUTE_KEY_RE.test(key.toLowerCase());
+  }
+  return { url, route };
+}
+
+// The directory git runs in: the shell's, then each `env -C`, then each
+// `git -C`. Null when one of them cannot be read, or when GIT_DIR,
+// GIT_WORK_TREE, `--git-dir` or `--work-tree` point git at another repository.
+function gitRepoDir(
+  c: ParsedShellCommand,
+  globals: GitGlobals,
+  ctx: ShellCtx,
+  env: Record<string, string>,
+): string | null {
+  if (globals.otherRepo || env.GIT_DIR !== undefined || env.GIT_WORK_TREE !== undefined) {
+    return null;
+  }
+  let dir = ctx.dir;
+  for (const raw of [...c.chdirs, ...globals.dirs]) {
+    if (/[$`]/.test(raw)) return null;
+    const path = raw === "~" || raw.startsWith("~/") ? join(homedir(), raw.slice(1)) : raw;
+    if (isAbsolute(path)) dir = path;
+    else if (dir === null) return null;
+    else dir = resolve(dir, path);
+  }
+  return dir;
+}
+
+// The branch checked out in `dir` at this point of the line: what a checkout or
+// switch earlier on the line left, else what is on disk. Null when unknown: the
+// directory cannot be read or does not exist yet, or a `git worktree` or
+// `git clone` ran earlier on the line.
+function branchIn(dir: string | null, ctx: ShellCtx): string | null {
+  if (dir === null || ctx.repo.changed) return null;
+  const top = repoLocation(dir)?.top;
+  if (top === undefined) return null;
+  return ctx.repo.heads.has(top) ? (ctx.repo.heads.get(top) ?? null) : currentBranch(top);
+}
+
+// The branch a `git checkout` / `git switch` leaves: a name, "" for a detached
+// HEAD, null when it cannot be read, undefined when the branch does not change
+// (a checkout of paths).
+function checkedOutBranch(sub: string, args: string[]): string | null | undefined {
+  const readable = (name: string | undefined): string | null =>
+    name === undefined || /^(?:HEAD|@)$|@\{|[$`^~:]/.test(name) ? null : name;
+  const positional: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const t = args[i] as string;
+    if (t === "--") return sub === "checkout" ? undefined : null;
+    if (
+      /^-[bB]$|^--orphan$/.test(t) ||
+      (sub === "switch" && /^-[cC]$|^--(?:force-)?create$/.test(t))
+    ) {
+      return readable(args[i + 1]);
+    }
+    if (/^--(?:orphan|create|force-create)=/.test(t)) return readable(t.slice(t.indexOf("=") + 1));
+    if (/^-[bB].+/.test(t) || (sub === "switch" && /^-[cC].+/.test(t))) {
+      return readable(t.slice(2));
+    }
+    if (t === "--detach" || (sub === "switch" && t === "-d")) return "";
+    if (t === "-t" || t.startsWith("--track")) return null;
+    // `-` is the previous branch.
+    if (!t.startsWith("-") || t === "-") positional.push(t);
+  }
+  if (positional.length === 0) return undefined;
+  if (positional.length > 1) return sub === "checkout" ? undefined : null;
+  const name = positional[0] as string;
+  if (sub === "checkout" && looksLikePathspec(name)) return undefined;
+  return name === "-" ? null : readable(name);
+}
+
+const GIT_BUILTINS = new Set(
+  `add am annotate apply archive backfill bisect blame branch bugreport bundle
+cat-file check-attr check-ignore check-mailmap check-ref-format checkout checkout--worker
+checkout-index cherry cherry-pick clean clone column commit commit-graph commit-tree config
+count-objects credential credential-cache credential-cache--daemon credential-store describe
+diagnose diff diff-files diff-index diff-pairs diff-tree difftool fast-export fast-import
+fetch fetch-pack fmt-merge-msg for-each-ref for-each-repo format-patch format-rev fsck
+fsck-objects fsmonitor--daemon gc get-tar-commit-id grep hash-object help history hook
+index-pack init init-db interpret-trailers last-modified log ls-files ls-remote ls-tree
+mailinfo mailsplit maintenance merge merge-base merge-file merge-index merge-ours
+merge-recursive merge-recursive-ours merge-recursive-theirs merge-subtree merge-tree
+mktag mktree multi-pack-index mv name-rev notes pack-objects pack-redundant pack-refs
+patch-id pickaxe prune prune-packed pull push range-diff read-tree rebase receive-pack
+reflog refs remote remote-ext remote-fd repack replace replay repo rerere reset restore
+rev-list rev-parse revert rm send-pack shortlog show show-branch show-index show-ref
+sparse-checkout stage stash status stripspace submodule submodule--helper subtree switch
+symbolic-ref tag unpack-file unpack-objects update-index update-ref update-server-info
+upload-archive upload-archive--writer upload-pack url-parse var verify-commit verify-pack
+verify-tag version whatchanged worktree write-tree`.split(/\s+/),
+);
+
+// Repository changes reach every scope because they happen on disk.
+function trackRepo(c: ParsedShellCommand, ctx: ShellCtx): void {
+  if (c.word !== "git") return;
+  const globals = readGitGlobals(c.args);
+  const sub = c.args[globals.sub];
+  if (sub === "worktree" || sub === "clone") {
+    ctx.repo.changed = true;
+    return;
+  }
+  const args = c.args.slice(globals.sub + 1);
+  let configRead = false;
+  if (sub === "config") {
+    for (let i = 0; i < args.length; i++) {
+      const t = args[i] as string;
+      if (/^(?:--get(?:-all|-regexp|-urlmatch)?|--list|-l)$/.test(t)) configRead = true;
+      else if (/^(?:--file|-f|--blob|--type|--default|--comment)$/.test(t)) i++;
+      else if (!t.startsWith("-")) {
+        configRead ||= t === "get" || t === "list";
+        break;
+      }
+    }
+  }
+  const configWrite =
+    sub === "config" &&
+    !configRead &&
+    (args.filter((t) => !t.startsWith("-")).length > 1 ||
+      args.some((t) =>
+        /^(?:--(?:add|replace-all|unset(?:-all)?|rename-section|remove-section|edit)|-e|set|unset|rename-section|remove-section)$/.test(
+          t,
+        ),
+      ));
+  const configChanged =
+    configWrite ||
+    (sub === "remote" && args.some((t) => /^(?:add|set-url|rename)$/.test(t))) ||
+    (sub === "branch" && args.some((t) => /^-u|^--set-upstream-to(?:=|$)/.test(t)));
+  let branch: string | null | undefined;
+  if (sub === "checkout" || sub === "switch") branch = checkedOutBranch(sub, args);
+  else if (
+    (sub === "branch" && args.some((t) => /^-[mM]/.test(t))) ||
+    (sub === "rebase" && args.some((t) => !t.startsWith("-"))) ||
+    (sub !== undefined && !GIT_BUILTINS.has(sub))
+  )
+    branch = null;
+  if (branch === undefined && !configChanged) return;
+  const dir = gitRepoDir(c, globals, ctx, { ...ctx.env, ...c.env });
+  const top = dir === null ? undefined : repoLocation(dir)?.top;
+  if (top === undefined) ctx.repo.changed = true;
+  else {
+    if (branch !== undefined) ctx.repo.heads.set(top, branch);
+    if (configChanged) ctx.repo.configChanged.add(top);
+  }
+}
+
+function lastValue(config: GitConfig, key: string): string | undefined {
+  return config.get(key)?.at(-1);
+}
+
+// The remote a push without one goes to.
+function defaultRemote(branch: string, config: GitConfig | null): string {
+  if (!config) return "origin";
+  return (
+    lastValue(config, `branch.${branch}.pushremote`) ??
+    lastValue(config, "remote.pushdefault") ??
+    lastValue(config, `branch.${branch}.remote`) ??
+    "origin"
+  );
+}
+
+// The refspecs a push without one uses: the remote's `push` lines, else what
+// push.default picks. Unreadable config keeps the current branch.
+function implicitRefspecs(
+  remote: string | null,
+  branch: string,
+  config: GitConfig | null,
+): string[] {
+  if (!config) return [branch];
+  const configured = remote === null ? undefined : config.get(`remote.${remote}.push`);
+  if (configured?.length) return configured.map((s) => s.replace(/^\+/, ""));
+  const mode = (lastValue(config, "push.default") ?? "simple").toLowerCase();
+  if (mode === "nothing") return [];
+  if (mode === "matching") return [":"];
+  if (mode === "upstream" || mode === "tracking") {
+    return [lastValue(config, `branch.${branch}.merge`) ?? branch];
+  }
+  return [branch];
+}
+
+// Git reads a repository argument with `://` as a URL, one with a `:` before
+// any `/` as scp-style `host:path`, and anything else as a local path.
+function isLocalUrl(url: string): boolean {
+  if (/^file:\/\//i.test(url)) return true;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) return false;
+  if (/^[A-Za-z]:[\\/]/.test(url)) return true;
+  const colon = url.indexOf(":");
+  const slash = url.indexOf("/");
+  return colon < 0 || (slash >= 0 && slash < colon);
+}
+
+// True when every URL the push goes to is on the local disk. Unreadable config,
+// a remote name with no URL in config, or a URL an insteadOf rule rewrites is
+// not local.
+function isLocalRemote(remote: string | null, config: GitConfig | null): boolean {
+  if (!remote || !config) return false;
+  const urls =
+    config.get(`remote.${remote}.pushurl`) ??
+    config.get(`remote.${remote}.url`) ??
+    (/[/\\:]|^[.~]/.test(remote) ? [remote] : []);
+  const rewrites = [...config]
+    .filter(([key]) => /^url\..+\.(?:insteadof|pushinsteadof)$/.test(key))
+    .flatMap(([, values]) => values);
+  return (
+    urls.length > 0 &&
+    urls.every((url) => isLocalUrl(url) && !rewrites.some((p) => p && url.startsWith(p)))
+  );
+}
+
+// `$(git branch --show-current)` and its equivalents name the current branch.
+const CURRENT_BRANCH_SUB_RE =
+  /^\s*git\s+(?:branch\s+--show-current|rev-parse\s+--abbrev-ref\s+HEAD|symbolic-ref\s+--short\s+HEAD)\s*$/;
+
+// A word with its `$NAME` / `${NAME}` expanded from assignments made earlier on
+// the line; null when an expansion is left that the hook cannot read. Bash
+// expands a word before a prefix assignment on the same command applies, and
+// the hook's own environment is not the Bash tool's shell, so neither is used.
+function expandWord(
+  word: string,
+  ctx: ShellCtx,
+  seg: ShellSegment,
+  branch: () => string | null,
+): string | null {
+  let out = word.replace(/\$\{([A-Za-z_]\w*)\}|\$([A-Za-z_]\w*)/g, (m, braced, bare) => {
+    const name = (braced ?? bare) as string;
+    return ctx.vars[name] ?? ctx.env[name] ?? m;
   });
-  if (everyBranch || toMain) pendingAsks.push(MAIN_PUSH_ASK);
+  if (
+    out.includes(SUBSTITUTION) &&
+    seg.subs.length > 0 &&
+    seg.subs.every((s) => CURRENT_BRANCH_SUB_RE.test(s))
+  ) {
+    const current = branch();
+    if (current) out = out.replaceAll(SUBSTITUTION, current);
+  }
+  return /[$`]/.test(out) ? null : out;
+}
+
+// Git completes a destination `main` or `heads/main` to `refs/heads/main`. A
+// wildcard destination may be main when one of those names starts with the
+// part before its `*` (`*`, `refs/*`, `refs/heads/*`, `ma*`).
+const MAIN_REFS = [
+  "main",
+  "master",
+  "heads/main",
+  "heads/master",
+  "refs/heads/main",
+  "refs/heads/master",
+];
+
+function mayBeMain(dst: string): boolean {
+  const star = dst.indexOf("*");
+  if (star < 0) return MAIN_REFS.includes(dst);
+  const prefix = dst.slice(0, star);
+  return MAIN_REFS.some((ref) => ref.startsWith(prefix));
+}
+
+function checkMainPush(
+  c: ParsedShellCommand,
+  ctx: ShellCtx,
+  previous: ParsedShellCommand | undefined,
+  seg: ShellSegment,
+  cmd: string,
+): void {
+  // A command word the hook cannot read (`$(SUB)`, `$GIT`) may be git.
+  const word = c.word.includes("$")
+    ? basename(expandWord(c.word, ctx, seg, () => null) ?? "git")
+    : c.word;
+  if (word !== "git") return;
+  // `echo main | xargs git push origin` adds the piped words to the arguments.
+  const piped = c.viaXargs && previous ? literalOutput(previous, seg) : null;
+  const args = piped === null ? c.args : [...c.args, ...piped.split(/\s+/).filter(Boolean)];
+  const u = readRefUpdate(args);
+  if (!u) return;
+
+  const env = { ...ctx.env, ...c.env };
+  const dir = gitRepoDir(c, u.globals, ctx, env);
+  const override = configOverride(u.globals.configKeys, env);
+  if (dir !== null && ctx.repo.configChanged.has(repoLocation(dir)?.top ?? "")) {
+    override.url = true;
+    override.route = true;
+  }
+  const branch = (): string | null => branchIn(dir, ctx);
+  const shellBranch = (): string | null => branchIn(ctx.dir, ctx);
+  const config = (): GitConfig | null => (dir === null ? null : pushConfig(dir));
+  let unknown = u.fromStdin || (c.viaXargs && piped === null);
+  const remote = u.remote === undefined ? undefined : expandWord(u.remote, ctx, seg, shellBranch);
+  // Routing set on the line also remaps a refspec without a destination.
+  if (remote === null || override.route) unknown = true;
+  const target = (): string | null =>
+    remote === undefined ? defaultRemote(branch() ?? "", config()) : remote;
+  let specs: string[] = [];
+  if (u.refspecs !== null) specs = u.refspecs;
+  else {
+    const current = branch();
+    if (current === null || override.route) unknown = true;
+    else specs = implicitRefspecs(target(), current, config());
+  }
+  // A remote with `mirror` set pushes every ref, as `--mirror` does.
+  const mirrored = (): boolean => {
+    const r = target();
+    const value = r === null ? undefined : config()?.get(`remote.${r}.mirror`)?.at(-1);
+    return value !== undefined && !/^(?:false|no|off|0)$/i.test(value);
+  };
+  let toMain = u.everyBranch || (u.refspecs === null && mirrored());
+  let forcedSpec = false;
+  // A refspec without a destination goes where the remote's `push` lines map
+  // it, so check every configured destination too.
+  if (u.refspecs !== null && u.refspecs.some((r) => !r.includes(":"))) {
+    const r = target();
+    const mapped = r === null ? undefined : config()?.get(`remote.${r}.push`);
+    if (mapped?.length) specs = [...specs, ...mapped];
+  }
+  for (const raw of specs) {
+    const spec = u.refspecs === null ? raw : expandWord(raw, ctx, seg, shellBranch);
+    if (spec === null) {
+      unknown = true;
+      continue;
+    }
+    const s = spec.replace(/^\+/, "");
+    if (s.startsWith(":") && s !== ":") continue; // a delete
+    let dst = s === ":" ? "*" : s.slice(s.lastIndexOf(":") + 1);
+    if (dst === "HEAD" || dst === "@") {
+      const current = branch();
+      if (current === null) {
+        unknown = true;
+        continue;
+      }
+      dst = current;
+    }
+    if (!mayBeMain(dst)) continue;
+    toMain = true;
+    if (spec.startsWith("+")) forcedSpec = true;
+  }
+
+  if (toMain && (u.forced || forcedSpec)) {
+    block(`git ${u.verb} forces an update of main or master, which rewrites shared history`, cmd);
+  }
+  if (u.submodules) pendingAsks.push(SUBMODULE_PUSH_ASK);
+  if (!toMain && !unknown) return;
+  if (
+    !override.url &&
+    !(override.route && remote === undefined) &&
+    isLocalRemote(target(), config())
+  )
+    return;
+  pendingAsks.push(toMain ? MAIN_PUSH_ASK : UNKNOWN_PUSH_ASK);
 }
 
 // --- Rule: secret file content readers -------------------------------------
@@ -1131,8 +1738,8 @@ function parseGhApi(tokens: string[]): GhApiCall {
   const fields: string[] = [];
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i] as string;
-    const attachedMethod = t.match(/^(?:-X|--method=)(.+)$/);
-    const attachedBody = t.match(/^(?:--(?:field|raw-field|input)=|-[fF])(.+)$/);
+    const attachedMethod = t.match(/^(?:-X=?|--method=)(.+)$/);
+    const attachedBody = t.match(/^(?:--(?:field|raw-field|input)=|-[fF]=?)(.+)$/);
     if (t === "-X" || t === "--method") {
       method = tokens[++i];
     } else if (attachedMethod) {
@@ -1157,6 +1764,54 @@ function parseGhApi(tokens: string[]): GhApiCall {
     fields,
     hasInput,
   };
+}
+
+const GH_API_MAIN_ASK =
+  "gh api write to main or master: approve only if the user asked for a direct change to that branch in this conversation; otherwise push a branch and open a PR";
+const MAIN_BRANCH_RE = /^(?:refs\/)?(?:heads\/)?(?:main|master)$/;
+
+// REST writes that move or change main: the ref itself, the branch endpoints
+// (rename, protection), a merge into it, and a contents commit to it (which
+// goes to the default branch when no `branch` field is sent). A forced ref
+// update blocks; deleting the ref follows the `git push --delete` policy above
+// and is not checked. gh sends the last of repeated fields, but any value naming
+// main or forcing counts. A body read from a file (`--input`, `-F name=@file`)
+// is not known, so it counts as touching main.
+function checkGhApiMainWrite(api: GhApiCall, cmd: string): void {
+  if (/[$`]/.test(api.endpoint)) {
+    pendingAsks.push(GH_API_MAIN_ASK);
+    return;
+  }
+  const path = api.endpoint
+    .replace(/^https?:\/\/api\.github\.com/i, "")
+    .replace(/[?#].*$/s, "")
+    .replace(/^\/+|\/+$/g, "");
+  const rest = path.match(/^repos\/[^/]+\/[^/]+\/(.*)$/s)?.[1];
+  if (rest === undefined) return;
+  const values = (name: string): string[] =>
+    api.fields.filter((f) => f.startsWith(`${name}=`)).map((f) => f.slice(name.length + 1));
+  const named = (name: string): boolean =>
+    api.hasInput ||
+    values(name).some((v) => MAIN_BRANCH_RE.test(v) || v.startsWith("@") || /[$`]/.test(v));
+  let touches = false;
+  const ref = rest.match(/^git\/refs\/heads\/(.+)$/s)?.[1];
+  if (ref !== undefined) {
+    if (api.method === "DELETE") return;
+    touches = MAIN_BRANCH_RE.test(ref) || ref.includes("$");
+    if (touches && values("force").some((v) => /^(?:true|1)$/i.test(v))) {
+      block("gh api forces an update of main or master, which rewrites shared history", cmd);
+    }
+  } else if (/^branches\/[^/]+/.test(rest)) {
+    const branch = rest.split("/")[1] as string;
+    touches = MAIN_BRANCH_RE.test(branch) || branch.includes("$");
+  } else if (rest === "git/refs") {
+    touches = api.method === "POST" && named("ref");
+  } else if (rest === "merges") {
+    touches = named("base");
+  } else if (/^contents\//.test(rest) && (api.method === "PUT" || api.method === "DELETE")) {
+    touches = values("branch").length === 0 || named("branch");
+  }
+  if (touches) pendingAsks.push(GH_API_MAIN_ASK);
 }
 
 // `owner/repo`, `HOST/owner/repo`, or a repo URL → owner.
@@ -1259,6 +1914,7 @@ function checkGhWrites(c: ParsedShellCommand, ctx: ShellCtx, cmd: string): void 
     if (!["POST", "PUT", "PATCH", "DELETE"].includes(api.method)) return;
     what = "api write";
     endpoint = api.endpoint;
+    checkGhApiMainWrite(api, cmd);
     // A graphql mutation names its target by opaque node id, so the owner
     // cannot be read; a query (also sent as POST) only reads.
     if (/^\/?graphql$/.test(api.endpoint)) {
@@ -1472,7 +2128,15 @@ function unwrapShellStage(
   const scripts: string[] = [];
   if (SHELLS.has(c.word)) {
     const at = c.args.findIndex((t) => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(t));
-    const script = at >= 0 ? c.args[at + 1] : undefined;
+    // The script is the first operand after the options: `bash -c -- '...'`,
+    // `bash -c -e '...'`, `bash -c -o pipefail '...'`.
+    let j = at + 1;
+    while (at >= 0 && j < c.args.length && /^[-+]/.test(c.args[j] as string)) {
+      const t = c.args[j] as string;
+      j += /^[-+][oO]$/.test(t) ? 2 : 1;
+      if (t === "--") break;
+    }
+    const script = at >= 0 ? c.args[j] : undefined;
     if (script) scripts.push(script);
   }
   scripts.push(...scriptsRunBy(c, previous, seg));
@@ -1489,14 +2153,21 @@ function analyzeSegment(seg: ShellSegment, ctx: ShellCtx, depth: number): void {
   checkProcessKill(text, seg.subs);
   const stages = splitPipes(text).map(parseShellCommand);
   stages.forEach((c, i) => {
+    if (i > 0) invalidateCheckoutBranches(ctx);
     checkSecretReaders(c, ctx, text);
     checkGhWrites(c, ctx, text);
     checkGitHookSkips(c, ctx, text);
-    checkMainPush(c, ctx);
+    checkMainPush(c, ctx, stages[i - 1], seg, text);
     unwrapShellStage(c, stages[i - 1], seg, ctx, depth);
+    trackRepo(c, ctx);
     // Pipeline stages run in subshells, so only a lone command changes state.
     if (stages.length === 1) trackState(c, ctx);
   });
+  if (stages.length > 1) invalidateCheckoutBranches(ctx);
+}
+
+function invalidateCheckoutBranches(ctx: ShellCtx): void {
+  for (const top of ctx.repo.heads.keys()) ctx.repo.heads.set(top, null);
 }
 
 function analyzeShell(cmd: string, depth: number, inherited: ShellCtx): void {
@@ -1516,15 +2187,50 @@ function analyzeShell(cmd: string, depth: number, inherited: ShellCtx): void {
     }
     return ctx;
   };
-  for (const seg of scan.segments) analyzeSegment(seg, ctxOf(seg.scope), depth);
+  const pipelines = new Map<number, ShellSegment>();
+  for (const scanned of scan.segments) {
+    const first = pipelines.get(scanned.scope);
+    const seg = first
+      ? {
+          ...scanned,
+          clean: `${first.clean} | ${scanned.clean.replace(/\$\(PSUB(\d+)\)/g, (_m, index) => `$(PSUB${Number(index) + first.subs.length})`)}`,
+          subs: [...first.subs, ...scanned.subs],
+          heredocs: [...first.heredocs, ...scanned.heredocs],
+        }
+      : scanned;
+    if (seg.joiner === "|") {
+      const ctx = ctxOf(scanned.scope);
+      trackRepo(parseShellCommand(scanned.clean), ctx);
+      invalidateCheckoutBranches(ctx);
+      pipelines.set(seg.scope, seg);
+      continue;
+    }
+    pipelines.delete(seg.scope);
+    const ctx = ctxOf(seg.scope);
+    analyzeSegment(seg, ctx, depth);
+    if (seg.joiner !== "&&") invalidateCheckoutBranches(ctx);
+  }
+  for (const seg of pipelines.values()) {
+    const ctx = ctxOf(seg.scope);
+    analyzeSegment(seg, ctx, depth);
+    invalidateCheckoutBranches(ctx);
+  }
   if (scan.unterminated) {
     // The split is unreliable past an open quote, so check the raw pieces too,
     // with the quote characters blanked: fail toward blocking.
     for (const piece of cmd.split(/[;&|\n]+/)) {
-      const c = parseShellCommand(piece.replace(/["'`]/g, " "));
+      const text = piece.replace(/["'`]/g, " ");
+      const c = parseShellCommand(text);
       checkSecretReaders(c, base, cmd);
       checkGhWrites(c, base, cmd);
       checkGitHookSkips(c, base, cmd);
+      checkMainPush(
+        c,
+        base,
+        undefined,
+        { clean: text, subs: [], heredocs: [], scope: 0, joiner: null },
+        cmd,
+      );
     }
   }
 }
@@ -1555,7 +2261,7 @@ function analyzeCommand(cmd: string, depth: number, ctx: ShellCtx = rootCtx()): 
 // markers appear. The markers let a reader (`cat`, `<`, `curl @file`, ...) reach
 // the secret-reader rule without listing every reader here.
 const FAST_PATH_VERBS_RE =
-  /\b(rm|git|gh|find|xargs|kill|pkill|killall|fuser|bash|sh|zsh|python|python3|node|ruby|perl)\b/;
+  /\b(rm|git|gh|push|find|xargs|kill|pkill|killall|fuser|bash|sh|zsh|python|python3|node|ruby|perl)\b/;
 const SECRET_MARKER_RE =
   /\.(?:ssh|aws|gnupg|netrc|git-credentials|npmrc|kube)\b|\.docker\/config|hosts\.yml|\.env(?:rc|\b)|dotenvx/i;
 
@@ -1587,10 +2293,14 @@ export async function main(io: HookIO = processIO): Promise<void> {
     const { cwd } = await io.hookInput<{ cwd: unknown }>();
     baseDir = typeof cwd === "string" && cwd ? cwd : null;
     pendingAsks.length = 0;
+    branchCache.clear();
+    configCache.clear();
     splitCommands(COMMAND);
     resolvePendingOwnerChecks();
     // Asks wait until every check has run, so any block in the command wins.
-    if (pendingAsks.length > 0) io.ask(`[Safety Net] ${MAIN_PUSH_ASK}`);
+    if (pendingAsks.length > 0) {
+      io.ask([...new Set(pendingAsks)].map((reason) => `[Safety Net] ${reason}`).join("\n"));
+    }
   } catch (err) {
     if (err instanceof BlockDecision) {
       await logBlocked(err.command, err.reason);
