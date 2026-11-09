@@ -2,8 +2,9 @@
 // usage: OUT=dir node cdp.js layers.js <recipes.js> <setName> [per=1.25]
 // recipes.js exports { setName: { y, scene: '(s, has, cnt) => bool', steps: [[label, code], ...] } }. Omit `scene` for DOM-only sites
 // (GSAP / Lottie / CSS / video layers): steps then use css(selector, on), ui(on) and fx; s/k are null.
-// Step code runs with: s (scene), k (children), cnt, has, inst (instanced meshes inside originally-visible groups),
-// O (original background/fog/visibility), only(f) (hide all but camera + matches), show(f), uni(f) (uniforms of matches), fx(re,on), ui(on), css(sel,on).
+// Step code runs with: s (scene), k (children), cnt, has, inst (every instanced mesh at any depth, hidden groups included),
+// O (original background/fog/visibility), only(f) (hide all but camera + matches), show(f), uni(f) (uniforms of matches at any depth, hidden ones included),
+// fx(re,on), ui(on), css(sel,on).
 // Nested scenes (R3F often wraps meshes 5+ groups deep): onlyDeep(f) / showDeep(f) act on every renderable (mesh, points, line, sprite, light)
 // at any depth and leave groups alone; restoreDeep() puts every descendant back to its shipped visibility.
 const path = require('node:path'), fs = require('node:fs')

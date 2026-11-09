@@ -2,6 +2,8 @@
 # Cut a scroll master into named clips (one per chapter and per transition) + N evenly spaced stills.
 # usage: cut_film.sh <master.mp4> <clips.txt: lines "name|start|end" in seconds> <out_dir> [stills=24]
 set -e
+# printf reads and writes decimals in the caller's locale; a comma-decimal locale breaks the still timestamps
+export LC_ALL=C
 IN=$1; LIST=$2; OUT=$3; N=${4:-24}; mkdir -p "$OUT/clips" "$OUT/stills"
 while IFS='|' read -r n a b; do [[ -z "$n" || "$n" == \#* ]] && continue   # skip blanks and comments
   # -nostdin: otherwise ffmpeg reads the clip list from stdin and only the first clip gets cut

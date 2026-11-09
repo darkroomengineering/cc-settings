@@ -6,9 +6,11 @@ set -e
 SRC=$1; D=$2; ACC=${3:-#ffffff}; BG=${4:-#000000}; FONT=${5:-/System/Library/Fonts/Menlo.ttc}
 mkdir -p "$D/stems_original" "$D/stems_normalized" "$D/stills_per_sound"
 for f in "$SRC"/*.{wav,mp3,ogg,m4a,aac,flac,opus,webm}; do [ -f "$f" ] || continue; n=$(basename "${f%.*}"); cp "$f" "$D/stems_original/"
-  # embedded tags travel with the file: keep them next to it, and flag anything that reads like a licence restriction
+  # embedded tags travel with the file: keep them next to it, and flag anything that reads like a licence restriction.
+  # demo is matched as a whole word (demo.wav, track_demo, demo-01, demos; not demonstration). [^[:alnum:]] rather than \b:
+  # \b counts _ as part of the word, and POSIX ERE has no \b.
   ffprobe -v error -show_entries format_tags -of default=nw=1 "$f" > "$D/stems_original/$n.tags.txt"
-  grep -qiE "not approved|reference only|demo|watermark|do not distribute|confidential" "$D/stems_original/$n.tags.txt" && echo "WARNING: $n tags suggest a licence restriction: $(tr '\n' ' ' < "$D/stems_original/$n.tags.txt" | cut -c1-200)" >&2
+  grep -qiE "not approved|reference only|(^|[^[:alnum:]])demos?([^[:alnum:]]|$)|watermark|do not distribute|confidential" "$D/stems_original/$n.tags.txt" && echo "WARNING: $n tags suggest a licence restriction: $(tr '\n' ' ' < "$D/stems_original/$n.tags.txt" | cut -c1-200)" >&2
   pk=$(ffmpeg -hide_banner -i "$f" -af volumedetect -f null - 2>&1 | awk '/max_volume/{print $5}'); g=$(echo "-1 - ($pk)" | bc)
   ffmpeg -nostdin -v error -y -i "$f" -af "volume=${g}dB" -c:a pcm_s24le "$D/stems_normalized/$n.wav"
   ffmpeg -nostdin -v error -y -i "$f" -f lavfi -i "color=c=${BG}:s=1920x1080" -filter_complex "[0]aformat=channel_layouts=mono,dynaudnorm=f=200:g=15,showwavespic=s=1920x600:colors=${ACC}[w];[1][w]overlay=0:240:format=auto,drawtext=fontfile=${FONT}:text='${n}':x=64:y=64:fontsize=36:fontcolor=${ACC}" -frames:v 1 "$D/stills_per_sound/${n}_waveform.png"

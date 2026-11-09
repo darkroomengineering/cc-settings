@@ -7,7 +7,7 @@
 const fs = require('node:fs'), { goTo } = require('./goto.js')
 module.exports = async (page, ys = '') => {
   await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 })
-  const styles = new Map(), colors = new Map()
+  const styles = new Map(), colors = new Map(), fonts = new Map(), colorVars = new Map()
   const positions = ys ? ys.split(',').map(Number) : [0]
   const pages = process.env.PAGES ? process.env.PAGES.split(',') : [null]
   for (const url of pages) {
@@ -37,7 +37,7 @@ module.exports = async (page, ys = '') => {
     for (const s of r.styles) { const e = styles.get(s.key); if (e) e.count++; else styles.set(s.key, { ...s, count: 1, firstY: y }) }
     for (const c of r.colors) { const e = colors.get(c.v) || { value: c.v, count: 0, as: {} }; e.count++; e.as[c.p] = (e.as[c.p] || 0) + 1; colors.set(c.v, e) }
   }
-  }
+  // each page ships its own stylesheets and :root variables: read them on every page, after the scroll has loaded lazy sheets
   const sheets = await page.evaluate(() => {
     const faces = [], vars = []
     for (const sh of document.styleSheets) {
@@ -58,8 +58,11 @@ module.exports = async (page, ys = '') => {
     // drop local() fallbacks (no url) and Next dev-overlay faces (__nextjs-*)
     return { faces: faces.filter((f) => f.urls.length && !/^__nextjs/i.test(f.family)), vars } // next/font names real faces __Name_hash: keep those
   })
+  for (const f of sheets.faces) fonts.set([f.family, f.weight, f.style, f.urls.join(' ')].join('|'), f)
+  for (const v of sheets.vars) colorVars.set(`${v.name}|${v.value}`, v)
+  }
   const out = {
-    url: page.url(), fonts: sheets.faces, colorVars: sheets.vars,
+    url: page.url(), fonts: [...fonts.values()], colorVars: [...colorVars.values()],
     textStyles: [...styles.values()].sort((a, b) => parseFloat(b.size) - parseFloat(a.size) || b.count - a.count),
     colorsInUse: [...colors.values()].sort((a, b) => b.count - a.count),
   }
