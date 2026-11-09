@@ -8,6 +8,7 @@ import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { GIT_ISOLATION_ENV } from "./support/git.ts";
 import { prependTestPath } from "./support/portable-process.ts";
 
 const REPO = resolve(import.meta.dir, "..");
@@ -55,13 +56,16 @@ describe.skipIf(process.platform === "win32")("npm installer stub", () => {
       writeFile(join(fixture, "package.json"), "{}\n"),
     ]);
     const fixtureGit = (...args: string[]) =>
-      Bun.spawnSync(["git", "-c", "user.email=t@t", "-c", "user.name=t", ...args], {
+      Bun.spawnSync(["git", ...args], {
         cwd: fixture,
+        env: { ...process.env, ...GIT_ISOLATION_ENV },
         stdout: "pipe",
         stderr: "pipe",
       });
     for (const args of [
       ["-c", "init.defaultBranch=main", "init", "."],
+      ["config", "user.email", "t@t"],
+      ["config", "user.name", "t"],
       ["add", "-A"],
       ["commit", "-qm", "init"],
     ]) {
@@ -91,6 +95,7 @@ exit $rc
     await chmod(join(bin, "git"), 0o755);
     return {
       ...process.env,
+      ...GIT_ISOLATION_ENV,
       HOME: home,
       USERPROFILE: home,
       PATH: prependTestPath(bin),

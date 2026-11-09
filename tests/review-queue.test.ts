@@ -27,6 +27,7 @@ import {
   serializeReviewQueueState,
   shouldNudge,
 } from "../src/lib/review-queue.ts";
+import { GIT_ISOLATION_ENV } from "./support/git.ts";
 
 // A Bash tool_response that looks like a successful `git commit` (the
 // locale-independent `[branch sha]` summary line git prints on success).
@@ -303,7 +304,13 @@ const HOOK = resolve(import.meta.dir, "..", "src", "hooks", "tool-cadence.ts");
 
 async function runHook(payload: unknown, home: string): Promise<{ stdout: string; exit: number }> {
   const proc = Bun.spawn(["bun", HOOK], {
-    env: { ...process.env, HOME: home, USERPROFILE: home, CC_MAX_UNREVIEWED: "3" },
+    env: {
+      ...process.env,
+      ...GIT_ISOLATION_ENV,
+      HOME: home,
+      USERPROFILE: home,
+      CC_MAX_UNREVIEWED: "3",
+    },
     stdin: "pipe",
     stdout: "pipe",
     stderr: "ignore",
@@ -486,15 +493,17 @@ describe("tool-cadence hook — review-queue branch (e2e)", () => {
     const home = await mkdtemp(join(tmpdir(), "cc-rq-"));
     const repo = await mkdtemp(join(tmpdir(), "cc-rq-repo-"));
     const git = (...args: string[]) => {
-      const r = Bun.spawnSync(
-        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args],
-        { cwd: repo },
-      );
+      const r = Bun.spawnSync(["git", ...args], {
+        cwd: repo,
+        env: { ...process.env, ...GIT_ISOLATION_ENV },
+      });
       if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
     };
     const pull = { tool_name: "Bash", tool_input: { command: "git pull --ff-only" }, cwd: repo };
     try {
       git("init", "-q");
+      git("config", "user.name", "t");
+      git("config", "user.email", "t@t");
       git("commit", "-q", "--allow-empty", "-m", "one");
       await runHook({ tool_name: "Agent", tool_input: {} }, home);
       await runHook({ tool_name: "Agent", tool_input: {} }, home);

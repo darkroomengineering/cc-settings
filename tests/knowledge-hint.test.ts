@@ -14,6 +14,7 @@ import {
   tokensFor,
 } from "../src/lib/knowledge-hint.ts";
 import type { KnowledgeIndex, KnowledgeNote } from "../src/lib/knowledge-index.ts";
+import { GIT_ISOLATION_ENV } from "./support/git.ts";
 
 const DRIZZLE: KnowledgeNote = {
   name: "drizzle-push-sqlite-not-null-column-truncates",
@@ -218,7 +219,7 @@ describe("repoNamesFrom", () => {
 const HINT_HOOK = resolve(import.meta.dir, "..", "src", "hooks", "knowledge-hint.ts");
 
 function baseEnv(home: string): Record<string, string | undefined> {
-  const env = { ...process.env };
+  const env: Record<string, string | undefined> = { ...process.env, ...GIT_ISOLATION_ENV };
   delete env.CLAUDE_CODE_SESSION_ID;
   env.HOME = home;
   env.USERPROFILE = home;
@@ -309,7 +310,9 @@ describe("knowledge-hint hook (e2e)", () => {
       await seedIndex(home, [PROGRAMA_LOG]);
       const repo = join(home, "programa");
       await mkdir(repo);
-      Bun.spawnSync(["git", "init", "-q", repo]);
+      Bun.spawnSync(["git", "init", "-q", repo], {
+        env: { ...process.env, ...GIT_ISOLATION_ENV },
+      });
       const payload = (sessionId: string, cwd: string) => ({
         session_id: sessionId,
         tool_name: "Bash",
