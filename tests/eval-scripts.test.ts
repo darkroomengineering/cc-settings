@@ -482,3 +482,31 @@ describe("eval-triggers", () => {
     }
   });
 });
+
+describe("pre-push eval gate", () => {
+  const G = "git";
+  const P = "push";
+  test("runs on a real push, including env prefixes and git global options", async () => {
+    const { isPush } = await import("../.claude/hooks/pre-push-evals.ts");
+    for (const c of [
+      `${G} ${P} origin HEAD`,
+      `GIT_SSH_COMMAND=ssh ${G} ${P} origin HEAD`,
+      `env ${G} -C /x ${P}`,
+      `cd /x && ${G} -c a=b ${P} -u origin HEAD`,
+      `${G} --git-dir=/x/.git ${P}`,
+    ]) {
+      expect(isPush(c)).toBe(true);
+    }
+  });
+  test("skips the words inside quotes and other git commands", async () => {
+    const { isPush } = await import("../.claude/hooks/pre-push-evals.ts");
+    for (const c of [
+      `grep -rn '${G} ${P}' src`,
+      `${G} commit -m "doc; ${G} ${P} origin HEAD"`,
+      `${G} log --grep ${P}`,
+      "echo hi",
+    ]) {
+      expect(isPush(c)).toBe(false);
+    }
+  });
+});
