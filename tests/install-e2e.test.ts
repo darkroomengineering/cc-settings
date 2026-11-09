@@ -2887,6 +2887,7 @@ describe("install E2E — uninstall ownership", () => {
         );
         expect(newlyManaged.sort()).toEqual(
           [
+            "agents/browser.md",
             "agents/linear.md",
             "docs/README.md",
             "docs/claude-vs-codex.md",
@@ -2914,6 +2915,7 @@ describe("install E2E — uninstall ownership", () => {
             "skills/stories/references/ticket.md",
             "src/bunfig.toml",
             "src/hooks/ask-gate.ts",
+            "src/hooks/browser-guard.ts",
             "src/hooks/cache-cold.ts",
             "src/hooks/config-guard.ts",
             "src/hooks/dispatch.ts",
@@ -2953,6 +2955,7 @@ describe("install E2E — uninstall ownership", () => {
             "src/lib/jev.ts",
             "src/lib/token-usage.ts",
             "src/lib/update-resume.ts",
+            "src/scripts/browser-signin.ts",
             "src/scripts/token-report.ts",
             "src/lib/hook-frequency.ts",
             "src/scripts/hook-bench.ts",

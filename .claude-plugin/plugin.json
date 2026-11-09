@@ -22,6 +22,18 @@
     "typescript",
     "darkroom"
   ],
+  "agents": [
+    "./agents/codex-verifier.md",
+    "./agents/deslopper.md",
+    "./agents/explore.md",
+    "./agents/implementer.md",
+    "./agents/linear.md",
+    "./agents/maestro.md",
+    "./agents/planner.md",
+    "./agents/reviewer.md",
+    "./agents/security-reviewer.md",
+    "./agents/tester.md"
+  ],
   "mcpServers": {
     "context7": {
       "type": "http",

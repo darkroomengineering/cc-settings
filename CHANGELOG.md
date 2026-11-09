@@ -4,6 +4,17 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [Unreleased]
+
+**Added:**
+- A `browser` agent reads signed-in dashboards (Search Console, Vercel, analytics) and production sites in one run of up to 70 turns, and reports each figure with the page it came from. It has no shell and cannot edit files. Its Chrome starts with the agent and stops when it returns, so nothing loads when a terminal opens (OSS-187).
+- `bun ~/.claude/src/scripts/browser-signin.ts <url>` opens the agent's Chrome profile in a normal window so you can sign in by hand; the next agent run starts signed in. It refuses while an agent's Chrome holds the profile and needs you at the machine, not Remote Control (OSS-187).
+- A guard hook in the agent's frontmatter is what limits it, because the agent's `tools` list does not filter its Chrome server's tools. It allows 13 Chrome tools, blocks uploads, cookie and storage reads, non-GET requests and non-web URLs, keeps every file write under `claude-browser/` in the system temp directory, and blocks when it cannot read a call. Asking it to open `localhost` or another local or internal address shows you a permission prompt first; a redirect or link from a public page to one is not caught, and cloud metadata addresses are always blocked. "Leave site?" prompts are always dismissed, and on macOS and Linux the findings folder and sign-in profile are readable only by you (OSS-187).
+- The plugin lists its agents explicitly and leaves `browser` out, because plugin agents ignore frontmatter hooks (OSS-187).
+
+**Changed:**
+- `tester` opens Chrome on a fresh temporary profile each run (`--isolated`), so pages it tests can never use the sessions you signed in for `browser`, and the two agents can run at the same time (OSS-187).
+
 ## [15.100.1] — 2026-11-08
 
 Fixes from the 2026-11-08 state audit. Each one replaces a lifecycle spread across flags with one explicit state, which removes a bug a user could hit.

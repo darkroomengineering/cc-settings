@@ -276,7 +276,7 @@ echo "Edited file: $FILE_PATH"
 
 | Type | Description | Use For |
 |------|-------------|---------|
-| `command` | Executes a shell command. Exit code 0 = pass, non-zero = block (for PreToolUse). stdout is injected into Claude's context. | Validation, logging, context injection |
+| `command` | Executes a shell command. Exit code 0 = pass, exit 2 = block (for PreToolUse); another non-zero exit lets the action through unless `onFailure` is `"block"`. stdout is injected into Claude's context. | Validation, logging, context injection |
 | `prompt` | Sends a single-turn prompt to Claude for yes/no evaluation. | Complex validation requiring LLM judgment |
 | `agent` | Spawns a subagent with tool access (Read, Grep, Glob) for verification. | Multi-step validation requiring code inspection |
 | `http` | Sends a webhook to a URL. Configure with `url`, `headers`, `allowedEnvVars`. Controlled by `allowedHttpHookUrls` setting. | Remote validation, external integrations, audit logging |
@@ -496,6 +496,14 @@ Every handler still runs as its own script (`bun src/hooks/<name>.ts < payload.j
 |--------|---------|-------|
 | `test-protect.ts` | Asks for approval (`permissionDecision: "ask"`, reason prefixed `[Test Guard]`) before a call disables or deletes a test: an Edit that adds a skip marker (`.skip(`, `.only(`, `.todo(`, `xit(`, `xdescribe(`, `xtest(`, `describe.skip`, `it.skip`, `test.skip`, `@Disabled`, `t.Skip(`, `@pytest.mark.skip`, `pytest.skip(`) to a test file, a Write that leaves an existing test file with more of them, `rm`/`unlink`/`git rm` of a test file or test directory, `find … -delete` or `-exec rm` over a test directory or test-name filter, or `mv`/`git mv` of one to a name no runner picks up (`.bak`, `.disabled`, dropped `.test.`, out of a test directory or out of the project). It does not see an edit that deletes assertions without adding a marker, nor deletes through `xargs`, `cd … &&`, or paths built from variables. A test file is `*.test.*`, `*.spec.*`, `*_test.go`, `*_test.py`, `test_*.py`, or anything under `__tests__/`, `tests/`, `test/` or `e2e/`. Asks rather than blocks, since deleting the tests of removed code is legitimate. A Write that creates a new test file passes silently. Fail-open | No |
 | `knowledge-hint.ts` | Surfaces up to 3 team-knowledge notes whose slug/tags match the Bash command or edited file, once per note per session; reads the 6h index cache, never the network | No |
+
+### PreToolUse in `agents/browser.md` frontmatter (`mcp__chrome-devtools__.*|Write|Read` matcher)
+
+This hook is declared in the browser agent's frontmatter, not in `config/40-hooks.json`, so it runs only inside that agent and `audit:hooks` does not scan it.
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `browser-guard.ts` | Fails closed, and the entry sets `onFailure: "block"` with a 5 s timeout so a hook that cannot start blocks too. Allows 13 Chrome tools and blocks the rest (`upload_file`, `lighthouse_audit`, ...). Blocks `evaluate_script` calls that touch cookies or web storage, send non-GET requests, set `location`, click from script, load `sourcePath`, or leave `dialogAction` unset to `"dismiss"`; navigation other than http(s); `initScript`; `navigate_page` without `handleBeforeUnload: "dismiss"`; any `Read` or `Write` outside `claude-browser/` in the system temp directory; and any `filePath` that is not an absolute path inside it. Asks (`permissionDecision: "ask"`) before `navigate_page` or `new_page` opens a local or internal host: `localhost`, loopback, private and link-local IPv4 and IPv6, single-label names, NAT64 and embedded-IPv4 forms of those, and `.local`, `.localdomain`, `.internal`, `.lan`, `.test`, `.home.arpa`. Blocks a URL with a username or password, which could put a trusted name first in the prompt. The ask covers only URLs passed to those two tools: a redirect, a clicked link, in-page navigation and a public name that resolves to a private address are not caught. The agent's server args block cloud metadata hosts (`169.254.169.254` and others) on every request, redirects included. Creates the findings dir with mode 0700 on every call, tightens it if it is open, and blocks when it is a symlink or another user owns it (POSIX only; on Windows the per-user `%TEMP%` ACL keeps it private). The script checks are a tripwire for mistakes, not a sandbox | No |
 
 ### PreToolUse (Agent|Task matcher)
 

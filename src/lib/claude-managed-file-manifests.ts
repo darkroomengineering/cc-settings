@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 42;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 43;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -913,9 +913,17 @@ const v41 = {
 };
 MANIFESTS.set(41, v41);
 // Version 42: the /audit State mode reference (full profile only).
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v42 = {
   full: [...v41.full, ...ADDED_IN_V42],
   light: v41.light,
+};
+MANIFESTS.set(42, v42);
+// Version 43: the browser agent (full profile only, like every agent), its guard
+// hook and its sign-in helper (every profile: src/ is installed from the light list).
+const ADDED_IN_V43 = ["src/hooks/browser-guard.ts", "src/scripts/browser-signin.ts"];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v42.full, "agents/browser.md", ...ADDED_IN_V43],
+  light: [...v42.light, ...ADDED_IN_V43],
 });
 
 const GENERATED_MANAGED_FILES = new Set([

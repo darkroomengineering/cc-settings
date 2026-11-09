@@ -84,8 +84,9 @@ const PREVIOUSLY_SHIPPED: Readonly<Record<string, readonly McpServer[]>> = {
         "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options.",
     },
   ],
-  // The tester agent defines chrome-devtools inline (agents/tester.md), so the
-  // server runs only while that agent does instead of in every session.
+  // The tester and browser agents define chrome-devtools inline
+  // (agents/tester.md, agents/browser.md), so the server runs only while one of
+  // them does instead of in every session.
   "chrome-devtools": [
     {
       command: "bunx",
