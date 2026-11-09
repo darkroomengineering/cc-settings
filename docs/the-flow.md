@@ -6,7 +6,7 @@ The pieces of cc-settings add up to one loop: **rules start as advisories, work 
 flowchart TB
     A([Session start]) --> B[Work the task]
     B --> C{"3+ files, 12+ tool calls,<br/>or security-sensitive?"}
-    C -- yes --> D["Delegate:<br/>explore · implementer · planner ·<br/>tester · security-reviewer · maestro"]
+    C -- yes --> D["Delegate:<br/>explore · implementer · planner ·<br/>tester · browser · security-reviewer · maestro"]
     C -- no --> E[Act directly]
     D --> F{"Same failure<br/>repeated 3x?"}
     E --> F

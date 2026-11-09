@@ -302,9 +302,12 @@ describe("mcp — claude.json installer", () => {
   });
 
   // Each global chrome-devtools server costs every session a Node process
-  // (~107 MB idle), so it lives only in the tester agent, which Claude Code
-  // starts and stops with that agent.
-  test("chrome-devtools ships only inside the tester agent, pinned and without telemetry", async () => {
+  // (~107 MB idle), so it lives only in the tester and browser agents, which
+  // Claude Code starts and stops with each agent. Both pin the same version.
+  // browser uses the server's default Chrome profile, the one
+  // src/scripts/browser-signin.ts signs into; tester runs --isolated so a page
+  // under test never reaches those sessions (tester has Bash and no guard hook).
+  test("chrome-devtools ships only inside the tester and browser agents, same pin, no telemetry", async () => {
     const shipped = (await Bun.file(
       join(import.meta.dir, "..", "config", "20-mcp.json"),
     ).json()) as {
@@ -312,16 +315,23 @@ describe("mcp — claude.json installer", () => {
     };
     expect(shipped.mcpServers["chrome-devtools"]).toBeUndefined();
 
-    const md = await Bun.file(join(import.meta.dir, "..", "agents", "tester.md")).text();
-    const fm = Bun.YAML.parse(extractFrontmatterBlock(md) ?? "") as {
-      mcpServers?: Array<Record<string, { command?: string; args?: string[] }>>;
+    const agentArgs = async (agent: string): Promise<string[]> => {
+      const md = await Bun.file(join(import.meta.dir, "..", "agents", `${agent}.md`)).text();
+      const fm = Bun.YAML.parse(extractFrontmatterBlock(md) ?? "") as {
+        mcpServers?: Array<Record<string, { command?: string; args?: string[] }>>;
+      };
+      return fm.mcpServers?.find((s) => "chrome-devtools" in s)?.["chrome-devtools"]?.args ?? [];
     };
-    const devtools = fm.mcpServers?.find((s) => "chrome-devtools" in s)?.["chrome-devtools"];
-    const args = devtools?.args ?? [];
-    expect(args.find((a) => a.startsWith("chrome-devtools-mcp@"))).toMatch(
-      /^chrome-devtools-mcp@\d+\.\d+\.\d+$/,
-    );
-    expect(args).toContain("--no-usage-statistics");
+    const pin = (args: string[]) => args.find((a) => a.startsWith("chrome-devtools-mcp@"));
+
+    const tester = await agentArgs("tester");
+    const browser = await agentArgs("browser");
+    expect(pin(tester)).toMatch(/^chrome-devtools-mcp@\d+\.\d+\.\d+$/);
+    expect(pin(browser)).toBe(pin(tester));
+    expect(tester).toContain("--no-usage-statistics");
+    expect(browser).toContain("--no-usage-statistics");
+    expect(browser.some((a) => /^--(userDataDir|user-data-dir|isolated)\b/.test(a))).toBe(false);
+    expect(tester).toContain("--isolated");
   });
 
   test("a null/scalar entry among valid servers is dropped, not cast (no throw)", async () => {

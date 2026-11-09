@@ -172,7 +172,8 @@ async function loadAgentSources(
 }
 
 /** Native agents come from two sources: the shared `agents/*.md` (minus the
- *  Claude-only codex-verifier) and the Codex-only `codex/agents/*.md`. */
+ *  Claude-only agents in EXCLUDED_AGENT_SOURCE_FILES) and the Codex-only
+ *  `codex/agents/*.md`. */
 export async function loadNativeAgents(sourceDir: string): Promise<NativeAgent[]> {
   const shared = await loadAgentSources(
     sourceDir,

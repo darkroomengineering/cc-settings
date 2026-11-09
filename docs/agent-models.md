@@ -21,6 +21,7 @@ Routing principle: **explore on the cheaper tier, edit on the session's model, d
 | `implementer` | **inherit** | Edits code, so it follows the session model instead of a pin |
 | `security-reviewer` | **claude-opus-5-5** | Analysis feeding the session's decision |
 | `tester` | **inherit** | Writes and edits test files, so it follows the session model |
+| `browser` | **inherit** | Reads untrusted page text; a stronger model resists injected instructions and misread figures |
 | `explore` | **claude-sonnet-5-5** | The highest-volume agent — routine investigation is Sonnet-fine; bump per-invocation to Opus for genuinely hard blast-radius/architecture work |
 | `deslopper` | **inherit** | Edits code; deletions are tool-grounded (tldr call graph) and guard-railed (no rm/commit/push, conservative auto-fix) |
 | `codex-verifier` | **claude-sonnet-5-5** | Independent cross-model check via the Codex CLI — the value is a different model family reviewing the diff, not raw reasoning depth on the Claude side |

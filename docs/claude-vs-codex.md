@@ -34,7 +34,7 @@ you need that exact workflow.
 | Role agents | All roles, including the Claude-to-Codex `codex-verifier` | Native role agents except `codex-verifier`, plus the Codex-to-Claude `claude-verifier` |
 | Delegation tiers | Opus 5.5 session with a Fable 5.1 advisor; Opus 5.5 for judgment agents, Sonnet 5.5 for read-only fan-out, the session model for code-editing agents | One session model; native agents inherit it |
 | Hooks | Full Claude hook set from composed settings | Compatible plugin subset; user reviews trust through `/hooks` |
-| MCP servers | Context7, TLDR, and Figma; Chrome DevTools inside the `tester` agent | Fixed HTTPS Figma server only |
+| MCP servers | Context7, TLDR, and Figma; Chrome DevTools inside the `tester` and `browser` agents | Fixed HTTPS Figma server only |
 | Runtime source | Self-contained managed source under `~/.claude/src` | Allowlisted source under `$CODEX_HOME/darkroom/source` |
 | Custom statusline | Yes | No arbitrary statusline API; use `/status` |
 | Backups and ownership | Claude-specific store and sentinel | Codex-specific store and sentinel |

@@ -46,6 +46,7 @@ Work Mode":
 | build, change, fix across files | `implementer` |
 | plan or architecture | `planner` |
 | new test files | `tester` (**MUST**) |
+| read signed-in or third-party web pages | `browser` |
 | auth, payments, crypto, input validation | `security-reviewer` (**MUST**) |
 | dead code or deslop | `deslopper` (**MUST**) |
 | Linear issue, status, checklist, comments, follow-ups | `linear`, in the background (**MUST** in a repo with a `Linear:` startup line) |

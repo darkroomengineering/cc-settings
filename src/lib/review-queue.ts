@@ -93,10 +93,18 @@ function positiveIntEnv(name: string, fallback: number): number {
 
 /** Agent types that cannot leave a working-tree diff, so spawning one adds
  *  nothing to review + commit. Conservative on purpose: only agents with no
- *  write/edit capability are listed. `reviewer` and `planner` CAN write (review
- *  notes, plan docs, ADRs) that you might commit, so they intentionally still
- *  count — under-counting real review debt is the failure we most want to avoid. */
-export const READ_ONLY_AGENTS = new Set(["explore", "Explore", "Plan", "security-reviewer"]);
+ *  write/edit capability in the repo are listed. `browser` writes only under
+ *  claude-browser/ in the system temp dir (its guard hook blocks every other path), never the
+ *  diff. `reviewer` and `planner` CAN write (review notes, plan docs, ADRs)
+ *  that you might commit, so they intentionally still count — under-counting
+ *  real review debt is the failure we most want to avoid. */
+export const READ_ONLY_AGENTS = new Set([
+  "browser",
+  "explore",
+  "Explore",
+  "Plan",
+  "security-reviewer",
+]);
 
 /** Does spawning this agent type produce work that lands in your diff? Unknown
  *  or omitted types default to the general-purpose agent (which can edit), so

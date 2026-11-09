@@ -9,9 +9,9 @@
 //   nothing tested it.
 // - Every plugin.json mcpServers entry must match its source of truth on the
 //   portable transport fields: config/20-mcp.json, or for a server an agent
-//   defines inline (chrome-devtools in agents/tester.md), that agent's
-//   `mcpServers` entry. Plugin agents ignore `mcpServers`, so the plugin
-//   declares such a server itself.
+//   defines inline (chrome-devtools in agents/tester.md and agents/browser.md),
+//   that agent's `mcpServers` entry. Plugin agents ignore `mcpServers`, so the
+//   plugin declares such a server itself.
 // - marketplace.json must point at the plugin defined in this repo.
 
 import { describe, expect, test } from "bun:test";
@@ -144,6 +144,23 @@ describe("plugin manifest — mcpServers match their source of truth", () => {
         );
       }
     }
+  });
+});
+
+describe("plugin manifest — agents", () => {
+  // Plugin agents ignore `hooks`, so an agent guarded by a frontmatter hook
+  // (browser) would ship unguarded. `agents` replaces the agents/ scan, so a
+  // new agent missing from the list silently drops out of the plugin.
+  test("lists every agents/*.md except the ones guarded by frontmatter hooks", async () => {
+    const plugin = await readJson(".claude-plugin/plugin.json");
+    const expected: string[] = [];
+    for (const file of (await readdir(join(ROOT, "agents"))).filter((f) => f.endsWith(".md"))) {
+      const block = extractFrontmatterBlock(await readFile(join(ROOT, "agents", file), "utf8"));
+      const fm = Bun.YAML.parse(block ?? "") as { hooks?: unknown } | null;
+      if (fm?.hooks === undefined) expected.push(`./agents/${file}`);
+    }
+    expect(expected).not.toContain("./agents/browser.md");
+    expect([...(plugin.agents as string[])].sort()).toEqual(expected.sort());
   });
 });
 

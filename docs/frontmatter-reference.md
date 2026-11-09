@@ -21,8 +21,8 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 | `tools` / `allowedTools` | list | No | Tools the agent can access. Both field names are accepted. Format: `[Read, Write, Edit, Bash, Grep, Glob, Agent, ...]` |
 | `color` | string | No | Display color in the UI: `purple`, `green`, `red`, `yellow`, `blue`, `cyan`, `magenta`, `gold` |
 | `skills` | list | No | Skills to preload into the subagent context at startup. Claude Code preloads at most 32, each once (v2.1.295); a subagent with the Skill tool can still invoke the rest |
-| `mcpServers` | list | No | MCP servers scoped to this agent: a server name references a configured server; a one-key map defines one inline, which connects when the subagent starts and disconnects when it finishes (used by `tester` for chrome-devtools). Plugin agents ignore it |
-| `hooks` | object | No | Lifecycle hooks scoped to this specific subagent |
+| `mcpServers` | list | No | MCP servers scoped to this agent: a server name references a configured server; a one-key map defines one inline, which connects when the subagent starts and disconnects when it finishes (used by `tester` and `browser` for chrome-devtools). Plugin agents ignore it |
+| `hooks` | object | No | Lifecycle hooks scoped to this specific subagent, in the settings.json `hooks` shape (`PreToolUse: [{ matcher, hooks: [{ type, command }] }]`; used by `browser` for its tool guard). Plugin agents ignore it |
 | `maxTurns` | number | No | Maximum agentic turns before the subagent stops |
 | `disallowedTools` | list | No | Tools to deny (removed from inherited tool list) |
 | `background` | boolean | No | When `true`, always run this subagent as a background task |
@@ -90,6 +90,7 @@ color: purple
 | `reviewer` | sonnet | project | Read, Grep, Glob, Bash | yellow |
 | `planner` | claude-opus-5-5 | project | Read, Grep, Glob | blue |
 | `tester` | inherit | -- | Read, Write, Edit, Bash, Grep, Glob | cyan |
+| `browser` | inherit | -- | Read, Write, 13 chrome-devtools tools | magenta |
 | `deslopper` | inherit | -- | Read, Edit, Grep, Glob, Bash, Agent, AskUserQuestion, SendMessage | cyan |
 | `security-reviewer` | claude-opus-5-5 | -- | Read, Grep, Glob, Bash | red |
 | `codex-verifier` | sonnet | -- | Bash, Read | cyan |

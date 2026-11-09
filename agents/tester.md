@@ -9,7 +9,7 @@ mcpServers:
   - chrome-devtools:
       type: stdio
       command: bunx
-      args: ["-y", "chrome-devtools-mcp@1.11.0", "--no-usage-statistics"]
+      args: ["-y", "chrome-devtools-mcp@1.11.0", "--no-usage-statistics", "--isolated"]
 maxTurns: 30
 effort: medium
 color: cyan
@@ -50,6 +50,8 @@ inspecting the command it runs.
 **E2E and visual tests (chrome-devtools MCP)**
 
 The server starts with this agent and shuts down when it returns; the main conversation does not have these tools.
+
+These tools are for local E2E. Chrome runs on a fresh temporary profile each time (`--isolated`), so it is never signed in to anything. Signed-in or third-party pages (dashboards, Search Console, production sites) go to the `browser` agent.
 
 | Action | Tool |
 |---|---|
