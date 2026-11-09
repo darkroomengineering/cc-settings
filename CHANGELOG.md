@@ -4,7 +4,15 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
-## [Unreleased]
+## [16.0.0] — 2026-11-09
+
+A major version because two defaults change what you see: the safety net asks or blocks in more cases, and a handoff is offered only on an unrelated topic or finished work instead of being suggested routinely.
+
+**Changed (breaking):**
+- Forced updates of main are blocked in more forms: `+main`, `+refs/*:refs/*`, and `--force-with-lease` combined with `--all`, `--mirror` or matching refs (OSS-128).
+- Commands that could change main or send work somewhere you did not intend now stop and ask: `gh api` writes to main's refs, branches, contents or merges; `git subtree push`; `git send-pack`; `eval`; `xargs`; a branch name held in a variable the safety net cannot read; `-c` or `GIT_CONFIG_*` overrides that reroute a push; `git -C`, `--git-dir` or `GIT_DIR` pointing into another repo; a push after a checkout on the same line; and `--recurse-submodules=on-demand` or `=only` (OSS-128).
+- One case asks less: a push to a remote on local disk no longer asks (OSS-128).
+- When work switches to an unrelated topic or has ended (merged, or you say you are moving on), Claude offers `/handoff` and a fresh session and lets you decide. Work still in flight, such as CI, the merge or the closing comment, stays in the current session. Before, a handoff was suggested at every topic switch and milestone, such as a PR opened (OSS-135).
 
 **Added:**
 - A `browser` agent reads signed-in dashboards (Search Console, Vercel, analytics) and production sites in one run of up to 70 turns, and reports each figure with the page it came from. It has no shell and cannot edit files. Its Chrome starts with the agent and stops when it returns, so nothing loads when a terminal opens (OSS-187).
@@ -13,7 +21,19 @@ All notable changes to cc-settings are documented here.
 - The plugin lists its agents explicitly and leaves `browser` out, because plugin agents ignore frontmatter hooks (OSS-187).
 
 **Changed:**
+- `/audit state` picks the smallest target shape for each machine it finds: derive or delete the flag first, then a tagged union, then a reducer, and a state-machine library only if the project already uses one. It names the shapes it rejected, the behavior the conversion must keep, and the test that pins it, so `/refactor` can prove nothing broke.
 - `tester` opens Chrome on a fresh temporary profile each run (`--isolated`), so pages it tests can never use the sessions you signed in for `browser`, and the two agents can run at the same time (OSS-187).
+
+**Fixed:**
+- The session worktree tests pass on Windows. They call bun through a `.cmd` file instead of bash, which their stripped PATH could not reach (OSS-152).
+- Case study: `tokens.js` collects fonts and color variables from every page in `PAGES`, not only the last one (OSS-57).
+- Case study: `spin.js` restores the page's visibility even when recording fails, and no longer saves `hidden` as the original for an element both selector passes match (OSS-58).
+- Case study: `cut_film.sh` pins the C locale, so a comma-decimal locale no longer breaks the still timestamps (OSS-59).
+- Case study: `export_sounds.sh` flags "demo" in audio tags only as a whole word (demo, demos, track_demo), so "demonstration" no longer raises a licence warning. The `layers.js` usage comment now says `inst` and `uni` reach every depth, hidden groups included (OSS-60).
+- The skill-eval pre-push gate runs only when the push is the command itself, so a commit message or grep pattern that mentions it no longer spends eval money. A run whose judge call failed is left out of the score instead of counting as 0, and a case with no graded run is reported without blocking.
+
+**Files changed:**
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts` (version)
 
 ## [15.100.1] — 2026-11-08
 
