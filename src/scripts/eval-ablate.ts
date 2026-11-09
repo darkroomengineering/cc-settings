@@ -37,7 +37,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
 const ROOT = join(import.meta.dir, "..", "..");
-const JUDGE_MODEL = "claude-fable-5-1";
+const JUDGE_MODEL = "claude-fable-5-2";
 const FALLBACK_JUDGE_MODEL = "claude-opus-5-5";
 
 /** A judge that differs from the answer model, so it never grades answers from its own model. */

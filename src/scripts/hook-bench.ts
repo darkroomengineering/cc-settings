@@ -102,7 +102,7 @@ function buildCases(work: string, sample: string, transcript: string): Record<st
         payload: {
           ...base,
           hook_event_name: "PreModelSwitch",
-          to_model: "claude-fable-5-1",
+          to_model: "claude-fable-5-2",
           from_model: "claude-opus-5-5",
         },
       },

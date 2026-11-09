@@ -70,8 +70,8 @@ describe("eval-changed", () => {
 
 describe("eval-ablate", () => {
   test("judgeFor never returns the answer model", () => {
-    expect(judgeFor("claude-sonnet-5-5")).toBe("claude-fable-5-1");
-    expect(judgeFor("claude-fable-5-1")).toBe("claude-opus-5-5");
+    expect(judgeFor("claude-sonnet-5-5")).toBe("claude-fable-5-2");
+    expect(judgeFor("claude-fable-5-2")).toBe("claude-opus-5-5");
   });
 
   test("--help lists --aa and --noise and exits 0", async () => {

@@ -156,6 +156,7 @@ export function buildEscalateMessage(
       header,
       `This session is already on Fable 5, so a stronger model isn't the available lever here.`,
       `Try a fresh-context subagent scoped to the failing slice instead — Agent(implementer, "<the specific failing slice>") — or stop and name the assumption that might be wrong.`,
+      `If the session runs below high effort, \`/effort high\` (or \`ultrathink\` for one turn) is the other lever.`,
     ].join("\n");
   }
 
