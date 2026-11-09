@@ -4,6 +4,7 @@
 // the tools of its inline chrome-devtools server; this hook is the gate.
 //
 //   exit 0               → ALLOW (silent)
+//   exit 0 + JSON stdout → ASK, the user approves in a permission prompt
 //   exit 2 + JSON stdout → BLOCK {"decision":"block","reason":"[Browser] ..."}
 //
 // Fail-closed, unlike the global hooks: a false block costs one agent call,
@@ -12,7 +13,7 @@
 //
 // Tool and field names match chrome-devtools-mcp@1.11.0 (build/src/tools/*.js).
 
-import { existsSync, lstatSync, realpathSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { isPlainObject, processIO } from "../lib/hook-runtime.ts";
@@ -57,10 +58,14 @@ function hasNonGetMethod(source: string): boolean {
   return tokens !== gets;
 }
 
-export type Decision = { allow: true } | { allow: false; reason: string };
+export type Decision =
+  | { kind: "allow" }
+  | { kind: "ask"; reason: string }
+  | { kind: "block"; reason: string };
 
-const ALLOW: Decision = { allow: true };
-const block = (reason: string): Decision => ({ allow: false, reason: `[Browser] ${reason}` });
+const ALLOW: Decision = { kind: "allow" };
+const ask = (reason: string): Decision => ({ kind: "ask", reason: `[Browser] ${reason}` });
+const block = (reason: string): Decision => ({ kind: "block", reason: `[Browser] ${reason}` });
 
 /** `base` is the real system temp dir. It must be temp: chrome-devtools-mcp
  *  saves files only under its client roots and `os.tmpdir()`, and Claude Code
@@ -97,19 +102,64 @@ export function isInsideFindingsDir(path: string, base: string): boolean {
   return rel !== "" && !rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel);
 }
 
-function isWebUrl(url: string): boolean {
+function webUrl(url: string): URL | undefined {
   try {
-    const { protocol } = new URL(url);
-    return protocol === "http:" || protocol === "https:";
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed : undefined;
   } catch {
+    return undefined;
+  }
+}
+
+function isPrivateIPv4(host: string): boolean {
+  const parts = host.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
     return false;
   }
+  const [a = -1, b = -1] = parts;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168)
+  );
+}
+
+/** A host on this machine or the local network. The WHATWG parser has already
+ *  normalized IPv4 spellings (`0x7f.1`, `2130706433`) to dotted decimal. A public
+ *  name that resolves to a private address (DNS rebinding) is not caught. */
+export function isLocalHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, "");
+  if (host.startsWith("[")) {
+    const v6 = host.slice(1, -1);
+    if (v6 === "::" || v6 === "::1") return true;
+    if (/^f[cd]/.test(v6) || /^fe[89ab]/.test(v6)) return true;
+    const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(v6);
+    if (mapped) {
+      const hi = Number.parseInt(mapped[1] ?? "", 16);
+      const lo = Number.parseInt(mapped[2] ?? "", 16);
+      return isPrivateIPv4(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
+    }
+    return false;
+  }
+  if (isPrivateIPv4(host)) return true;
+  return !host.includes(".") || /\.(localhost|local|internal|lan|home\.arpa)$/.test(host);
 }
 
 function checkUrl(tool: string, input: Record<string, unknown>): Decision | undefined {
   if (input.url === undefined) return undefined;
-  if (typeof input.url !== "string" || !isWebUrl(input.url)) {
+  const url = typeof input.url === "string" ? webUrl(input.url) : undefined;
+  if (!url) {
     return block(`${tool} accepts only http and https URLs, got ${String(input.url)}.`);
+  }
+  // A page can tell the agent to visit a local admin URL; the user decides.
+  if (isLocalHost(url.hostname)) {
+    return ask(
+      `${tool} wants to open ${url.href}, a local or internal address. Allow it only if you asked for this.`,
+    );
   }
   return undefined;
 }
@@ -134,11 +184,17 @@ function decideChrome(tool: string, input: Record<string, unknown>, base: string
   if (fileCheck) return fileCheck;
 
   if (tool === "navigate_page" || tool === "new_page") {
-    const urlCheck = checkUrl(tool, input);
-    if (urlCheck) return urlCheck;
     if (input.initScript !== undefined) {
       return block(`${tool} initScript is not allowed; use evaluate_script after the page loads.`);
     }
+    // The server accepts a "Leave site?" prompt by default, which discards what the page holds.
+    if (tool === "navigate_page" && input.handleBeforeUnload !== "dismiss") {
+      return block(
+        `navigate_page needs handleBeforeUnload: "dismiss" so a "Leave site?" prompt is never accepted.`,
+      );
+    }
+    const urlCheck = checkUrl(tool, input);
+    if (urlCheck) return urlCheck;
   }
 
   if (tool === "evaluate_script") {
@@ -187,10 +243,30 @@ export function decide(toolName: unknown, toolInput: unknown, base: string): Dec
   return ALLOW;
 }
 
+/** Create the findings dir owner-only, or refuse one another user owns: on a
+ *  shared Linux /tmp anyone can create `claude-browser` first and read what lands
+ *  in it. Returns a block reason, or undefined when the dir is safe. */
+export function secureFindingsDir(base: string): string | undefined {
+  const dir = findingsDir(base);
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const stat = lstatSync(dir);
+  if (!stat.isDirectory()) return `${dir} is not a directory; remove it and retry.`;
+  const uid = process.getuid?.();
+  if (uid !== undefined && stat.uid !== uid) {
+    return `${dir} belongs to another user; remove it and retry.`;
+  }
+  if ((stat.mode & 0o077) !== 0) chmodSync(dir, 0o700);
+  return undefined;
+}
+
 export async function main(): Promise<void> {
   const payload = await processIO.hookInput<{ tool_name: string; tool_input: unknown }>();
-  const decision = decide(payload.tool_name, payload.tool_input, realpathSync(tmpdir()));
-  if (!decision.allow) processIO.block(decision.reason);
+  const base = realpathSync(tmpdir());
+  const unsafe = secureFindingsDir(base);
+  if (unsafe) processIO.block(`[Browser] ${unsafe}`);
+  const decision = decide(payload.tool_name, payload.tool_input, base);
+  if (decision.kind === "block") processIO.block(decision.reason);
+  if (decision.kind === "ask") processIO.ask(decision.reason);
 }
 
 if (import.meta.main) {

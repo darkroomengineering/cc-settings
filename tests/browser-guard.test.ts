@@ -8,12 +8,14 @@
 //    prefix, `..`, relative or `~` path, symlink, missing path, the dir itself)
 //  - evaluate_script reads storage, sends a non-GET request, submits a form, or
 //    loads source from disk
-//  - navigation reaches a non-web scheme or injects an initScript
+//  - navigation reaches a non-web scheme, injects an initScript, accepts a
+//    "Leave site?" prompt, or opens a local or internal host without asking
+//  - the findings dir is a symlink, another user's, or readable by others
 //  - a malformed payload (no tool name, garbage stdin) is allowed
 //  - the process exits 0 where the decision was a block
 
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, realpathSync, symlinkSync } from "node:fs";
+import { chmodSync, mkdirSync, realpathSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -23,6 +25,8 @@ import {
   decide,
   findingsDir,
   isInsideFindingsDir,
+  isLocalHost,
+  secureFindingsDir,
 } from "../src/hooks/browser-guard.ts";
 import { parseFrontmatterStrict } from "../src/lib/frontmatter.ts";
 import { spawnCapture } from "./support/proc.ts";
@@ -34,16 +38,20 @@ const FINDINGS = join(HOME, "claude-browser");
 const chrome = (tool: string) => `mcp__chrome-devtools__${tool}`;
 
 function expectBlock(d: Decision): void {
-  expect(d.allow).toBe(false);
-  if (!d.allow) expect(d.reason.startsWith("[Browser] ")).toBe(true);
+  expect(d.kind).toBe("block");
+  if (d.kind !== "allow") expect(d.reason.startsWith("[Browser] ")).toBe(true);
 }
-const allowed = (tool: string, input: unknown) => decide(tool, input, HOME).allow;
+function expectAsk(d: Decision): void {
+  expect(d.kind).toBe("ask");
+  if (d.kind !== "allow") expect(d.reason.startsWith("[Browser] ")).toBe(true);
+}
+const allowed = (tool: string, input: unknown) => decide(tool, input, HOME).kind === "allow";
 const evalAllowed = (fn: string) =>
   allowed(chrome("evaluate_script"), { function: fn, dialogAction: "dismiss" });
 
 describe("chrome tool allowlist", () => {
   const ALLOWED: Record<string, Record<string, unknown>> = {
-    navigate_page: { type: "url", url: "https://example.com" },
+    navigate_page: { type: "url", url: "https://example.com", handleBeforeUnload: "dismiss" },
     take_snapshot: {},
     take_screenshot: {},
     click: { uid: "1_2" },
@@ -64,7 +72,7 @@ describe("chrome tool allowlist", () => {
 
   for (const [tool, input] of Object.entries(ALLOWED)) {
     test(`${tool} with benign input is allowed`, () => {
-      expect(decide(chrome(tool), input, HOME)).toEqual({ allow: true });
+      expect(decide(chrome(tool), input, HOME)).toEqual({ kind: "allow" });
     });
   }
 
@@ -153,7 +161,7 @@ describe("findings directory", () => {
 describe("Write", () => {
   test("allowed inside the findings dir", () => {
     expect(decide("Write", { file_path: join(FINDINGS, "job-01.md") }, HOME)).toEqual({
-      allow: true,
+      kind: "allow",
     });
   });
 
@@ -308,7 +316,7 @@ describe("evaluate_script", () => {
         expect(
           decide(chrome("evaluate_script"), { function: fn, dialogAction: "dismiss" }, HOME),
         ).toEqual({
-          allow: true,
+          kind: "allow",
         });
       }
     });
@@ -352,10 +360,68 @@ describe("evaluate_script", () => {
 });
 
 describe("navigate_page and new_page", () => {
+  // navigate_page must dismiss "Leave site?" prompts; new_page has no such field.
+  const nav = (tool: string, input: Record<string, unknown>) =>
+    decide(
+      chrome(tool),
+      tool === "navigate_page" ? { handleBeforeUnload: "dismiss", ...input } : input,
+      HOME,
+    );
+
   for (const tool of ["navigate_page", "new_page"]) {
-    test(`${tool}: http and https allowed`, () => {
-      for (const url of ["https://example.com", "http://localhost:3000", "HTTPS://EXAMPLE.COM"]) {
-        expect(allowed(chrome(tool), { url })).toBe(true);
+    test(`${tool}: public http and https allowed`, () => {
+      for (const url of [
+        "https://example.com",
+        "http://example.com:8080/a",
+        "HTTPS://EXAMPLE.COM",
+      ]) {
+        expect(nav(tool, { url })).toEqual({ kind: "allow" });
+      }
+    });
+
+    test(`${tool}: local and internal hosts ask the user`, () => {
+      for (const url of [
+        "http://localhost:3000",
+        "http://LOCALHOST.:3000",
+        "http://app.localhost",
+        "http://127.0.0.1",
+        "http://127.1",
+        "http://2130706433",
+        "http://0x7f.0.0.1",
+        "http://0.0.0.0",
+        "http://10.0.0.5",
+        "http://172.16.0.1",
+        "http://172.31.255.255",
+        "http://192.168.1.1",
+        "http://169.254.169.254/latest/meta-data",
+        "http://100.64.0.1",
+        "http://[::1]:3000",
+        "http://[::]",
+        "http://[::ffff:127.0.0.1]",
+        "http://[fd00::1]",
+        "http://[fe80::1]",
+        "http://intranet",
+        "http://printer.local",
+        "http://db.internal",
+        "http://router.lan",
+        "http://nas.home.arpa",
+      ]) {
+        const d = nav(tool, { url });
+        expectAsk(d);
+        if (d.kind === "ask") expect(d.reason).toContain("local or internal address");
+      }
+    });
+
+    test(`${tool}: hosts that only look local stay allowed`, () => {
+      for (const url of [
+        "http://172.32.0.1",
+        "http://192.169.0.1",
+        "http://11.0.0.1",
+        "http://localhost.example.com",
+        "http://[2001:db8::1]",
+        "http://[::ffff:8.8.8.8]",
+      ]) {
+        expect(nav(tool, { url })).toEqual({ kind: "allow" });
       }
     });
 
@@ -373,27 +439,79 @@ describe("navigate_page and new_page", () => {
         "not a url",
         "",
       ]) {
-        expectBlock(decide(chrome(tool), { url }, HOME));
+        expectBlock(nav(tool, { url }));
       }
     });
 
     test(`${tool}: non-string url blocked`, () => {
-      expectBlock(decide(chrome(tool), { url: 1 }, HOME));
-      expectBlock(decide(chrome(tool), { url: null }, HOME));
-      expectBlock(decide(chrome(tool), { url: { href: "https://example.com" } }, HOME));
+      expectBlock(nav(tool, { url: 1 }));
+      expectBlock(nav(tool, { url: null }));
+      expectBlock(nav(tool, { url: { href: "https://example.com" } }));
     });
 
     test(`${tool}: initScript blocked, whatever its value`, () => {
       for (const initScript of ["() => {}", "", null]) {
-        expectBlock(decide(chrome(tool), { url: "https://example.com", initScript }, HOME));
+        expectBlock(nav(tool, { url: "https://example.com", initScript }));
       }
+    });
+
+    test(`${tool}: initScript blocks before a local URL asks`, () => {
+      expectBlock(nav(tool, { url: "http://localhost", initScript: "() => {}" }));
     });
   }
 
-  test("navigate_page reload and back without a url allowed", () => {
-    expect(allowed(chrome("navigate_page"), { type: "reload" })).toBe(true);
-    expect(allowed(chrome("navigate_page"), { type: "back" })).toBe(true);
-    expect(allowed(chrome("navigate_page"), { type: "forward" })).toBe(true);
+  test("navigate_page reload, back and forward without a url allowed", () => {
+    for (const type of ["reload", "back", "forward"]) {
+      expect(nav("navigate_page", { type })).toEqual({ kind: "allow" });
+    }
+  });
+
+  test("navigate_page blocks unless handleBeforeUnload is dismiss", () => {
+    for (const handleBeforeUnload of [undefined, "accept", "Dismiss", 1]) {
+      for (const input of [{ url: "https://example.com" }, { type: "reload" }]) {
+        expectBlock(decide(chrome("navigate_page"), { ...input, handleBeforeUnload }, HOME));
+      }
+    }
+  });
+
+  test("a bad beforeunload setting blocks before a local URL asks", () => {
+    expectBlock(decide(chrome("navigate_page"), { url: "http://localhost" }, HOME));
+  });
+});
+
+describe("isLocalHost", () => {
+  test("matches parsed hostnames, not raw strings", () => {
+    expect(isLocalHost(new URL("http://0x7f.1").hostname)).toBe(true);
+    expect(isLocalHost("example.com")).toBe(false);
+  });
+});
+
+describe("secureFindingsDir", () => {
+  test("creates the dir owner-only and tightens an open one", async () => {
+    const base = realpathSync(await mkdtemp(join(tmpdir(), "cc-browser-dir-")));
+    try {
+      expect(secureFindingsDir(base)).toBeUndefined();
+      expect(statSync(findingsDir(base)).mode & 0o777).toBe(0o700);
+      chmodSync(findingsDir(base), 0o777);
+      expect(secureFindingsDir(base)).toBeUndefined();
+      expect(statSync(findingsDir(base)).mode & 0o777).toBe(0o700);
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
+  });
+
+  test("refuses a symlink or a file in its place", async () => {
+    const base = realpathSync(await mkdtemp(join(tmpdir(), "cc-browser-dir-")));
+    try {
+      mkdirSync(join(base, "elsewhere"));
+      symlinkSync(join(base, "elsewhere"), findingsDir(base));
+      expect(secureFindingsDir(base)).toContain("is not a directory");
+      await rm(findingsDir(base));
+      writeFileSync(findingsDir(base), "x");
+      expect(() => secureFindingsDir(base)).toThrow();
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
   });
 });
 
@@ -417,10 +535,11 @@ describe("malformed payloads", () => {
 
 describe("as a process", () => {
   async function run(stdin: string) {
-    const home = await mkdtemp(join(tmpdir(), "cc-browser-guard-"));
+    const home = realpathSync(await mkdtemp(join(tmpdir(), "cc-browser-guard-")));
     try {
+      // The guard creates <tmp>/claude-browser on every call; keep it in the sandbox.
       const r = await spawnCapture(["bun", HOOK], {
-        env: { HOME: home, USERPROFILE: home },
+        env: { HOME: home, USERPROFILE: home, TMPDIR: home, TEMP: home, TMP: home },
         stdin,
       });
       return { ...r, home };
@@ -437,6 +556,21 @@ describe("as a process", () => {
     const out = JSON.parse(r.stdout) as { decision: string; reason: string };
     expect(out.decision).toBe("block");
     expect(out.reason.startsWith("[Browser] ")).toBe(true);
+  });
+
+  test("a local URL exits 0 with an ask envelope", async () => {
+    const r = await run(
+      JSON.stringify({
+        tool_name: chrome("new_page"),
+        tool_input: { url: "http://localhost:3000" },
+      }),
+    );
+    expect(r.exit).toBe(0);
+    const out = JSON.parse(r.stdout) as {
+      hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string };
+    };
+    expect(out.hookSpecificOutput.permissionDecision).toBe("ask");
+    expect(out.hookSpecificOutput.permissionDecisionReason).toContain("http://localhost:3000/");
   });
 
   test("Write outside the findings dir exits 2", async () => {

@@ -8,7 +8,7 @@
 
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, mkdirSync, readlinkSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -138,7 +138,10 @@ async function main(argv: readonly string[]): Promise<number> {
     return 2;
   }
   const profile = profileDir();
-  mkdirSync(profile, { recursive: true });
+  // Owner-only: the profile holds session cookies. chrome-devtools-mcp may have
+  // created it first with the default mode.
+  mkdirSync(profile, { recursive: true, mode: 0o700 });
+  chmodSync(profile, 0o700);
 
   const lock = profileLock(profile);
   if (lock.state === "in-use") {
