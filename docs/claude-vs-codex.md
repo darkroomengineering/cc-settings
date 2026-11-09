@@ -32,7 +32,7 @@ you need that exact workflow.
 | Shared standards | `CLAUDE.md`, `AGENTS.md`, rules, and profiles | Managed block in native `AGENTS.md` plus command policy |
 | Shared skills | All 38 under `~/.claude/skills` | All 38 through `darkroom@cc-settings` |
 | Role agents | All roles, including the Claude-to-Codex `codex-verifier` | Native role agents except `codex-verifier`, plus the Codex-to-Claude `claude-verifier` |
-| Delegation tiers | Opus 5.5 session with a Fable 5.1 advisor; Opus 5.5 for judgment agents, Sonnet 5.5 for read-only fan-out, the session model for code-editing agents | One session model; native agents inherit it |
+| Delegation tiers | Fable 5.2 session and advisor; Fable 5.2 for `planner`, Opus 5.5 for `maestro` and `security-reviewer`, Sonnet 5.5 for read-only fan-out, the session model for code-editing agents | One session model; native agents inherit it |
 | Hooks | Full Claude hook set from composed settings | Compatible plugin subset; user reviews trust through `/hooks` |
 | MCP servers | Context7, TLDR, and Figma; Chrome DevTools inside the `tester` and `browser` agents | Fixed HTTPS Figma server only |
 | Runtime source | Self-contained managed source under `~/.claude/src` | Allowlisted source under `$CODEX_HOME/darkroom/source` |

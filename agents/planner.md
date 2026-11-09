@@ -1,6 +1,6 @@
 ---
 name: planner
-model: claude-opus-5-5
+model: claude-fable-5-2
 memory: project
 description: |
   Task breakdown and architecture planning without implementation. Delegate before any multi-file change or complex feature, or to compare approaches.

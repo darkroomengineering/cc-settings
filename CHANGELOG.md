@@ -6,9 +6,11 @@ All notable changes to cc-settings are documented here.
 
 ## [16.0.0] — 2026-11-09
 
-A major version because two defaults change what you see: the safety net asks or blocks in more cases, and a handoff is offered only on an unrelated topic or finished work instead of being suggested routinely.
+A major version because three defaults change what you see: sessions start on Claude Fable 5.2 instead of Opus 5.5, the safety net asks or blocks in more cases, and a handoff is offered only on an unrelated topic or finished work instead of being suggested routinely.
 
 **Changed (breaking):**
+- Sessions start on Claude Fable 5.2 (`claude-fable-5-2`) at medium effort, and Fable 5.2 is the advisor. It leads Opus 5.5 on agentic coding at twice its price ($8/$40 per MTok), and it counts toward the 50% weekly Fable cap on Max plans; `/model claude-opus-5-5` keeps working at half the price when that cap runs hot. Installs that never changed `model` move with the default. Code-editing agents follow the session, so they run on Fable too. The advisor moves with the session because a Fable 5.2 session accepts only a Fable 5.2 or Mythos 5.2 advisor. Requires Claude Code v2.1.321.
+- `planner` runs on Fable 5.2. `maestro` and `security-reviewer` stay on Opus 5.5, and `explore`, `reviewer`, `linear` and `codex-verifier` stay on Sonnet 5.5.
 - Forced updates of main are blocked in more forms: `+main`, `+refs/*:refs/*`, and `--force-with-lease` combined with `--all`, `--mirror` or matching refs (OSS-128).
 - Commands that could change main or send work somewhere you did not intend now stop and ask: `gh api` writes to main's refs, branches, contents or merges; `git subtree push`; `git send-pack`; `eval`; `xargs`; a branch name held in a variable the safety net cannot read; `-c` or `GIT_CONFIG_*` overrides that reroute a push; `git -C`, `--git-dir` or `GIT_DIR` pointing into another repo; a push after a checkout on the same line; and `--recurse-submodules=on-demand` or `=only` (OSS-128).
 - One case asks less: a push to a remote on local disk no longer asks (OSS-128).
@@ -21,6 +23,7 @@ A major version because two defaults change what you see: the safety net asks or
 - The plugin lists its agents explicitly and leaves `browser` out, because plugin agents ignore frontmatter hooks (OSS-187).
 
 **Changed:**
+- The skill-eval judges use Fable 5.2, `bun run tokens` prices Fable 5.2, and when work on a Fable session keeps failing the same way, the escalation hint also suggests raising effort.
 - `/audit state` picks the smallest target shape for each machine it finds: derive or delete the flag first, then a tagged union, then a reducer, and a state-machine library only if the project already uses one. It names the shapes it rejected, the behavior the conversion must keep, and the test that pins it, so `/refactor` can prove nothing broke.
 - `tester` opens Chrome on a fresh temporary profile each run (`--isolated`), so pages it tests can never use the sessions you signed in for `browser`, and the two agents can run at the same time (OSS-187).
 
@@ -30,10 +33,11 @@ A major version because two defaults change what you see: the safety net asks or
 - Case study: `spin.js` restores the page's visibility even when recording fails, and no longer saves `hidden` as the original for an element both selector passes match (OSS-58).
 - Case study: `cut_film.sh` pins the C locale, so a comma-decimal locale no longer breaks the still timestamps (OSS-59).
 - Case study: `export_sounds.sh` flags "demo" in audio tags only as a whole word (demo, demos, track_demo), so "demonstration" no longer raises a licence warning. The `layers.js` usage comment now says `inst` and `uni` reach every depth, hidden groups included (OSS-60).
-- The skill-eval pre-push gate runs only when the push is the command itself, so a commit message or grep pattern that mentions it no longer spends eval money. A run whose judge call failed is left out of the score instead of counting as 0, and a case with no graded run is reported without blocking.
+- The skill-eval pre-push gate runs only when the push is the command itself, so a commit message or grep pattern that mentions it no longer spends eval money. A run whose judge call failed is left out of the score instead of counting as 0, and a case with no graded run is reported without blocking. A push wrapped in `bash -c`, `eval` or `$(...)` still runs the gate.
 
 **Files changed:**
 - `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts` (version)
+- `config/10-core.json`, `agents/planner.md`, `src/lib/token-usage.ts`, `src/lib/escalate.ts`, `src/scripts/eval-changed.ts`, `src/scripts/eval-ablate.ts`, `src/scripts/hook-bench.ts`, `CLAUDE-FULL.md`, `docs/agent-models.md`, `docs/settings-reference.md`, `docs/frontmatter-reference.md`, `docs/claude-vs-codex.md` (models)
 
 ## [15.100.1] — 2026-11-08
 

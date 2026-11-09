@@ -47,7 +47,7 @@ const ROOT = join(import.meta.dir, "..", "..");
 const MODEL = "claude-sonnet-5-5";
 // The judge is a different, stronger model than the one the cases run on, so it
 // never grades answers from its own model.
-const JUDGE_MODEL = "claude-fable-5-1";
+const JUDGE_MODEL = "claude-fable-5-2";
 const THRESHOLD = "0.8";
 const QUARANTINE_FILE = "evals/quarantine.json";
 

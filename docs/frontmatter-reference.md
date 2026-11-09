@@ -88,7 +88,7 @@ color: purple
 | `implementer` | inherit | -- | Read, Write, Edit, Bash, Grep, Glob | green |
 | `maestro` | claude-opus-5-5 | -- | Read, Write, Edit, Bash, Grep, Glob, Agent, SendMessage | red |
 | `reviewer` | sonnet | project | Read, Grep, Glob, Bash | yellow |
-| `planner` | claude-opus-5-5 | project | Read, Grep, Glob | blue |
+| `planner` | claude-fable-5-2 | project | Read, Grep, Glob | blue |
 | `tester` | inherit | -- | Read, Write, Edit, Bash, Grep, Glob | cyan |
 | `browser` | inherit | -- | Read, Write, 13 chrome-devtools tools | magenta |
 | `deslopper` | inherit | -- | Read, Edit, Grep, Glob, Bash, Agent, AskUserQuestion, SendMessage | cyan |

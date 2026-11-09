@@ -1,22 +1,21 @@
 # Agent Model Routing
 
-> **Committed session model: Claude Opus 5.5 (`claude-opus-5-5`).** Opus 5.5 sits one tier
-> below Fable at 40% of its per-token price ($4/$20 per MTok, cache reads $0.20), has 1M context
-> native, and does not count toward the 50% Fable ceiling of the weekly pool. Fable 5.1 stays in
-> reach two ways: as the advisor (below), which reviews the full transcript at decision points,
-> and as `/model fable` or a scoped `model: "fable"` subagent for a genuinely stuck slice. Fable
-> is included on Max plans (since 2026-07-20) at roughly 2x the Opus 5 rate, capped at 50% of
-> the weekly limit, then extra-usage credits; `quota-steer` downshifts subagents at the 60%/65%
-> bands. Drop to `/model claude-sonnet-5-5` per session for routine work when the pool is tight.
-> Existing installs that never changed `model` move with the default through the three-way
-> merge (v15.4.0).
+> **Committed session model: Claude Fable 5.2 (`claude-fable-5-2`) at `medium` effort.** Fable 5.2
+> leads Opus 5.5 on agentic coding (FrontierSWE v2 69.9% vs 62.3%, FrontierCode 2.0 49.1% vs
+> 45.5%) at $8/$40 per MTok, 2x Opus 5.5's $4/$20, with the same $0.20 cache reads and a 1M
+> window at standard rates. Medium is Claude Code's own default for it. Fable counts toward the
+> 50% Fable ceiling of the weekly pool on Max plans, then extra-usage credits; when a week runs
+> hot, `/model claude-opus-5-5` keeps the work going at half the price, and
+> `/model claude-sonnet-5-5` covers routine turns. `quota-steer` downshifts subagents at the
+> 60%/65% bands. Existing installs that never changed `model` move with the default through the
+> three-way merge (v15.4.0).
 
-Routing principle: **explore on the cheaper tier, edit on the session's model, decide on the top tier.** The main session and the agents whose *output is a judgment* (orchestration, planning, security review) run on `claude-opus-5-5`; Fable 5.1 sits above them as the advisor. Read-heavy agents run on Sonnet (mechanical) and feed their findings back to the session for the decision. Agents that edit code use `model: inherit`, so they run on whatever model the session uses; the user's model choice is never overridden by a pin. All tiers get 1M context on Max plans.
+Routing principle: **explore on the cheaper tier, edit on the session's model, decide on the top tier.** The main session and `planner`, whose plan steers a whole change, run on `claude-fable-5-2`. `maestro` and `security-reviewer` stay on `claude-opus-5-5`: orchestration is a long, token-heavy loop, and the security review feeds the session's own Fable judgment. Fable 5.2 is also the advisor. Read-heavy agents run on Sonnet (mechanical) and feed their findings back to the session for the decision. Agents that edit code use `model: inherit`, so they run on whatever model the session uses; the user's model choice is never overridden by a pin. All tiers get 1M context on Max plans.
 
 | Agent | Model | Rationale |
 |-------|-------|-----------|
 | `maestro` | **claude-opus-5-5** | Orchestration needs the strongest default reasoning |
-| `planner` | **claude-opus-5-5** | Architecture decisions need depth |
+| `planner` | **claude-fable-5-2** | Runs rarely and its plan steers the whole change, so the 2x price buys the most here |
 | `reviewer` | **claude-sonnet-5-5** | Diff-reading is bulk work; cross-model `codex-verifier` provides the independent second gate |
 | `implementer` | **inherit** | Edits code, so it follows the session model instead of a pin |
 | `security-reviewer` | **claude-opus-5-5** | Analysis feeding the session's decision |
@@ -37,7 +36,7 @@ The Claude-to-Codex bridge passes no model per call either; `--model` and the `C
 
 Override per-invocation when a specific task warrants it: bump a cheap agent up — `Agent(explore, "...", model: "opus")` for a hard investigation — or drop a decision agent down for a trivial pass. The table is the default, not a ceiling.
 
-**Reach for `model: "fable"` on a genuinely stuck slice, not a hard-looking prompt.** Fable is 2.5x Opus 5.5 on base tokens ($10/$50 vs $4/$20 per MTok) and the session model can't be swapped mid-task by a hook, so the move is a subagent override scoped to just the failing piece — `Agent(implementer, "<the specific failing slice>", model: "fable")` — never a blanket re-run of the whole task at the higher tier. `escalate-model.ts` (below) surfaces this suggestion automatically once it observes real struggle; treat a manual reach for `fable` the same way — after two failed attempts on the same problem, not before the first one. Fable 5.1 narrows the cost gap for exactly this scoped-subagent shape: its cache reads are $0.25/MTok (0.025x base), close to Opus 5.5's $0.20, so a long escalated slice that mostly re-reads its cached prefix costs about the same per re-read as Opus would. The 2.5x still applies to fresh input and all output; the escalation bar stays where it is. One 5.1 behavior to watch in escalated subagents: it batches parallel tool calls less consistently than Fable 5, so keep the briefing's "batch independent calls" expectation explicit if a fable slice looks serial. `model-switch-guard.ts` (PreModelSwitch) asks before a `/model fable` switch when cached usage is ≥95% and annotates it at the critical band; it never blocks.
+**On a Fable 5.2 session, raise effort before anything else when work gets stuck.** The session already runs the strongest model at `medium`, so `/effort high` (or `ultrathink` for one turn) is the lever, followed by a fresh-context subagent scoped to the failing slice. `escalate-model.ts` (below) says so once it observes real struggle. **On an Opus or Sonnet session, reach for `model: "fable"` on a genuinely stuck slice, not a hard-looking prompt.** Fable 5.2 is 2x Opus 5.5 on fresh input and output ($8/$40 vs $4/$20 per MTok) with the same $0.20 cache reads, and a hook can't swap the session model mid-task, so the move is a subagent override scoped to the failing piece: `Agent(implementer, "<the specific failing slice>", model: "fable")`, never a re-run of the whole task at the higher tier, and only after two failed attempts on the same problem. `model-switch-guard.ts` (PreModelSwitch) asks before a `/model fable` switch when cached usage is ≥95% and annotates it at the critical band; it never blocks.
 
 **`CLAUDE_CODE_SUBAGENT_MODEL` is the floor under the table above.** The env var (in `config/10-core.json`, upstream v2.1.147) sets the *default* model for every subagent — Agent-tool spawns, the built-in `Explore`/`Plan`/`general-purpose` agents, and Agent Teams teammates under `teammateMode: "auto"`. Since Claude Code v2.1.251 it is a default, not an override: an agent definition's `model:` and an explicit per-spawn `model` take precedence, which is what keeps `maestro`, `planner`, and `security-reviewer` on `claude-opus-5-5` while everything unpinned — including built-in agents, which used to inherit the session model — runs on **`sonnet`**. The four code-editing agents set `model: inherit`, which resolves to the model of whoever spawns them: the session model when you call them, `maestro`'s Opus when it does. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` (v2.1.257) restores the old override-everything behavior; cc-settings leaves it unset. The steady state: the session and the deep-reasoning agents stay on Opus 5.5 while wide fan-out — which re-reads the repo per agent — drops to Sonnet for cost.
 
@@ -47,12 +46,12 @@ Override per-invocation when a specific task warrants it: bump a cheap agent up 
 
 Claude Code has a native **advisor** layered on the API's [advisor tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool) (experimental): the session ("executor") model calls an `advisor` server tool at decision points; Anthropic runs the advisor model over the **full transcript** server-side and returns short guidance mid-turn. No briefing prompt is needed. Unlike a subagent, the advisor sees everything the executor saw. It works on subscription billing (advisor tokens count toward plan limits, visible in `/usage`) and on API keys, but only against the Anthropic API: not on Bedrock, Vertex, or Foundry, and through a gateway only when the gateway forwards the tool intact. `DISABLE_TELEMETRY` and other flag-fetch kill switches turn it off. Docs: [code.claude.com/docs/en/advisor](https://code.claude.com/docs/en/advisor).
 
-**cc-settings sets `"advisorModel": "claude-fable-5-1"`** in `config/10-core.json`. Fable 5.1 is the latest Fable and the one advisor every model we run accepts: the Opus 5.5 default and judgment agents, the Sonnet 5.5 subagents, and a `/model fable` session, which rejects Opus and Sonnet advisors and gets a Fable 5 advisor refused by the API. The full ID is pinned instead of the `fable` alias because the alias follows Claude Code's built-in default and resolves to Fable 5 on gateway sessions; a Fable 5.1 session would then drop the advisor with no error.
+**cc-settings sets `"advisorModel": "claude-fable-5-2"`** in `config/10-core.json`. Fable 5.2 is the one advisor every model we run accepts: the Fable 5.2 session and `planner`, the Opus 5.5 `maestro` and `security-reviewer`, and the Sonnet 5.5 subagents. A Fable 5.2 executor accepts only Fable 5.2 or Mythos 5.2 as advisor, so a Fable 5.1 advisor would be dropped from every default session. The full ID is pinned instead of the `fable` alias because the alias follows Claude Code's built-in default and can resolve to an older Fable on gateway sessions; the session would then drop the advisor with no error. Change the session model and the advisor together.
 
-| Session (executor) | Accepts `claude-fable-5-1`? | What it buys |
+| Session (executor) | Accepts `claude-fable-5-2`? | What it buys |
 |---|---|---|
-| `claude-opus-5-5` (composed default; `planner`, `maestro`, `security-reviewer`) | yes (Fable, or Opus 5+) | Top-tier review of plans and gate decisions at Opus session cost |
-| `claude-fable-5-1` (`/model fable`, escalated subagents) | yes, the only accepted advisor | A second Fable pass on hard calls |
+| `claude-fable-5-2` (composed default, `planner`, escalated subagents) | yes; only Fable 5.2 or Mythos 5.2 | A second Fable pass on hard calls |
+| `claude-opus-5-5` (`maestro`, `security-reviewer`, `/model claude-opus-5-5`) | yes (Fable, or Opus 5+) | Top-tier review of gate decisions at Opus session cost |
 | `claude-sonnet-5-5` (`explore`, `reviewer`, and the other `CLAUDE_CODE_SUBAGENT_MODEL` agents) | yes | The pairing the docs recommend first: Sonnet runs the routine turns, Fable steps in at decision points |
 | `haiku` | yes | Cheapest executor with top-tier planning |
 
@@ -70,15 +69,15 @@ Claude Code has a native **advisor** layered on the API's [advisor tool](https:/
 - **Subagents inherit** the advisor and re-check pairing against their own model. Wide fan-outs multiply advisor calls; set `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` for a run where that cost isn't worth it.
 - **Cost:** each call rereads the full transcript uncached at the advisor's rates. Toggling `/advisor` mid-session does not invalidate the main model's prompt cache. Turn it off with `/advisor off` when quota is tight (`quota-steer` at 5h ≥60% or weekly ≥65%).
 - **Codex routing is unaffected.** The advisor is Claude advising Claude, so `codex-verifier` remains the only independent cross-model check.
-- **Fable advice is opaque.** Fable returns encrypted advisor results, so you can't audit what was advised; press `Ctrl+O` on the `Advising` line to see what is readable. Run `/advisor opus` from an Opus or Sonnet session when auditability matters.
+- **Fable advice is opaque.** Fable returns encrypted advisor results, so you can't audit what was advised; press `Ctrl+O` on the `Advising` line to see what is readable. Run `/advisor opus` from an Opus or Sonnet session when auditability matters; a Fable 5.2 session does not accept an Opus advisor.
 
 ## Effort and context details
 
-- Opus 5.5 and Sonnet 5.5 default to `medium` effort, Fable 5.1 to `high`. `/effort` remembers a level per model, so a raise on Fable does not follow you to `/model opus`; the `s` option keeps a change session-only. An `/effort` change on Fable 5.1 does not invalidate the prompt cache.
+- Opus 5.5, Sonnet 5.5 and Fable 5.2 default to `medium` effort. Fable 5.2 offers `low`, `medium`, `high`, `xhigh` and `max`. `/effort` remembers a level per model, so a raise on Fable does not follow you to `/model opus`; the `s` option keeps a change session-only. An `/effort` change on Fable does not invalidate the prompt cache.
 - A subagent or teammate on a different model from the main session runs at that model's saved effort level, not the session's. The Sonnet-pinned `explore` and `reviewer` follow Sonnet's level; `implementer`, `tester` and `deslopper` inherit the session model, so they keep its effort.
-- On Fable 5.1, `medium` matches Fable 5 quality at lower cost and `low` is viable for routine turns, but at `low` it answers from memory instead of searching.
+- On Fable, `low` is viable for routine turns, but at `low` it answers from memory instead of searching.
 - `ultracode` is its own `/effort` toggle for automatic dynamic workflows at any effort level; pair it with `xhigh` when the run needs depth.
-- The 200K working ceiling exists because Opus-tier input above 200K bills at the long-context premium. Fable 5 and 5.1 default to a 1M window at standard rates, so on Fable the ceiling is about usage limits and attention, and compaction can run later.
+- The 200K working ceiling exists because Opus-tier input above 200K bills at the long-context premium. Fable 5, 5.1 and 5.2 default to a 1M window at standard rates, so on Fable the ceiling is about usage limits and attention, and compaction can run later.
 - With `TYPESAFE_API_KEY` set, the `compaction-trigger` plugin requests a verbatim Jev compaction near 150K tokens. Past 200K, native idle compaction summarizes a conversation left idle about 54 minutes, before its one-hour cache expires.
 - Output is 64K tokens by default, 128K maximum.
 
