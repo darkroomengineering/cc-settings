@@ -494,6 +494,9 @@ describe("pre-push eval gate", () => {
       `env ${G} -C /x ${P}`,
       `cd /x && ${G} -c a=b ${P} -u origin HEAD`,
       `${G} --git-dir=/x/.git ${P}`,
+      `bash -c '${G} ${P} origin HEAD'`,
+      `eval "${G} ${P}"`,
+      `echo $(${G} ${P})`,
     ]) {
       expect(isPush(c)).toBe(true);
     }

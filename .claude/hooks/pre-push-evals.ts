@@ -29,6 +29,8 @@ async function readCommand(): Promise<string> {
 // Parse the shell so only a real push runs the evals: the words inside a quoted
 // grep pattern or commit message must not spend eval money, and env prefixes
 // (`GIT_SSH_COMMAND=... git push`, `env git push`) must not skip the gate.
+const WRAPPED_PUSH =
+  /(?:\beval|\b(?:ba|z|da|k)?sh\s+(?:-\w+\s+)*-\w*c)\s+["'][^"']*\bgit\b[^"']*\bpush\b|\$\([^)]*\bgit\b[^)]*\bpush\b|`[^`]*\bgit\b[^`]*\bpush\b/;
 const GIT_VALUE_FLAGS = new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env"]);
 export function isPush(cmd: string): boolean {
   for (const seg of scanShell(cmd).segments) {
@@ -44,7 +46,9 @@ export function isPush(cmd: string): boolean {
       }
     }
   }
-  return false;
+  // A push wrapped in `bash -c '...'`, `eval`, or a substitution hides inside one
+  // word. Fail toward running the gate when such a wrapper names a push.
+  return WRAPPED_PUSH.test(cmd);
 }
 
 if (import.meta.main) {
