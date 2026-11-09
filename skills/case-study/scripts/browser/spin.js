@@ -9,12 +9,16 @@ module.exports = async (page, pred, secs = '8', axis = 'y') => {
     let t; __cap.scenes.forEach((s) => s.traverse((o) => { if (!t && (${pred})(o)) t = o }))
     if (!t) throw new Error('spin.js: nothing matches the target predicate')
     window.__SP = { o: t, r: t.rotation.clone() }
-    const hide = (e) => { e.dataset.spHide = e.style.visibility; e.style.visibility = 'hidden' }
+    // an element can match both selector passes below: save its visibility on the first pass only, or 'hidden' gets saved as the original
+    const hide = (e) => { if (e.dataset.spHide === undefined) e.dataset.spHide = e.style.visibility; e.style.visibility = 'hidden' }
     document.querySelectorAll('body > *').forEach((e) => { if (!e.querySelector('canvas') && e.tagName !== 'CANVAS') hide(e) })
     document.querySelectorAll('header, nav, main, button, a, [role=dialog]').forEach((e) => !e.querySelector('canvas') && hide(e))
   })()`)
   const frames = Math.round(+secs * 60)
-  await rec(page, { dir: process.env.OUT, frames, perFrame: (i) => `{ const k = ${i / (frames - 1)}, e = k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; __SP.o.rotation.${axis} = __SP.r.${axis} + e * Math.PI * 2 }` })
-  await page.evaluate(() => { __SP.o.rotation.copy(__SP.r); document.querySelectorAll('[data-sp-hide]').forEach((e) => { e.style.visibility = e.dataset.spHide; delete e.dataset.spHide }) })
+  try {
+    await rec(page, { dir: process.env.OUT, frames, perFrame: (i) => `{ const k = ${i / (frames - 1)}, e = k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; __SP.o.rotation.${axis} = __SP.r.${axis} + e * Math.PI * 2 }` })
+  } finally {
+    await page.evaluate(() => { __SP.o.rotation.copy(__SP.r); document.querySelectorAll('[data-sp-hide]').forEach((e) => { e.style.visibility = e.dataset.spHide; delete e.dataset.spHide }) })
+  }
   return { frames }
 }

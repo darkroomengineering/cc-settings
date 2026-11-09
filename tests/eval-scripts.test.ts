@@ -283,6 +283,36 @@ describe("eval-changed gate", () => {
     expect(parsed.get("a")).toEqual({ score: 0.5, runs: [1, 0] });
     expect(parsed.get("b")).toEqual({ score: 0.9, runs: [0.9] });
   });
+
+  test("caseRuns leaves out runs whose judge call failed and names fully ungraded cases", () => {
+    const threw = { explanation: "grader threw: judge call failed: API Error: 529 Overloaded." };
+    const ungraded: string[] = [];
+    const parsed = caseRuns(
+      {
+        cases: [
+          {
+            name: "outage",
+            aggregates: { score: 0 },
+            arms: { with: [{ score: 0, graders: [threw] }] },
+          },
+          {
+            name: "mixed",
+            aggregates: { score: 0.5 },
+            arms: {
+              with: [
+                { score: 1, graders: [{ explanation: "PASS" }] },
+                { score: 0, graders: [threw] },
+              ],
+            },
+          },
+        ],
+      },
+      ungraded,
+    );
+    expect(parsed.has("outage")).toBe(false);
+    expect(ungraded).toEqual(["outage"]);
+    expect(parsed.get("mixed")).toEqual({ score: 1, runs: [1] });
+  });
 });
 
 describe("eval-changed quarantine", () => {
@@ -449,6 +479,37 @@ describe("eval-triggers", () => {
       expect(bad.reason).toContain("malformed");
     } finally {
       rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("pre-push eval gate", () => {
+  const G = "git";
+  const P = "push";
+  test("runs on a real push, including env prefixes and git global options", async () => {
+    const { isPush } = await import("../.claude/hooks/pre-push-evals.ts");
+    for (const c of [
+      `${G} ${P} origin HEAD`,
+      `GIT_SSH_COMMAND=ssh ${G} ${P} origin HEAD`,
+      `env ${G} -C /x ${P}`,
+      `cd /x && ${G} -c a=b ${P} -u origin HEAD`,
+      `${G} --git-dir=/x/.git ${P}`,
+      `bash -c '${G} ${P} origin HEAD'`,
+      `eval "${G} ${P}"`,
+      `echo $(${G} ${P})`,
+    ]) {
+      expect(isPush(c)).toBe(true);
+    }
+  });
+  test("skips the words inside quotes and other git commands", async () => {
+    const { isPush } = await import("../.claude/hooks/pre-push-evals.ts");
+    for (const c of [
+      `grep -rn '${G} ${P}' src`,
+      `${G} commit -m "doc; ${G} ${P} origin HEAD"`,
+      `${G} log --grep ${P}`,
+      "echo hi",
+    ]) {
+      expect(isPush(c)).toBe(false);
     }
   });
 });

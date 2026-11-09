@@ -63,22 +63,22 @@ cat > components/cart-drawer.tsx <<'TSX'
 
 import { useReducer } from "react";
 
-type Drawer = { state: "closed" } | { state: "open"; itemCount: number };
-type Action = { type: "open"; itemCount: number } | { type: "close" };
+type Drawer = { state: "closed" } | { state: "open" };
+type Action = { type: "open" } | { type: "close" };
 
 function reduce(_drawer: Drawer, action: Action): Drawer {
-  return action.type === "open" ? { state: "open", itemCount: action.itemCount } : { state: "closed" };
+  return action.type === "open" ? { state: "open" } : { state: "closed" };
 }
 
 export function CartDrawer({ itemCount }: { itemCount: number }) {
   const [drawer, dispatch] = useReducer(reduce, { state: "closed" });
   return drawer.state === "open" ? (
     <aside>
-      {drawer.itemCount} items
+      {itemCount} items
       <button type="button" onClick={() => dispatch({ type: "close" })}>Close</button>
     </aside>
   ) : (
-    <button type="button" onClick={() => dispatch({ type: "open", itemCount })}>Cart</button>
+    <button type="button" onClick={() => dispatch({ type: "open" })}>Cart</button>
   );
 }
 TSX

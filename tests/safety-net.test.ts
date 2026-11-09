@@ -6,11 +6,15 @@
 
 import { afterAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const SAFETY_NET_TS = resolve(import.meta.dir, "..", "src", "hooks", "safety-net.ts");
+const GITCONFIG_DIR = mkdtempSync(join(tmpdir(), "cc-safety-gitconfig-"));
+const EMPTY_GITCONFIG = join(GITCONFIG_DIR, "gitconfig");
+writeFileSync(EMPTY_GITCONFIG, "");
+afterAll(() => rmSync(GITCONFIG_DIR, { recursive: true, force: true }));
 
 type Decision = "allow" | "ask" | "block";
 
@@ -30,6 +34,9 @@ async function runSafetyNet(
     ...process.env,
     CC_SAFETY_GH_LOGIN: "cc-test-user",
     GH_REPO: "darkroomengineering/cc-settings",
+    // The push rule reads git config; the developer's own push settings must not decide a case.
+    GIT_CONFIG_GLOBAL: EMPTY_GITCONFIG,
+    GIT_CONFIG_NOSYSTEM: "1",
     ...env,
   };
   const proc = Bun.spawn(["bun", SAFETY_NET_TS], {
@@ -1556,4 +1563,612 @@ describe("TS safety-net — encodings of a command line", () => {
       "gh release create v1 -R darkroomengineering/site -n https://github.com/vercel/next.js/pull/1",
     ));
   test("allow: gist create of an ordinary file", () => expectAllow("gh gist create notes.md"));
+});
+
+describe("TS safety-net — updates of main or master", () => {
+  const cleanups: string[] = [];
+  afterAll(() => {
+    for (const dir of cleanups) rmSync(dir, { recursive: true, force: true });
+  });
+  const GH_URL = "git@github.com:darkroomengineering/cc-settings.git";
+  // A repository on `branch` with an origin remote and extra `git config` pairs.
+  function repo(branch: string, config: Array<[string, string]> = [], origin = GH_URL): string {
+    const dir = mkdtempSync(join(tmpdir(), "cc-safety-main-update-"));
+    cleanups.push(dir);
+    spawnSync("git", ["init", "-q", "-b", branch, dir]);
+    spawnSync("git", ["remote", "add", "origin", origin], { cwd: dir });
+    for (const [key, value] of config)
+      spawnSync("git", ["config", "--add", key, value], { cwd: dir });
+    return dir;
+  }
+  function bareRepo(): string {
+    const dir = mkdtempSync(join(tmpdir(), "cc-safety-bare-"));
+    cleanups.push(dir);
+    spawnSync("git", ["init", "-q", "--bare", dir]);
+    return dir.replaceAll("\\", "/");
+  }
+
+  describe("comments and heredoc delimiters", () => {
+    const feature = repo("fix/x");
+    test("ask: an escaped space before # is not a comment", () =>
+      expectAsk("echo \\ #; git push origin main", feature));
+    test("block: an escaped space before # does not hide rm", () =>
+      expectBlock("echo \\ #; rm -rf ~"));
+    test("allow: an escaped backslash, then a real comment", () =>
+      expectAllow("echo \\\\ # git push origin main", feature));
+    for (const [name, delimiter] of [
+      ["E\\OF", "E\\OF"],
+      ['"E"OF', '"E"OF'],
+      ["'E'OF", "'E'OF"],
+      ["\\EOF", "\\EOF"],
+    ] as const) {
+      test(`ask: <<${name} ends at EOF`, () =>
+        expectAsk(`cat <<${delimiter}\nhi\nEOF\ngit push origin main`, feature));
+      test(`allow: <<${name} body is text`, () =>
+        expectAllow(`cat <<${delimiter}\ngit push origin main\n$(rm -rf ~)\nEOF`, feature));
+    }
+    test("block: <<E\\OF does not hide the next line", () =>
+      expectBlock("cat <<E\\OF\nhi\nEOF\nrm -rf ~"));
+    test("block: an unquoted delimiter still expands its body", () =>
+      expectBlock("cat <<EOF\n$(rm -rf ~)\nEOF"));
+  });
+
+  describe("other commands that update a branch", () => {
+    const feature = repo("fix/x");
+    for (const cmd of [
+      "git subtree push --prefix dist origin main",
+      "git subtree push -P dist origin main",
+      "git subtree push --prefix=dist origin refs/heads/main",
+      "git subtree push -P dist --squash origin HEAD:master",
+      `git send-pack ${GH_URL} main`,
+      `git send-pack --all ${GH_URL}`,
+      `git send-pack ${GH_URL}`,
+      `git send-pack --stdin ${GH_URL}`,
+      "git push origin :",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    for (const cmd of [
+      "git subtree push -P dist origin +main",
+      `git send-pack --force ${GH_URL} main`,
+      `git send-pack -f ${GH_URL} fix/x`,
+      "git push origin +main",
+      "git push origin +HEAD:refs/heads/master",
+    ]) {
+      test(`block: ${cmd}`, () => expectBlock(cmd, feature));
+    }
+    for (const cmd of [
+      "git subtree push -P dist origin gh-pages",
+      "git subtree push -P dist origin",
+      "git subtree push -d -P dist origin fix/x",
+      `git send-pack ${GH_URL} fix/x`,
+      `git send-pack --dry-run ${GH_URL} main`,
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+  });
+
+  describe("gh api writes to a branch", () => {
+    const API = "repos/darkroomengineering/cc-settings";
+    for (const cmd of [
+      `gh api -X PATCH ${API}/git/refs/heads/main -f sha=abc`,
+      `gh api --method PATCH ${API}/git/refs/heads/master -f sha=abc`,
+      `gh api -XPATCH /${API}/git/refs/heads/main -f sha=abc`,
+      `gh api --method=PUT ${API}/branches/main/protection --input rules.json`,
+      `gh api -X DELETE ${API}/branches/main/protection`,
+      `gh api -X POST ${API}/branches/main/rename -f new_name=trunk`,
+      `gh api ${API}/git/refs -f ref=refs/heads/main -f sha=abc`,
+      `gh api -X POST ${API}/git/refs --input ref.json`,
+      `gh api ${API}/merges -f base=main -f head=fix/x`,
+      `gh api -X PUT ${API}/contents/README.md -f message=x -f content=eA==`,
+      `gh api -X PUT ${API}/contents/README.md -f message=x -f content=eA== -f branch=main`,
+      `gh api -X PATCH https://api.github.com/${API}/git/refs/heads/main -f sha=abc`,
+      `gh api -X PATCH ${API}/git/refs/heads/$B -f sha=abc`,
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd));
+    }
+    for (const cmd of [
+      `gh api -X PATCH ${API}/git/refs/heads/main -f sha=abc -F force=true`,
+      `gh api --method PATCH ${API}/git/refs/heads/master -F sha=abc -F force=1`,
+    ]) {
+      test(`block: ${cmd}`, () => expectBlock(cmd));
+    }
+    for (const cmd of [
+      `gh api ${API}/git/refs/heads/main`,
+      `gh api ${API}/branches/main/protection`,
+      `gh api -X PATCH ${API}/git/refs/heads/fix-x -f sha=abc -F force=true`,
+      `gh api ${API}/git/refs -f ref=refs/heads/fix-x -f sha=abc`,
+      `gh api ${API}/merges -f base=fix-x -f head=main`,
+      `gh api -X PUT ${API}/contents/README.md -f message=x -f content=eA== -f branch=fix-x`,
+      `gh api -X PUT ${API}/pulls/1/merge`,
+      // Deletes follow the `git push --delete main` policy.
+      `gh api -X DELETE ${API}/git/refs/heads/main`,
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd));
+    }
+  });
+
+  describe("wrappers in front of git", () => {
+    const feature = repo("fix/x");
+    for (const cmd of [
+      "time -p git push origin main",
+      "/usr/bin/time -p git push origin main",
+      "exec -a pusher git push origin main",
+      'env -S "git push origin main"',
+      "env -S'git push origin main'",
+      'env --split-string="git push origin main"',
+      "env -S 'HUSKY=1 git push origin main'",
+      "bash -c -- 'git push origin main'",
+      "sh -c -- 'git push origin main'",
+      "zsh -c -- 'git push origin main'",
+      "bash -c -e 'git push origin main'",
+      "$(which git) push origin main",
+      "`which git` push origin main",
+      "$(command -v git) push origin main",
+      '"$(which git)" push origin main',
+      "command git push origin main",
+      "caffeinate git push origin main",
+      "caffeinate -i -t 600 git push origin main",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    for (const cmd of [
+      'env -S "git push --force-with-lease origin main"',
+      "$(which git) push --force origin main",
+      `$(which git) commit --no-verify -m x`,
+      "time -p rm -rf ~",
+      "rm -rf $(which node)",
+    ]) {
+      test(`block: ${cmd}`, () => expectBlock(cmd, feature));
+    }
+    for (const cmd of [
+      "time -p git push origin fix/x",
+      "$(which git) push origin fix/x",
+      'env -S "git push origin fix/x"',
+      "caffeinate -i git push origin fix/x",
+      "bash -c -- 'git push origin fix/x'",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+  });
+
+  describe("destinations the hook cannot read ask", () => {
+    const feature = repo("fix/x");
+    const onMain = repo("main");
+    for (const cmd of [
+      'eval "git push origin main"',
+      "eval git push origin main",
+      "xargs git push origin < refs.txt",
+      "cat refs.txt | xargs git push origin",
+      "xargs -a refs.txt git push origin",
+      "echo main | xargs git push origin",
+      "echo main | xargs -n1 git push origin",
+      "B=main; git push origin $B",
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell variable
+      'B=main && git push origin "${B}"',
+      "export B=master; git push origin HEAD:$B",
+      'git push origin "$BRANCH"',
+      "B=main git push origin $B",
+      "git push origin HEAD:$(cat branch.txt)",
+      "for b in main; do git push origin $b; done",
+      "$GIT push origin main",
+      // The remote decides whether the push is local; an unreadable one is not.
+      "git push $REMOTE fix/x",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    test("ask on main: the current-branch substitution names main", () =>
+      expectAsk("git push -u origin $(git branch --show-current)", onMain));
+    for (const cmd of [
+      "echo fix/x | xargs git push origin",
+      "B=fix/x; git push origin $B",
+      "git push -u origin $(git branch --show-current)",
+      'git push -u origin "$(git rev-parse --abbrev-ref HEAD)"',
+      "git push origin `git symbolic-ref --short HEAD`",
+      "git push --dry-run origin $B",
+      "git push origin --delete $B",
+      "docker push $IMAGE",
+      "B=main; echo $B",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+  });
+
+  describe("push settings in git config", () => {
+    test("ask: push.default=upstream with main as the upstream", () =>
+      expectAsk(
+        "git push",
+        repo("fix/x", [
+          ["push.default", "upstream"],
+          ["branch.fix/x.remote", "origin"],
+          ["branch.fix/x.merge", "refs/heads/main"],
+        ]),
+      ));
+    test("allow: push.default=upstream with a feature upstream", () =>
+      expectAllow(
+        "git push",
+        repo("fix/x", [
+          ["push.default", "upstream"],
+          ["branch.fix/x.merge", "refs/heads/fix/x"],
+        ]),
+      ));
+    test("ask: remote.origin.push sends HEAD to main", () =>
+      expectAsk(
+        "git push origin",
+        repo("fix/x", [["remote.origin.push", "HEAD:refs/heads/main"]]),
+      ));
+    test("ask: a refspec without a destination follows remote.origin.push", () =>
+      expectAsk(
+        "git push origin fix/x",
+        repo("fix/x", [["remote.origin.push", "refs/heads/fix/x:refs/heads/main"]]),
+      ));
+    test("block: a forced remote.origin.push mapping onto main", () =>
+      expectBlock(
+        "git push origin fix/x",
+        repo("fix/x", [["remote.origin.push", "+refs/heads/fix/x:refs/heads/main"]]),
+      ));
+    test("allow: a refspec with its own destination ignores remote.origin.push", () =>
+      expectAllow(
+        "git push origin fix/x:fix/x",
+        repo("fix/x", [["remote.origin.push", "refs/heads/fix/x:refs/heads/main"]]),
+      ));
+    test("ask: remote.origin.mirror mirrors every ref", () =>
+      expectAsk("git push", repo("fix/x", [["remote.origin.mirror", "true"]])));
+    test("allow: remote.origin.mirror=false", () =>
+      expectAllow("git push", repo("fix/x", [["remote.origin.mirror", "false"]])));
+    test("ask: remote.origin.push with a wildcard", () =>
+      expectAsk("git push", repo("fix/x", [["remote.origin.push", "refs/heads/*:refs/heads/*"]])));
+    test("ask: push.default=matching", () =>
+      expectAsk("git push", repo("fix/x", [["push.default", "matching"]])));
+    test("ask: branch pushRemote decides which remote's push lines apply", () =>
+      expectAsk(
+        "git push",
+        repo("fix/x", [
+          ["remote.up.url", GH_URL],
+          ["remote.up.push", "HEAD:main"],
+          ["branch.fix/x.pushRemote", "up"],
+        ]),
+      ));
+    test("allow: push.default=nothing on main pushes nothing", () =>
+      expectAllow("git push", repo("main", [["push.default", "nothing"]])));
+    test("allow: push.default=current on a feature branch", () =>
+      expectAllow("git push", repo("fix/x", [["push.default", "current"]])));
+  });
+
+  describe("remotes on the local disk", () => {
+    const bare = bareRepo();
+    for (const [name, cmd, cwd] of [
+      ["bare push on main to a local origin", "git push", repo("main", [], bare)],
+      ["origin main to a local origin", "git push origin main", repo("fix/x", [], bare)],
+      ["file:// URL", `git push file://${bare} main`, repo("fix/x")],
+      ["absolute path", `git push ${bare} main`, repo("fix/x")],
+      ["relative path", "git push ../bare.git main", repo("fix/x")],
+      ["--all to a local origin", "git push --all origin", repo("fix/x", [], bare)],
+    ] as const) {
+      test(`allow: ${name}`, () => expectAllow(cmd, cwd));
+    }
+    for (const [name, cmd, cwd] of [
+      [
+        "a pushurl on GitHub",
+        "git push origin main",
+        repo("fix/x", [["remote.origin.pushurl", GH_URL]], bare),
+      ],
+      [
+        "an insteadOf rule rewrites the local path",
+        "git push origin main",
+        repo("fix/x", [["url.https://github.com/darkroomengineering/x.insteadOf", bare]], bare),
+      ],
+      ["an https remote", "git push origin main", repo("fix/x", [], "https://github.com/o/r.git")],
+      ["an unconfigured remote name", "git push upstream main", repo("fix/x")],
+    ] as const) {
+      test(`ask: ${name}`, () => expectAsk(cmd, cwd));
+    }
+    test("block: a forced update of main stays blocked on a local remote", () =>
+      expectBlock("git push --force-with-lease origin main", repo("fix/x", [], bare)));
+  });
+
+  describe("submodules", () => {
+    const feature = repo("fix/x");
+    for (const cmd of [
+      "git push --recurse-submodules=on-demand origin fix/x",
+      "git push --recurse-submodules on-demand origin fix/x",
+      "git push --recurse-submodules=only origin fix/x",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    for (const cmd of [
+      "git push --recurse-submodules=check origin fix/x",
+      "git push --recurse-submodules=no origin fix/x",
+      "git push --dry-run --recurse-submodules=on-demand origin fix/x",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+  });
+
+  describe("gh api option spellings and repeated fields", () => {
+    const API = "repos/darkroomengineering/cc-settings";
+    for (const cmd of [
+      `gh api -X=PATCH ${API}/git/refs/heads/main -F force=true`,
+      `gh api -X PATCH ${API}/git/refs/heads/main -f sha=abc -f=force=true`,
+      `gh api -X PATCH ${API}/git/refs/heads/main -F=force=true -f sha=abc`,
+      `gh api -X PATCH ${API}/git/refs/heads/main -F force=false -F force=true`,
+      "gh api -X=DELETE repos/o/r",
+    ]) {
+      test(`block: ${cmd}`, () => expectBlock(cmd));
+    }
+    for (const cmd of [
+      `gh api -X=PATCH ${API}/git/refs/heads/main -f sha=abc`,
+      `gh api ${API}/merges -f base=fix-x -f base=main -f head=fix-y`,
+      `gh api ${API}/git/refs -f ref=refs/heads/fix-x -f ref=refs/heads/main -f sha=abc`,
+      `gh api -X PUT ${API}/contents/README.md -f message=x -f content=eA== -F branch=@branch.txt`,
+      `gh api ${API}/git/refs -F ref=@ref.txt -f sha=abc`,
+      `gh api ${API}/merges -F base=@base.txt -f head=fix-x`,
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd));
+    }
+  });
+
+  describe("wildcard and short destinations", () => {
+    const feature = repo("fix/x");
+    for (const cmd of [
+      "git push origin '+refs/*:refs/*'",
+      "git push origin +HEAD:heads/master",
+      "git push origin '+refs/heads/*:refs/heads/*'",
+    ]) {
+      test(`block: ${cmd}`, () => expectBlock(cmd, feature));
+    }
+    for (const cmd of [
+      "git push origin 'refs/*:refs/*'",
+      "git push origin HEAD:heads/main",
+      "git push origin 'refs/heads/ma*:refs/heads/ma*'",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    test("ask: remote.origin.push with refs/*", () =>
+      expectAsk("git push", repo("fix/x", [["remote.origin.push", "refs/*:refs/*"]])));
+    for (const cmd of [
+      "git push origin 'refs/tags/*:refs/tags/*'",
+      "git push origin 'refs/heads/fix/*:refs/heads/fix/*'",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+  });
+
+  describe("config set on the command line or in the environment", () => {
+    const bare = bareRepo();
+    const local = repo("fix/x", [], bare);
+    for (const [name, cmd] of [
+      [
+        "insteadOf points the local path at GitHub",
+        "git -c url.git@github.com:darkroomengineering/x.git.insteadOf=/tmp/x push /tmp/x main",
+      ],
+      ["-c remote.origin.url", "git -c remote.origin.url=git@github.com:o/r.git push origin main"],
+      ["--config-env remote url", "git --config-env=remote.origin.url=U push origin main"],
+      [
+        "GIT_CONFIG_KEY_n url",
+        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=remote.origin.pushurl GIT_CONFIG_VALUE_0=x git push origin main",
+      ],
+      [
+        "GIT_CONFIG_PARAMETERS url",
+        "GIT_CONFIG_PARAMETERS=\"'remote.origin.url'='x'\" git push origin main",
+      ],
+      ["GIT_CONFIG_GLOBAL", "GIT_CONFIG_GLOBAL=/tmp/g git push origin main"],
+      ["exported GIT_CONFIG_SYSTEM", "export GIT_CONFIG_SYSTEM=/tmp/s; git push origin main"],
+    ] as const) {
+      test(`ask, no local exemption: ${name}`, () => expectAsk(cmd, local));
+    }
+    const feature = repo("fix/x");
+    for (const cmd of [
+      "git -c push.default=upstream push",
+      "git -c remote.origin.push=HEAD:main push origin",
+      "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=remote.origin.push GIT_CONFIG_VALUE_0=HEAD:main git push",
+      "git -c branch.fix/x.merge=refs/heads/main -c push.default=upstream push",
+      "git -c push.default=upstream push origin fix/x",
+      // A refspec without a destination takes it from remote.<name>.push.
+      "git -c remote.origin.push=+refs/heads/fix/x:refs/heads/main push origin fix/x",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    for (const cmd of ["git -c user.name=x push"]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+  });
+
+  describe("a branch changed earlier on the line", () => {
+    for (const cmd of [
+      "git checkout main && git merge --ff-only fix/x && git push",
+      "git switch main && git push origin HEAD",
+      "git worktree add ../hot main && cd ../hot && git push origin HEAD",
+      "(git checkout main) && git push",
+      "git checkout $B && git push",
+      "git checkout - && git push",
+      "git clone git@github.com:o/r.git r && cd r && git push",
+      "git checkout -t origin/main && git push",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, repo("fix/x")));
+    }
+    for (const cmd of [
+      "git checkout -b fix/y && git push -u origin HEAD",
+      "git switch -c fix/y && git push",
+      "git switch fix/x && git push",
+      "git checkout --detach && git push origin HEAD",
+    ]) {
+      test(`allow on main: ${cmd}`, () => expectAllow(cmd, repo("main")));
+    }
+    test("ask: a bare push outside any repository (branch unknown)", () => {
+      const dir = mkdtempSync(join(tmpdir(), "cc-safety-norepo-"));
+      cleanups.push(dir);
+      return expectAsk("git push", dir);
+    });
+    test.skipIf(process.platform === "win32")(
+      "ask: a .git that is a FIFO is not read (falls back to git, bounded)",
+      () => {
+        const dir = mkdtempSync(join(tmpdir(), "cc-safety-fifo-"));
+        cleanups.push(dir);
+        spawnSync("mkfifo", [join(dir, ".git")]);
+        return expectAsk("git push", dir);
+      },
+    );
+  });
+
+  describe("checkout success and repository identity", () => {
+    const onMain = repo("main");
+    const committed = spawnSync(
+      "git",
+      [
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=fixture@example.com",
+        "-c",
+        "commit.gpgsign=false",
+        "-c",
+        "core.hooksPath=/dev/null",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "fixture",
+      ],
+      {
+        cwd: onMain,
+        env: { ...process.env, GIT_CONFIG_GLOBAL: EMPTY_GITCONFIG, GIT_CONFIG_NOSYSTEM: "1" },
+      },
+    );
+    if (committed.status !== 0)
+      throw new Error(`cannot commit checkout fixture: ${committed.stderr.toString()}`);
+    const branched = spawnSync("git", ["branch", "fix/y"], { cwd: onMain });
+    if (branched.status !== 0) throw new Error("cannot create existing branch fixture");
+    for (const cmd of [
+      "git checkout -b fix/y; git push -u origin HEAD",
+      "git checkout -b fix/y\ngit push -u origin HEAD",
+      "git checkout -b fix/y || git push -u origin HEAD",
+      "git checkout -b fix/y & git push -u origin HEAD",
+      "git checkout -b fix/y | git push -u origin HEAD",
+      "git checkout -b fix/y && true; git push -u origin HEAD",
+      'echo "$(git checkout -b fix/y)" && git push -u origin HEAD',
+      "git checkout HEAD && git push",
+      "git checkout @ && git push",
+      "git checkout 'HEAD@{0}' && git push",
+      "git checkout 'HEAD^' && git push",
+      "git checkout 'HEAD~1' && git push",
+      "git checkout 'HEAD:path' && git push",
+    ]) {
+      test(`ask when checkout cannot establish a branch: ${cmd}`, () => expectAsk(cmd, onMain));
+    }
+    test("allow: && requires the existing-branch checkout to succeed", () =>
+      expectAllow("git checkout -b fix/y && git push -u origin HEAD", onMain));
+
+    const feature = repo("fix/x");
+    mkdirSync(join(feature, "src"));
+    for (const cmd of [
+      "git -C src checkout main && git push",
+      "cd src && git checkout main && cd .. && git push",
+      "(cd src && git checkout main) && git push",
+      "git checkout main | (git push origin HEAD)",
+      "git checkout -bmain && git push",
+      "git checkout -Bmain && git push",
+      "git switch -cmain && git push",
+      "git switch -Cmain && git push",
+      "git branch -m main && git push",
+      "git branch -M main && git push",
+      "git rebase fix/y main && git push",
+      "git co main && git push",
+    ]) {
+      test(`ask after a branch mutation in the same repository: ${cmd}`, () =>
+        expectAsk(cmd, feature));
+    }
+    const vendor = join(feature, "vendor", "lib");
+    mkdirSync(vendor, { recursive: true });
+    spawnSync("git", ["init", "-q", "-b", "main", vendor]);
+    spawnSync("git", ["remote", "add", "origin", GH_URL], { cwd: vendor });
+    test("ask: a nested repository keeps its own main branch", () =>
+      expectAsk("git checkout fix/y && git -C vendor/lib push origin HEAD", feature));
+    const bare = join(feature, "vendor", "bare.git");
+    spawnSync("git", ["init", "-q", "--bare", "--initial-branch=main", bare]);
+    spawnSync("git", ["remote", "add", "origin", GH_URL], { cwd: bare });
+    test("ask: a nested bare repository stops the parent checkout walk", () =>
+      expectAsk("git checkout fix/y && git -C vendor/bare.git push origin HEAD", feature));
+  });
+
+  describe("routing changes earlier on the line", () => {
+    const local = repo("fix/x", [], bareRepo());
+    for (const cmd of [
+      "git remote set-url origin git@github.com:darkroomengineering/x.git && git push origin main",
+      "git remote add upstream git@github.com:darkroomengineering/x.git && git push origin main",
+      "git remote rename origin upstream && git push origin main",
+      "git config remote.origin.url git@github.com:darkroomengineering/x.git && git push origin main",
+      "git config --comment get remote.origin.url git@github.com:darkroomengineering/x.git && git push origin main",
+      "git config push.default upstream && git push origin fix/x",
+      "git branch -u origin/main && git push origin fix/x",
+      "git branch --set-upstream-to=origin/main && git push origin fix/x",
+      "git -c branch.fix/x.pushRemote=upstream push",
+    ]) {
+      test(`ask without a stale local-remote exemption: ${cmd}`, () => expectAsk(cmd, local));
+    }
+    const feature = repo("fix/x");
+    for (const cmd of [
+      "git push --repo origin main",
+      "git push --repo=origin main",
+      "git -c remote.origin.push=HEAD:main push --repo origin",
+      "git -c remote.origin.push=HEAD:main push --repo=origin",
+    ]) {
+      test(`ask: the --repo value is the remote: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+  });
+
+  describe("gh fields and endpoints containing expansions", () => {
+    const API = "repos/darkroomengineering/cc-settings";
+    for (const cmd of [
+      `gh api ${API}/git/refs -f ref=$REF -f sha=abc`,
+      `gh api ${API}/merges -f base=$BASE -f head=fix-x`,
+      `gh api -X PUT ${API}/contents/README.md -f branch=$BRANCH -f message=x -f content=eA==`,
+      `gh api ${API}/merges -f base=\`cat branch.txt\` -f head=fix-x`,
+      `gh api -X PATCH ${API}/git/refs/heads/main -f sha=abc -F force=$FORCE`,
+      `gh api -X PATCH ${API}/git/refs/heads/main -f sha=abc -F force=\`cat force.txt\``,
+      `gh api -X POST ${API}/$ENDPOINT -f name=x`,
+    ]) {
+      test(`ask: expansion may target or force main: ${cmd}`, () => expectAsk(cmd));
+    }
+  });
+
+  describe("branch substitutions run in the shell directory", () => {
+    const main = repo("main");
+    const feature = repo("fix/x");
+    test("ask: -C cannot change the branch expanded by the shell", () =>
+      expectAsk(`git -C ${feature} push origin $(git branch --show-current)`, main));
+    test("allow: shell feature branch remains explicit when -C points at main", () =>
+      expectAllow(`git -C ${main} push origin $(git branch --show-current)`, feature));
+  });
+
+  describe("which repository git runs in", () => {
+    const onMain = repo("main");
+    const feature = repo("fix/x");
+    const slash = (p: string): string => p.replaceAll("\\", "/");
+    for (const cmd of [
+      `git -C ${slash(onMain)} push origin HEAD`,
+      `git -C ${slash(onMain)} push`,
+      `env -C ${slash(onMain)} git push`,
+      `env --chdir=${slash(onMain)} git push`,
+      "git -C $D push",
+      "git --git-dir=/x/.git push",
+      "git --work-tree=/x push origin HEAD",
+      "GIT_DIR=/x/.git git push origin HEAD",
+      "export GIT_DIR=/x/.git; git push",
+      "cd $D && git push",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    test("ask: -C into a GitHub checkout from one with a local origin", () =>
+      expectAsk(`git -C ${slash(onMain)} push origin main`, repo("fix/x", [], bareRepo())));
+    test("block: a forced update of main through --git-dir", () =>
+      expectBlock("git --git-dir=/x/.git push origin +main", feature));
+    for (const cmd of [
+      `git -C ${slash(feature)} push`,
+      `git -C ${slash(feature)} push origin HEAD`,
+      "git --git-dir=/x/.git push origin fix/x",
+    ]) {
+      test(`allow from a main checkout: ${cmd}`, () => expectAllow(cmd, onMain));
+    }
+  });
 });

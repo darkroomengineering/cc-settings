@@ -350,7 +350,7 @@ permission matcher. That layer decides what is blocked.
 
 `src/hooks/safety-net.ts` is **advisory defense-in-depth**: it
 pattern-matches on a best-effort scan of the command (quote-aware, not a
-full shell parser) and blocks what it recognizes, but a parser gap or a hook timeout allows the command
+full shell parser) and blocks what it recognizes, but a parser gap allows the command
 through. It runs inside `src/hooks/dispatch.ts`, which blocks with
 `[Safety Net] internal error, failing closed: <detail>` when safety-net
 throws, times out or fails to load; run alone, an unexpected internal error exits 1,
@@ -407,15 +407,83 @@ safety-net uses. The permission prompt and the deny-list remain the boundary.
 
 - gh aliases, and the destination of `gh issue transfer`.
 - `git rebase`, `git am` and `git pull` with `--no-verify`.
-- `declare -x HUSKY=0`, `caffeinate gh ...`, `time -p gh ...`, and a variable
-  as the command word (`g=gh; $g ...`).
+- `declare -x HUSKY=0`, and a variable as the command word (`g=gh; $g ...`).
 - `GIT_DIR=... gh ...` and `git -c alias.c='commit --no-verify' c`.
 - Commands inside `$(( ))` arithmetic.
 - Interpreter one-liners that read secrets (`python3 -c`, `node -e`,
   `bun -e`), `grep -r` over a directory that holds a secret file, and paths
   built at runtime, including globs in the command word (`dotenv? get K`).
 - Brace expansion, `xargs` stdin, and a variable passed as an argument
-  (`cat {.en,}v`, `echo .env | xargs cat`, `f=.env; cat "$f"`).
+  (`cat {.en,}v`, `echo .env | xargs cat`, `f=.env; cat "$f"`). The
+  main-push rule is the exception: a push whose command word, destination,
+  branch or repository it cannot read asks instead of passing (see below).
+- A push of main from inside a script file, a git alias or a git hook, and
+  the submodule pushes that `push.recurseSubmodules=on-demand` or
+  `submodule.recurse=true` in git config adds (only the
+  `--recurse-submodules=on-demand` and `=only` flags ask).
+
+### What the main-push rule reads, and its known limits
+
+The rule covers `git push`, `git subtree push`, `git send-pack` and `gh api`
+branch writes. It asks for an update of main or master and blocks a forced one.
+It asks, rather than passing, when it cannot tell where a push goes:
+
+- a destination or remote that holds a variable not assigned earlier on the
+  line, a command substitution other than the current-branch lookups
+  (`$(git branch --show-current)` and its equivalents), or `xargs` input other
+  than a literal `echo`/`printf`;
+- a push that relies on the current branch (a bare push, `HEAD`, `@`) after an
+  earlier `git checkout`/`git switch` it cannot read, a `git worktree` or
+  `git clone`, or in a directory that does not exist yet or that a `cd`,
+  `git -C` or `env -C` it cannot read moved into; `git --git-dir`,
+  `--work-tree`, `GIT_DIR` and `GIT_WORK_TREE` on the line count as an
+  unknown repository, whose branch is unknown and whose remotes are never
+  treated as local;
+- any push while `-c`, `--config-env`, `GIT_CONFIG_KEY_n`,
+  `GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_GLOBAL` or `GIT_CONFIG_SYSTEM` sets
+  push routing (`push.default`, `remote.*.push`, `remote.*.mirror`,
+  `branch.*.merge`, `branch.*.remote`, `branch.*.pushRemote`).
+
+A push to a remote on the local disk (a path or `file://` URL) is not checked,
+unless git config could not be read or the command line or environment sets a
+URL rewrite (`url.*.insteadOf`, `url.*.pushInsteadOf`, `remote.*.url`,
+`remote.*.pushurl`). The current branch is read from HEAD on disk (a small
+regular file, never a symlink), and git is asked only when that file cannot
+answer; a failing git means "unknown", which asks, not "detached".
+
+Known limits, open for a follow-up:
+
+- Abbreviated long options such as `--mi`, `--al` and `--force-w`.
+- `gh api` flag clusters such as `-iX DELETE`, which reads as GET and skips
+  owner checks, and absolute endpoint URLs. The repo-delete check misses a
+  quoted or path-prefixed `gh` command.
+- Config sources selected by `HOME`, `XDG_CONFIG_HOME`, `include.path` and
+  `GIT_COMMON_DIR`.
+- Wrapper and keyword forms `env --unset`, `env -P`, `env -vS`,
+  `timeout --signal`, `sudo --chdir`, `function` and `coproc`.
+- Forced updates that only ask: `--mirror`, a `+` in an on-disk
+  `remote.X.push`, and `gh --input` with force.
+- Upstream mode with a branch created on the same line.
+- The scanner's `chdirs` field is used only by the push rule.
+- `merge-upstream` and rulesets endpoints.
+- `remoteOwners` spawns git with no timeout.
+- A variable used as the command word when its value has spaces
+  (`G="git push"; $G origin main`), and a whole command produced by a
+  substitution (`$(echo git push origin main)`).
+- `xargs` input that `printf` escapes reshape, `xargs -I` replacement, `-a`
+  files, and empty words.
+- Variables set by anything other than a plain assignment or `export`: `+=`,
+  `for`, `read`, `printf -v`, `declare`, `eval`, and shell functions; a value
+  assigned earlier and changed this way is used as if unchanged.
+- Substitution placeholders: the scanner replaces each `$(...)` with a fixed
+  marker, so a literal marker typed in the command, and which body belongs to
+  which marker, are not tracked exactly.
+- Brace expansion in a refspec (`git push origin {main,dev}`).
+- Wrappers not in the parser's table, and `git subtree` options placed before
+  `push`.
+- Percent-encoded `gh api` endpoints (`git/refs/heads%2Fmain`).
+- On a case-insensitive filesystem, a command word spelled `GIT` or `Git`.
+- A `<<` inside `(( ))` arithmetic read as a heredoc.
 
 Related limits sit in the permission rules rather than safety-net:
 

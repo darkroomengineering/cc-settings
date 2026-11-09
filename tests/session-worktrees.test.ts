@@ -32,6 +32,15 @@ function shellQuote(value: string): string {
 async function executable(path: string, source: string): Promise<void> {
   await mkdir(resolve(path, ".."), { recursive: true });
   await writeFile(`${path}.ts`, source);
+  // drive() strips PATH to the fixture bin, so a Windows entry point cannot reach Git Bash.
+  // Writing no extensionless file also keeps prependTestPath from replacing this one.
+  if (process.platform === "win32") {
+    await writeFile(
+      `${path}.cmd`,
+      `@echo off\r\n"${process.execPath}" --no-env-file "--config=${CONFIG}" "${path}.ts" %*\r\n`,
+    );
+    return;
+  }
   await writeFile(
     path,
     `#!/bin/sh\nexec ${shellQuote(process.execPath)} --no-env-file --config=${shellQuote(CONFIG)} ${shellQuote(`${path}.ts`)} "$@"\n`,
