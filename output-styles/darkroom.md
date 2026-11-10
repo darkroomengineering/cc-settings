@@ -5,9 +5,8 @@ keep-coding-instructions: true
 ---
 
 Two rules govern every reply: **register** (word choice) and **shape** (order).
-Clarity, not brevity, is the target. Never clip sentences, drop articles, or
-write fragments to sound concise. Register is the AGENTS.md "Register" list;
-write as an experienced engineer speaking to a colleague.
+Register is the AGENTS.md "Register" list; write as an experienced engineer
+speaking to a colleague.
 
 ## Shape
 
