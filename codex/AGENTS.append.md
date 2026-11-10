@@ -10,28 +10,28 @@ This section supersedes Claude-only mechanics in the portable `AGENTS.md` when t
   `wait_agent`, and stop its current turn with `interrupt_agent` only when
   necessary.
 - Use `apply_patch` for file edits and `exec_command` for shell commands. Do not translate these back to Claude tool names.
-- Every agent is a fresh context that re-pays the instructions and re-reads files, so delegate for scale, not by habit. Before each unit of work, ask once: **3+ files, 12+ tool calls, or security-sensitive code?** If no threshold fires, work directly. Re-evaluate when scope grows; state one reason before overriding a yes. This is the same threshold and routing Claude Code uses, so the two hosts should feel alike.
+- Every agent is a fresh context that re-pays the instructions and re-reads files, so delegate for scale, not by habit. Before each unit of work, ask once: **3+ files, 12+ tool calls, or security-sensitive code?** If yes, route when it saves main-context reading; the `security-reviewer` row always applies. If no threshold fires, work directly. Re-evaluate when scope grows. This is the same threshold and routing Claude Code uses, so the two hosts should feel alike.
 
   | Work | Route |
   |---|---|
   | understand, find, map, blast radius | `explore` |
   | build, change, fix across files | `implementer` |
   | plan or architecture | `planner` |
-  | new test files | `tester` (**MUST**) |
+  | new test files | `tester` |
   | auth, payments, crypto, input validation | `security-reviewer` (**MUST**) |
-  | dead code or deslop | `deslopper` (**MUST**) |
-  | 3+ independent workstreams | parallel `spawn_agent` calls in one turn (**MUST**) |
+  | dead code or deslop | `deslopper` |
+  | 3+ independent workstreams | parallel `spawn_agent` calls in one turn |
   | full feature spanning 3+ agents | `maestro` |
 
 - Start independent delegations together and keep working while they run; wait only when the next step depends on their result. Resume an existing agent with `send_message` or `followup_task` instead of spawning a replacement; a respawn repurchases its whole context. Respawn only for a deliberately cold second opinion.
 - Give every implementer the full briefing contract from the portable `AGENTS.md`: the user's ask verbatim, exact paths and line ranges, the concrete change, verification commands with expected output, off-limits scope, and stop conditions. Thin prompts must be refused.
-- Never spawn `codex-verifier` and never call the Claude-to-Codex bridge from standalone Codex. For an independent review from another model family, spawn `claude-verifier` (read-only, calls Claude Opus 5.5 through `claude-run.ts`; needs network, so approve the escalation when prompted). For a same-family second opinion, spawn a fresh `reviewer`; for adversarial verification, use separate issue-finder, disprover, and judge agents.
+- Never spawn `codex-verifier` and never call the Claude-to-Codex bridge from standalone Codex. For an independent review from another model family, spawn `claude-verifier` (read-only, calls Claude Opus 5.5 through `claude-run.ts`; needs network, so when the sandbox has network disabled, report the blocker and the `network_access` fix the script names). For a same-family second opinion, spawn a fresh `reviewer`; for adversarial verification, use separate issue-finder, disprover, and judge agents.
 - Native agents carry no `model` and run on the session's model. Delegate long execution to execution roles (`implementer`, `tester`) and keep decisions in the session.
 - Writers share the working tree unless the live host explicitly offers
   isolation. Assign non-overlapping file ownership and serialize implementer
   and test-writer phases. Only read-only reviewers may overlap. Never promise a
   Codex implementer Claude worktree isolation.
-- The clarifying round from the portable standards uses `request_user_input`, which Codex exposes only in Plan mode. For a request whose readings lead to materially different work, switch to Plan mode first (`/plan`), run the round there with meaningful multiple-choice options and the recommendation first, then return to Pair or Execute mode (Shift+Tab) for the work. Outside Plan mode, where the tool is absent, put the questions in the reply as a numbered list with a default per line and stop; do not start the work on guessed answers.
+- A question round from the portable standards uses `request_user_input`, which Codex exposes only in Plan mode. For a request whose readings lead to materially different work, switch to Plan mode first (`/plan`), run the round there with meaningful multiple-choice options and the recommendation first, then return to Pair or Execute mode (Shift+Tab) for the work. Outside Plan mode, where the tool is absent, put the questions in the reply as a numbered list with a default per line and stop; do not start the work on guessed answers.
 - Invoke a shared skill as `$skill-name`. When a skill has product-aware branches, always choose its standalone-Codex branch.
 - Use `/hooks` to inspect and manage hook trust. Use `/status` for native session, model, sandbox, and usage status. Codex exposes no API for reproducing Claude's exact statusline rendering.
 
@@ -56,4 +56,4 @@ Claude Code loads these as path-scoped rules (`rules/design.md`, `rules/writing.
 
 ## Response shape
 
-Lead with the result or next action. Number multi-step work with one bounded action per step. Take reversible in-scope actions instead of offering them. After the opening clarifying round, ask only when the user owns a material or irreversible choice. Keep tangents separate, state current progress on ongoing work, report errors with their cause and fix, and stop when the useful answer is complete.
+Lead with the result or next action. Number multi-step work with one bounded action per step. Take reversible in-scope actions instead of offering them. Ask only when the user owns a material or irreversible choice. Keep tangents separate, state current progress on ongoing work, report errors with their cause and fix, and stop when the useful answer is complete.

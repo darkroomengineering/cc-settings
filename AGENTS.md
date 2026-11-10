@@ -66,11 +66,7 @@ One lifecycle spread across flags (`isLoading` beside `isError`, a `status` besi
 
 ### Completeness Is Cheap
 
-Once the ladder says a bounded unit should exist, finish its edge cases and error paths when that costs only minutes more; do not ship 90% and defer the rest. Complete the unit without expanding scope (`Bug Fix Scope` and `Surface Conflicts` still apply). Commit tests only where the task asks or the repository already keeps that kind; scratch checks stay scratch.
-
-### No Loose Ends
-
-Finish the follow-ups your own change creates. After a delete, rename, or move, find and fix every reference (imports, links, docs, config, tests, sibling checkouts the files name) in the same pass. Do a minutes-long follow-up instead of suggesting it. Hand back only a decision the user owns, access you lack, or a change you could not reach.
+When it costs minutes, finish a bounded unit's edge cases and error paths and do a follow-up instead of suggesting it; do not expand scope (`Bug Fix Scope` and `Surface Conflicts` still apply). Commit tests only where the task asks or the repo keeps that kind. After a delete, rename, or move, fix every reference in the same pass. Hand back only a decision the user owns, access you lack, or a change you could not reach.
 
 ### Verify After Every Fix
 
@@ -129,9 +125,9 @@ Use neutral investigation prompts: ask to analyze logic, review a flow, or trace
 
 Default to no comment. Add one only when an agent without it would make a wrong edit or waste a search: an invariant, a non-obvious why, an outside fact (linked), or a warning against a safe-looking edit. Never restate the code, narrate the change, address the reviewer, or echo types in JSDoc. Implement `TODO`/`FIXME`/`HACK`; never delete one without doing the work. `SHORTCUT:` stays until its `upgrade:` trigger fires; then upgrade and delete it together.
 
-### Clarify Before Full Work Mode
+### Ask Through the Question Tool
 
-Any non-trivial solution (beyond a lookup or obvious one-file fix) opens with clarifying rounds on target repo or branch, design choices, what "done" means. Repeat until no decision that changes the work is left; later rounds ask only what answers opened. Per round: at most 4 questions, 2 to 4 concrete options, recommended first, through the host's question tool (`AskUserQuestion`; Codex `request_user_input`), never a prose list. Make routine calls (conventional default) yourself; state the assumption. Read before asking; ask only what the user alone knows. Ask any user decision, mid-task too, through the tool that turn; never end a turn on a prose question.
+Ask only a decision that changes the work and that the user alone knows. Read before asking. Make routine calls (conventional default) yourself; state the assumption. Per round: at most 4 questions, 2 to 4 concrete options, recommended first, through the host's question tool (`AskUserQuestion`; Codex `request_user_input`), never a prose list. Ask any user decision, mid-task too, through the tool that turn; never end a turn on a prose question.
 
 ### Plan Before Multi-File Changes
 

@@ -20,7 +20,7 @@ Readers spot generated copy within a sentence, and once they do they stop trusti
 
 ## Start from facts, not adjectives
 
-Before writing a headline, collect what is actually true: what the product does in one plain sentence, who it is for, one number or example the user has given you, and what it replaces. If the user has not given you these, ask (AGENTS.md "Clarify Before Full Work Mode"). A placeholder like `[real customer quote]` is better than an invented one.
+Before writing a headline, collect what is actually true: what the product does in one plain sentence, who it is for, one number or example the user has given you, and what it replaces. If the user has not given you these, ask (AGENTS.md "Ask Through the Question Tool"). A placeholder like `[real customer quote]` is better than an invented one.
 
 - Name the thing. "Turns a Figma frame into a Next.js page" beats "powerful design-to-code workflows."
 - Show the result. "Your invoice is sent before the call ends" beats "a seamless experience."
