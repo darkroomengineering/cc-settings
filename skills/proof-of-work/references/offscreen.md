@@ -90,6 +90,13 @@ not the exit code.
 - A window the app opens after `launch` shows on the user's screen until the
   next `park`, usually for under a second. Run `park` right after any action
   that opens one.
+- Focus is handed back by a poll during `launch` (about 0.5 s), so the frontmost
+  app can flip briefly. Actions that open a window can do the same; check
+  `status` afterwards.
+- The display, its pidfile and the launched-apps list are shared by every
+  session on the machine. Run `status` first, reuse a display that is up, and
+  `stop` only one you started.
+- The display is 1x, so screenshots do not show Retina (@2x) asset problems.
 - A control without a title, description or identifier cannot be matched.
   Give it an `accessibilityIdentifier` in the app; that also helps VoiceOver.
 - The user can still move the cursor onto the virtual display by dragging it

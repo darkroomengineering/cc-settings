@@ -5,6 +5,7 @@
 #import <ApplicationServices/ApplicationServices.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <Foundation/Foundation.h>
+#import <libproc.h>
 
 @interface CGVirtualDisplayDescriptor : NSObject
 @property(retain, nonatomic) dispatch_queue_t queue;
@@ -185,10 +186,18 @@ static int cmdDisplay(int argc, const char **argv) {
 
 // Agents run each shell command in a fresh process, so they stop the display
 // by pidfile rather than by a $! they no longer have.
+// A stale pidfile can name a pid the OS has since reused, so only signal a
+// process running this same binary.
+static BOOL isOffscreenProcess(pid_t pid) {
+  char theirs[PROC_PIDPATHINFO_MAXSIZE], mine[PROC_PIDPATHINFO_MAXSIZE];
+  if (proc_pidpath(pid, theirs, sizeof theirs) <= 0 || proc_pidpath(getpid(), mine, sizeof mine) <= 0) return NO;
+  return strcmp(theirs, mine) == 0;
+}
+
 static int cmdStop(void) {
   NSString *raw = [NSString stringWithContentsOfFile:displayPidFile() encoding:NSUTF8StringEncoding error:nil];
   pid_t pid = (pid_t)raw.intValue;
-  if (pid <= 0 || kill(pid, 0) != 0) {
+  if (pid <= 0 || kill(pid, 0) != 0 || !isOffscreenProcess(pid)) {
     [NSFileManager.defaultManager removeItemAtPath:displayPidFile() error:nil];
     if (findDisplay()) die(@"the display is up but its pidfile is missing; kill its `offscreen display` process with SIGTERM");
     out(@"display none");
@@ -227,17 +236,20 @@ static void requireAX(void) {
     die(@"this terminal lacks Accessibility permission (System Settings > Privacy & Security > Accessibility)");
 }
 
-static void moveWindowsToDisplay(pid_t pid, CGDirectDisplayID d) {
+static int moveWindowsToDisplay(pid_t pid, CGDirectDisplayID d) {
+  int failed = 0;
   CGRect b = displayBounds(d);
   int i = 0;
   for (id w in axWindows(pid)) {
     AXUIElementRef win = (__bridge AXUIElementRef)w;
     CGPoint p = CGPointMake(b.origin.x + 40 + 30 * i, b.origin.y + 60 + 30 * i);
     AXValueRef v = AXValueCreate(kAXValueCGPointType, &p);
-    AXUIElementSetAttributeValue(win, kAXPositionAttribute, v);
+    AXError err = AXUIElementSetAttributeValue(win, kAXPositionAttribute, v);
     CFRelease(v);
+    if (err != kAXErrorSuccess) failed++;
     i++;
   }
+  return failed;
 }
 
 // A label for matching: title, then description, then identifier, then value.
@@ -268,7 +280,9 @@ static AXUIElementRef axFind(pid_t pid, NSString *query, NSString *role) {
   axWalk(app, 0, 40, ^BOOL(AXUIElementRef el, int depth) {
     if (role && ![axStr(el, kAXRoleAttribute) isEqualToString:role]) return NO;
     NSString *l = axLabel(el);
-    if ([l isEqualToString:query] || [axStr(el, kAXIdentifierAttribute) isEqualToString:query]) {
+    if ([l isEqualToString:query] || [axStr(el, kAXTitleAttribute) isEqualToString:query] ||
+        [axStr(el, kAXDescriptionAttribute) isEqualToString:query] ||
+        [axStr(el, kAXIdentifierAttribute) isEqualToString:query]) {
       found = (AXUIElementRef)CFRetain(el);
       return YES;
     }
@@ -322,16 +336,18 @@ static int cmdLaunch(int argc, const char **argv) {
   // Move windows as they appear; also hand focus back if the app activated itself.
   NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:15];
   BOOL sawWindow = NO;
+  int lastFailed = 0;
   while ([deadline timeIntervalSinceNow] > 0) {
     if (app.isActive && front && front.processIdentifier != app.processIdentifier)
       [front activateWithOptions:0];
     if (axWindows(app.processIdentifier).count) {
-      moveWindowsToDisplay(app.processIdentifier, d);
+      lastFailed = moveWindowsToDisplay(app.processIdentifier, d);
       if (sawWindow) break;
       sawWindow = YES;
     }
     [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.5]];
   }
+  if (lastFailed) fprintf(stderr, "offscreen: %d window(s) of pid %d could not be moved and may be on your screen; run `offscreen park %d`\n", lastFailed, app.processIdentifier, app.processIdentifier);
   if (!sawWindow) fprintf(stderr, "offscreen: no window yet; run `offscreen park %d` once one opens\n", app.processIdentifier);
   out([NSString stringWithFormat:@"%d", app.processIdentifier]);
   return 0;
@@ -340,7 +356,9 @@ static int cmdLaunch(int argc, const char **argv) {
 static int cmdPark(int argc, const char **argv) {
   if (argc < 1) die(@"usage: offscreen park <pid>");
   requireAX();
-  moveWindowsToDisplay(parsePid(argv[0]), requireDisplay());
+  pid_t pid = parsePid(argv[0]);
+  int failed = moveWindowsToDisplay(pid, requireDisplay());
+  if (failed) die([NSString stringWithFormat:@"%d window(s) of pid %d could not be moved onto the virtual display; they may be on your screen", failed, pid]);
   return 0;
 }
 
@@ -450,6 +468,7 @@ static void postKey(pid_t pid, CGKeyCode code, UniChar ch, CGEventFlags flags) {
 
 static int cmdType(int argc, const char **argv) {
   if (argc < 2) die(@"usage: offscreen type <pid> <text>");
+  requireAX();
   pid_t pid = parsePid(argv[0]);
   NSString *s = [NSString stringWithUTF8String:argv[1]];
   for (NSUInteger i = 0; i < s.length; i++) {
@@ -462,6 +481,7 @@ static int cmdType(int argc, const char **argv) {
 
 static int cmdKey(int argc, const char **argv) {
   if (argc < 2) die(@"usage: offscreen key <pid> <combo>  e.g. return, escape, tab, cmd+n, cmd+shift+k");
+  requireAX();
   pid_t pid = parsePid(argv[0]);
   NSArray *parts = [[NSString stringWithUTF8String:argv[1]].lowercaseString componentsSeparatedByString:@"+"];
   CGEventFlags flags = 0;
@@ -490,6 +510,7 @@ static int cmdKey(int argc, const char **argv) {
 
 static int cmdShot(int argc, const char **argv) {
   if (argc < 2) die(@"usage: offscreen shot <pid> <out.png>");
+  if (!CGPreflightScreenCaptureAccess()) die(@"this terminal lacks Screen Recording permission (System Settings > Privacy & Security > Screen Recording)");
   pid_t pid = parsePid(argv[0]);
   // On-screen windows come back front to back, so the first one is the app's front window.
   NSArray *wins = CFBridgingRelease(CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID));
