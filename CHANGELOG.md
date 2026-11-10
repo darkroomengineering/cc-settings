@@ -4,10 +4,32 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
-## [Unreleased]
+## [16.1.0] — 2026-11-10
+
+Sessions start on Opus 5.5 again, with Fable 5.2 as the advisor. The safety net closes the remaining known ways to hide a push to main inside a command, and proof-of-work tests Mac apps without taking over your screen.
+
+**Changed:**
+- Sessions start on Claude Opus 5.5 (`claude-opus-5-5`) instead of Fable 5.2. Routine work costs half as much per token and stops drawing on the weekly Fable cap. Fable 5.2 stays the advisor and the `planner` model, and `/model claude-fable-5-2` steps up for hard planning or stuck work. Installs that never changed `model` move with the default, and code-editing agents follow the session (OSS-211, #312).
+- `maestro` runs at high effort instead of max. The `maestro`, `implementer` and `tester` prompts say what an advisor call costs and when to skip it (OSS-211, #312).
+- The safety net blocks or asks when a push to main, a force push, a skipped commit hook or a destructive command is hidden behind a variable, a substitution, a brace list, `IFS`, `eval` or an arithmetic shift. For example, `A=gi; B=t; C=pus; D=h; $A$B $C$D origin +HEAD:main` now blocks. A command it cannot read in full ends in a question, never in a silent allow (OSS-197, #311).
+- One case asks less: `sudo --chdir=<feature checkout> git push` run from a main checkout is allowed, because the push runs in the feature checkout (OSS-197, #311).
+- Sessions load about 700 fewer bytes per turn. Four instructions that repeated `AGENTS.md` or `agents/implementer.md` are gone from `CLAUDE-FULL.md`, the output style, `rules/react.md` and `rules/security.md`; each rule stays in the file that owns it (OSS-201, #313).
+
+**Added:**
+- proof-of-work runs a native Mac app on a virtual display, drives it there and screenshots its window, so testing no longer takes over your cursor, keyboard or frontmost app. It needs Accessibility and Screen Recording granted to the terminal app, and it stops instead of falling back to the real screen when they are missing (OSS-214, #317).
+- A guardrail in `AGENTS.md`, "Fit the Feature to the Structure": when a feature only fits as a special case, a flag or a parallel path, the agent stops and proposes the refactor before writing it. A refactor inside the files the feature already touches needs no stop (OSS-213, #315).
+- `SECURITY.md` lists the command forms the safety net still does not read (OSS-197, #311).
 
 **Fixed:**
-- The `browser` agent's description and the routing docs say to spawn it without the Agent tool's `name`. A named spawn runs as a teammate, and teammates start without the agent's Chrome server, so the agent came up with no Chrome tools (OSS-187).
+- A Codex call no longer hangs when a process Codex started outlives the timeout and keeps the output pipes open. The timeout kills the whole process tree, and the call returns within 2 seconds with the output Codex had produced (OSS-200, #310).
+- The `browser` agent's description and the routing docs say to spawn it without the Agent tool's `name`. A named spawn runs as a teammate, and teammates start without the agent's Chrome server, so the agent came up with no Chrome tools (OSS-187, #316).
+- Test fixtures ignore your global git config, so commit signing or a custom hooks path on your machine no longer fails the suite (OSS-199, #309).
+- Six Codex worker tests pass on Windows. Their child process received both the inherited `Path` and an added `PATH`, and could not find the Codex CLI (OSS-212, #314).
+
+**Files changed:**
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts` (version)
+- `config/10-core.json`, `agents/maestro.md`, `agents/implementer.md`, `agents/tester.md`, `CLAUDE-FULL.md`, `docs/agent-models.md`, `docs/settings-reference.md`, `docs/claude-vs-codex.md` (models)
+- `src/hooks/safety-net.ts`, `src/lib/hook-command.ts`, `src/hooks/visual-proof.ts`, `SECURITY.md` (safety net)
 
 ## [16.0.0] — 2026-11-09
 
