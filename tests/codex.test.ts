@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { z } from "zod";
 import {
   assessWorkerResult,
   buildExecPrompt,
@@ -21,14 +22,19 @@ import {
 } from "../src/lib/codex.ts";
 import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
 
-async function verdictScenario(scenario: string): Promise<unknown> {
+// Above the 10s spawn timeout in verdictScenario, so a hung scenario fails on its
+// exit code with its stderr instead of on the test timeout.
+const SPAWNING_TEST_TIMEOUT_MS = 30_000;
+
+async function verdictScenario(
+  scenario: string,
+  codexExec = (dir: string) =>
+    `touch '${gitBashPath(join(dir, "started"))}'\nwhile [ ! -f '${gitBashPath(join(dir, "release"))}' ]; do sleep 0.01; done\necho ok\n`,
+): Promise<unknown> {
   const dir = await mkdtemp(join(tmpdir(), "cc-codex-verdict-"));
   try {
     const fake = join(dir, "codex");
-    await writeFile(
-      fake,
-      `#!/bin/sh\nif [ "$1" = "login" ]; then exit 0; fi\ntouch '${gitBashPath(join(dir, "started"))}'\nwhile [ ! -f '${gitBashPath(join(dir, "release"))}' ]; do sleep 0.01; done\necho ok\n`,
-    );
+    await writeFile(fake, `#!/bin/sh\nif [ "$1" = "login" ]; then exit 0; fi\n${codexExec(dir)}`);
     await chmod(fake, 0o755);
     const script = `
       import { readCodexVerdict, reconcile, runCodexExec } from ${JSON.stringify(resolve(import.meta.dir, "../src/lib/codex.ts"))};
@@ -107,6 +113,46 @@ describe("persisted Codex verdict transitions", () => {
           : { ok: true, timedOut: false, state: "available", detail: null },
       );
     },
+    SPAWNING_TEST_TIMEOUT_MS,
+  );
+});
+
+describe("runCodexExec timeout", () => {
+  test(
+    "returns the partial output while a process Codex started still holds the pipes",
+    async () => {
+      // The subshell exits at once, so the holder is no longer a descendant of
+      // the fake Codex and outlives the kill. It stops when the scenario
+      // directory, and with it the started marker, is removed.
+      const result = await verdictScenario(
+        `
+        await writeState("codex-verdict.json", {
+          state: "available", checkedAt: new Date().toISOString(),
+        });
+        const startedAt = Date.now();
+        const run = await runCodexExec({ prompt: "test", timeoutMs: 2000 });
+        const overshootMs = Date.now() - startedAt - 2000;
+        console.log(JSON.stringify({
+          ok: run.ok, timedOut: run.timedOut ?? false, output: run.output,
+          holderStarted: await Bun.file(started).exists(), overshootMs,
+        }));
+      `,
+        (dir) =>
+          `echo partial\n(sh -c 'touch "$0"; while [ -f "$0" ]; do sleep 0.01; done' '${gitBashPath(join(dir, "started"))}' &)\nwhile :; do sleep 0.01; done\n`,
+      );
+      const { overshootMs, ...run } = z
+        .object({
+          ok: z.boolean(),
+          timedOut: z.boolean(),
+          output: z.string(),
+          holderStarted: z.boolean(),
+          overshootMs: z.number(),
+        })
+        .parse(result);
+      expect(run).toEqual({ ok: false, timedOut: true, output: "partial", holderStarted: true });
+      expect(overshootMs).toBeLessThan(2500);
+    },
+    SPAWNING_TEST_TIMEOUT_MS,
   );
 });
 
