@@ -205,12 +205,22 @@ export interface ShellSegment {
 }
 
 export interface ShellScan {
-  /** Every simple command, substitution bodies included, in source order. */
+  /** Every simple command, substitution bodies included, in source order.
+   *  When `readings` is set, the commands of the first reading followed by
+   *  those only the second one has, in a scope of their own: enough for a rule
+   *  that judges one command at a time, and meaningless as a sequence. */
   segments: ShellSegment[];
   /** `scopeParents[s]` is the scope that contains scope `s` (-1 for 0). */
   scopeParents: number[];
   /** A quote or substitution never closed. */
   unterminated: boolean;
+  /** Set when a `<<` sits where it may shift bits (`(( ))`, `$[ ]`, `${ }`,
+   *  an array index): the scan with every such `<<` as a heredoc, then the scan
+   *  with every one as a shift. Neither is trusted alone: a shift read as a
+   *  heredoc swallows the lines after it, and a heredoc read as a shift has its
+   *  body scanned as commands, where a quote can swallow them too. A rule that
+   *  follows state from one command to the next reads each of them. */
+  readings?: [ShellScan, ShellScan];
 }
 
 interface Heredoc {
@@ -224,6 +234,10 @@ interface Shared {
   segments: ShellSegment[];
   scopeParents: number[];
   unterminated: boolean;
+  /** Read a `<<` in an arithmetic-looking place as a shift, not a heredoc. */
+  shifts: boolean;
+  /** The command holds such a `<<`. */
+  ambiguous: boolean;
 }
 
 /** Bash deletes a backslash-newline pair before it splits words. */
@@ -231,13 +245,40 @@ function joinContinuations(text: string): string {
   return text.replace(/\\\r?\n/g, "");
 }
 
+function read(text: string, shifts: boolean): Shared {
+  const shared: Shared = {
+    segments: [],
+    scopeParents: [-1],
+    unterminated: false,
+    shifts,
+    ambiguous: false,
+  };
+  run(text, shared, 0);
+  return shared;
+}
+
+function toScan({ segments, scopeParents, unterminated }: Shared): ShellScan {
+  return { segments, scopeParents, unterminated };
+}
+
 export function scanShell(cmd: string): ShellScan {
-  const shared: Shared = { segments: [], scopeParents: [-1], unterminated: false };
-  run(joinContinuations(cmd), shared, 0);
+  const text = joinContinuations(cmd);
+  const shifted = read(text, true);
+  if (!shifted.ambiguous) return toScan(shifted);
+  const heredoc = read(text, false);
+  const known = new Set(heredoc.segments.map((s) => s.clean));
+  // The second reading's commands get a scope of their own, so that a
+  // consumer following `cd` or assignments in scope 0 does not carry state
+  // from them into the first reading's commands.
+  const scope = heredoc.scopeParents.length;
+  const extra = shifted.segments
+    .filter((s) => !known.has(s.clean))
+    .map((s): ShellSegment => ({ ...s, scope, joiner: "\n" }));
   return {
-    segments: shared.segments,
-    scopeParents: shared.scopeParents,
-    unterminated: shared.unterminated,
+    unterminated: heredoc.unterminated,
+    scopeParents: [...heredoc.scopeParents, 0],
+    segments: [...heredoc.segments, ...extra],
+    readings: [toScan(heredoc), toScan(shifted)],
   };
 }
 
@@ -378,6 +419,18 @@ function run(cmd: string, shared: Shared, startScope: number): void {
     let cur = "";
     let subs: string[] = [];
     let depth = 0; // bare `(` groups opened in this scan
+    // Where a `<<` may shift bits: inside `(( ))`, `$[ ]`, `${ }` and an
+    // array index. `arith` is the depth a `((` opened at, and `expr` counts
+    // the open `${`, `$[` and `name[` of the current command. These only
+    // look like arithmetic (`cat x[ <<EOF` is a heredoc), so scanShell reads
+    // the command both ways.
+    let arith: number | null = null;
+    let expr = 0;
+    const shiftHere = (): boolean => {
+      if (arith === null && expr === 0) return false;
+      shared.ambiguous = true;
+      return shared.shifts;
+    };
     // Index just past the last backslash escape: `\ ` is part of a word, so a
     // `#` right after it does not start a comment.
     let escapedUntil = -1;
@@ -404,6 +457,7 @@ function run(cmd: string, shared: Shared, startScope: number): void {
       }
       cur = "";
       subs = [];
+      if (joiner !== null) expr = 0;
     };
 
     while (i < n) {
@@ -465,7 +519,7 @@ function run(cmd: string, shared: Shared, startScope: number): void {
       } else if (ch === "#" && escapedUntil !== i && (cur === "" || /\s$/.test(cur))) {
         // A comment runs to the end of the line.
         while (i < n && cmd[i] !== "\n" && cmd[i] !== "\r") i++;
-      } else if (ch === "<" && cmd[i + 1] === "<" && cmd[i + 2] !== "<") {
+      } else if (ch === "<" && cmd[i + 1] === "<" && cmd[i + 2] !== "<" && !shiftHere()) {
         const strip = cmd[i + 2] === "-";
         let j = i + (strip ? 3 : 2);
         while (cmd[j] === " " || cmd[j] === "\t") j++;
@@ -504,6 +558,7 @@ function run(cmd: string, shared: Shared, startScope: number): void {
         flush("|");
         i++;
       } else if (ch === "(") {
+        if (cmd[i + 1] === "(" && arith === null) arith = depth;
         flush();
         depth++;
         enterScope();
@@ -513,6 +568,7 @@ function run(cmd: string, shared: Shared, startScope: number): void {
         if (depth > 0) {
           depth--;
           leaveScope();
+          if (arith !== null && depth <= arith) arith = null;
         } else if (nested) {
           const close = i;
           i++;
@@ -520,6 +576,9 @@ function run(cmd: string, shared: Shared, startScope: number): void {
         }
         i++;
       } else {
+        if (ch === "{" && cmd[i - 1] === "$") expr++;
+        else if (ch === "[" && /[\w$]/.test(cmd[i - 1] ?? "")) expr++;
+        else if ((ch === "}" || ch === "]") && expr > 0) expr--;
         cur += ch;
         i++;
       }
@@ -668,15 +727,31 @@ export interface ParsedShellCommand {
   hereStrings: string[];
   /** The command runs under `xargs`, so stdin can add arguments. */
   viaXargs: boolean;
+  /** `xargs` is told to split or place its input its own way (`-0`, `-d`,
+   *  `-I`, `-a`, `-E`), so the added arguments are not the piped words. */
+  xargsReshapes: boolean;
   /** Directories a wrapper moves into first (`env -C DIR`, `sudo -D DIR`), in order. */
   chdirs: string[];
 }
 
-const KEYWORDS = new Set(["!", "{", "then", "do", "else", "elif", "if", "while", "until"]);
-// Wrapper commands and the options of theirs that take a separate value.
+const KEYWORDS = new Set([
+  "!",
+  "{",
+  "then",
+  "do",
+  "else",
+  "elif",
+  "if",
+  "while",
+  "until",
+  "coproc",
+]);
+// Wrapper commands and the options of theirs that take a separate value. The
+// names are matched in lower case: macOS and Windows resolve `SUDO` to sudo.
 const WRAPPER_VALUE_FLAGS: Record<string, string[]> = {
-  sudo: ["-u", "-g", "-h", "-p", "-C", "-D", "-R", "-T", "-U"],
-  env: ["-u", "-C", "-S"],
+  sudo: ["-u", "-g", "-h", "-p", "-C", "-D", "-R", "-T", "-U", "--chdir"],
+  // env reads its value flags in clusters; parseShellCommand handles them.
+  env: [],
   // The shell keyword (`time -p`) and /usr/bin/time.
   time: ["-o", "-f", "--output", "--format"],
   caffeinate: ["-t", "-w"],
@@ -687,9 +762,24 @@ const WRAPPER_VALUE_FLAGS: Record<string, string[]> = {
   nice: ["-n"],
   ionice: ["-c", "-n", "-p"],
   stdbuf: ["-i", "-o", "-e"],
-  timeout: ["-s", "-k"],
+  timeout: ["-s", "-k", "--signal", "--kill-after"],
   xargs: ["-I", "-n", "-P", "-L", "-d", "-a", "-E", "-s", "-J", "-R", "-S"],
+  xcrun: ["--sdk", "-sdk", "--toolchain", "-toolchain"],
+  arch: ["-arch", "-d", "-e"],
 };
+
+// A replace string (`-I`, `-J`, `-i`), a NUL or custom delimiter (`-0`, `-d`),
+// an input file (`-a`) or an end-of-input word (`-E`, `-e`).
+function xargsReshapes(flag: string): boolean {
+  if (flag.startsWith("--")) {
+    return /^--(?:null|replace|arg-file|delimiter|eof)(?:=|$)/.test(flag);
+  }
+  for (const ch of flag.slice(1)) {
+    if ("0IJadEei".includes(ch)) return true;
+    if ("LnPRsS".includes(ch)) return false; // the rest of the word is its value
+  }
+  return false;
+}
 const ASSIGNMENT_RE = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s;
 
 /** Reads one pipeline stage: assignments, wrappers and shell keywords in front
@@ -725,6 +815,7 @@ export function parseShellCommand(stage: string): ParsedShellCommand {
 
   const env: Record<string, string> = {};
   let viaXargs = false;
+  let reshapes = false;
   const chdirs: string[] = [];
   let i = 0;
   while (i < words.length) {
@@ -739,40 +830,45 @@ export function parseShellCommand(stage: string): ParsedShellCommand {
       i++;
       continue;
     }
-    const wrapper = basename(t);
+    const wrapper = basename(t).toLowerCase();
     const valueFlags = WRAPPER_VALUE_FLAGS[wrapper];
     if (!valueFlags) break;
     if (wrapper === "xargs") viaXargs = true;
     i++;
     while (i < words.length && (words[i] as string).startsWith("-")) {
       const flag = words[i] as string;
-      // `env -S 'git push'` splits its value into words that env reads again.
-      const separate = flag === "-S" || flag === "--split-string";
-      const split =
-        wrapper !== "env"
+      if (wrapper === "xargs" && xargsReshapes(flag)) reshapes = true;
+      // env reads its short flags in clusters (`-iC DIR`, `-vu NAME`, `-vS 'cmd'`):
+      // the first one that takes a value ends the cluster, with the value
+      // attached to it or in the next word.
+      const valued =
+        wrapper === "env"
+          ? (flag.match(/^-[iv0]*([uCSP])(.*)$/s) ??
+            flag.match(/^--(split-string|chdir|unset)(?:=(.*))?$/s))
+          : null;
+      if (valued) {
+        const separate = valued[2] === undefined || (valued[2] === "" && !flag.includes("="));
+        const value = separate ? words[i + 1] : valued[2];
+        const kind = valued[1] as string;
+        // `env -S 'git push'` splits its value into words that env reads again.
+        if ((kind === "S" || kind === "split-string") && value !== undefined) {
+          const parts = shellWords(value.replaceAll("\\_", " ")).filter((w) => !w.startsWith(OP));
+          words.splice(i, separate ? 2 : 1, ...parts);
+          continue;
+        }
+        // `env -C DIR` runs the command in DIR.
+        if ((kind === "C" || kind === "chdir") && value !== undefined) chdirs.push(value);
+        i += separate ? 2 : 1;
+        continue;
+      }
+      // `sudo -D DIR` / `sudo --chdir=DIR` run the command in DIR.
+      const chdir =
+        wrapper !== "sudo"
           ? undefined
-          : separate
+          : flag === "-D" || flag === "--chdir"
             ? words[i + 1]
-            : flag.match(/^(?:-S|--split-string=)(.+)$/s)?.[1];
-      if (split !== undefined) {
-        const parts = shellWords(split.replaceAll("\\_", " ")).filter((w) => !w.startsWith(OP));
-        words.splice(i, separate ? 2 : 1, ...parts);
-        continue;
-      }
-      // `env -C DIR` / `env --chdir=DIR` / `sudo -D DIR` run the command in DIR.
-      const chdirFlag =
-        (wrapper === "env" && flag === "-C") || (wrapper === "sudo" && flag === "-D");
-      const chdir = chdirFlag
-        ? words[i + 1]
-        : wrapper === "env"
-          ? flag.match(/^(?:-C|--chdir=)(.+)$/s)?.[1]
-          : undefined;
+            : flag.match(/^--chdir=(.*)$/s)?.[1];
       if (chdir !== undefined) chdirs.push(chdir);
-      if (wrapper === "env" && flag === "--chdir") {
-        if (words[i + 1] !== undefined) chdirs.push(words[i + 1] as string);
-        i += 2;
-        continue;
-      }
       i += flag === "--" ? 1 : valueFlags.includes(flag) ? 2 : 1;
       if (flag === "--") break;
     }
@@ -786,6 +882,7 @@ export function parseShellCommand(stage: string): ParsedShellCommand {
     heredocWords,
     hereStrings,
     viaXargs,
+    xargsReshapes: reshapes,
     chdirs,
   };
 }

@@ -92,6 +92,14 @@ describe("bashFindings asks", () => {
       "mv src/a.spec.ts /tmp/",
       `renames src/a.spec.ts to ${join("/tmp/", "a.spec.ts")}, which no test runner picks up`,
     ],
+    // A `<<` inside arithmetic shifts bits; the lines after it are still commands.
+    ["(( x = 1 << 2 ))\nrm tests/x.test.ts", "deletes tests/x.test.ts"],
+    ["for (( i = 0; i < 1 << 3; i++ )); do :; done\nrm tests/x.test.ts", "deletes tests/x.test.ts"],
+    // The same `<<` may be a real heredoc; an apostrophe in its body hides nothing.
+    ["cat x[ <<EOF\nit's\nEOF\nrm tests/x.test.ts # '", "deletes tests/x.test.ts"],
+    ["((cat <<EOF\nit's\nEOF\n) | wc -l)\nrm tests/x.test.ts # '", "deletes tests/x.test.ts"],
+    ["SUDO rm tests/x.test.ts", "deletes tests/x.test.ts"],
+    ["env -vS 'rm tests/x.test.ts'", "deletes tests/x.test.ts"],
   ])("%s", async (command, finding) => {
     expect(await bashFindings(command, CWD)).toEqual([finding]);
   });
@@ -107,6 +115,7 @@ describe("bashFindings silent", () => {
     "rm src/foo.ts",
     "find src -name '*.log' -delete",
     "find tests -name '*.test.ts'",
+    "(( x = 1 << 2 ))\ncat <<'EOF'\nrm tests/x.test.ts\nEOF",
   ])("%s", async (command) => {
     expect(await bashFindings(command, CWD)).toEqual([]);
   });

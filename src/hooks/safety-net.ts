@@ -33,6 +33,7 @@ import {
   type ParsedShellCommand,
   PROCESS_SUBSTITUTION_RE,
   parseShellCommand,
+  type ShellScan,
   type ShellSegment,
   SUBSTITUTION,
   scanShell,
@@ -252,7 +253,7 @@ function checkRmRf(cmd: string): void {
   // admitting quotes here would false-positive on quoted strings that merely
   // contain rm (echo "rm -rf /"). Robust coverage needs the shared
   // shell-aware tokenizer (DT1 follow-up), not a wider regex.
-  const re = /(^|[\s;&|])(?:[^\s;&|]*\/)?rm\s+([^;&|\n]+)/g;
+  const re = /(^|[\s;&|])(?:[^\s;&|]*\/)?rm\s+([^;&|\n]+)/gi;
   let m: RegExpExecArray | null;
   // biome-ignore lint/suspicious/noAssignInExpressions: regex exec loop idiom
   while ((m = re.exec(cmd))) {
@@ -264,8 +265,8 @@ function checkRmRf(cmd: string): void {
 // --- Rule: AI attribution --------------------------------------------------
 
 function checkAiAttribution(cmd: string): void {
-  const isCommit = /git\s+commit/.test(cmd);
-  const isPr = /gh\s+pr\s+create/.test(cmd);
+  const isCommit = /git\s+commit/i.test(cmd);
+  const isPr = /gh\s+pr\s+create/i.test(cmd);
   if (!isCommit && !isPr) return;
 
   const coAuthored = /Co-Authored-By.*Claude|Co-Authored-By.*Anthropic|noreply@anthropic/i;
@@ -501,24 +502,30 @@ function headFileBranch(dir: string): string | null {
 // DELETE on the repository root endpoint deletes the repo, which `gh repo
 // delete` guards in the permission layer.
 function checkGhApiRepoDelete(cmd: string): void {
-  const m = cmd.match(/(^|\s)gh\s+api\s+(.*)$/s);
+  const m = cmd.match(/(^|[\s;&|])(?:[^\s;&|]*\/)?gh\s+api\s+(.*)$/is);
   if (!m?.[2]) return;
   const rest = m[2];
   if (!/(-X[\s=]*|--method[\s=]+)['"]?DELETE\b/i.test(rest)) return;
   const tokens = rest.split(/\s+/).map((t) => t.replace(/^['"]|['"]$/g, ""));
-  if (tokens.some((t) => /^\/?repos\/[^/\s]+\/[^/\s]+\/?$/.test(t)))
+  if (tokens.some((t) => /^repos\/[^/\s]+\/[^/\s]+$/i.test(ghApiPath(t) ?? "")))
     block("gh api DELETE on a repository endpoint deletes the repository", cmd);
 }
+
+const MAX_GIT_WORDS = 256;
 
 function checkGitDestructive(cmd: string): void {
   // Evaluate EVERY 'git' occurrence in the string, not just the first —
   // `cmd.match(/git\s+(.*)/)` (no /g, and `.` doesn't cross newlines without
   // /s) only ever inspected the first invocation, letting a second
   // `git checkout -- .` later in the same string ride along unchecked.
-  const re = /(^|\s)git\s+/g;
+  const re = /(^|[\s;&|])(?:[^\s;&|]*\/)?git\s+/gi;
   let m: RegExpExecArray | null;
+  let seen = 0;
   // biome-ignore lint/suspicious/noAssignInExpressions: regex exec loop idiom
   while ((m = re.exec(cmd))) {
+    // Each occurrence reads the rest of the command, so the work grows with
+    // the square of their number. Past the cap the rest goes unread: block.
+    if (++seen > MAX_GIT_WORDS) block("git appears too many times in one command to analyze", cmd);
     const afterVerb = cmd.slice(m.index + m[0].length);
     analyzeGitAfterVerb(afterVerb, cmd);
   }
@@ -527,11 +534,11 @@ function checkGitDestructive(cmd: string): void {
 // --- Rule: find / xargs ---------------------------------------------------
 
 function checkFindXargs(cmd: string): void {
-  if (/find\s+.*-delete/.test(cmd)) block("find -delete permanently removes files", cmd);
-  if (/find\s+.*-exec(dir)?\s+rm/.test(cmd)) block("find -exec rm permanently removes files", cmd);
-  if (/xargs\s+(.*\s)?rm\s+.*-[a-zA-Z]*r/.test(cmd))
+  if (/find\s+.*-delete/i.test(cmd)) block("find -delete permanently removes files", cmd);
+  if (/find\s+.*-exec(dir)?\s+rm/i.test(cmd)) block("find -exec rm permanently removes files", cmd);
+  if (/xargs\s+(.*\s)?rm\s+.*-[a-zA-Z]*r/i.test(cmd))
     block("xargs rm -r is a bulk destructive operation", cmd);
-  if (/xargs\s+(.*\s)?(bash|sh)\s+-c/.test(cmd))
+  if (/xargs\s+(.*\s)?(bash|sh)\s+-c/i.test(cmd))
     block("xargs with shell -c enables arbitrary command execution", cmd);
 }
 
@@ -549,18 +556,18 @@ function checkFindXargs(cmd: string): void {
 // (`for p in $(lsof -ti :3000); do kill $p; done`) is not linked up.
 
 const KILL_PREFIX_RE =
-  /^(?:(?:sudo|exec|nohup|command)\s+(?:-\S+\s+)*|env\s+(?:-\S+\s+|\S+=\S*\s+)*|timeout\s+(?:-\S+\s+)*\S+\s+)*/;
+  /^(?:(?:sudo|exec|nohup|command)\s+(?:-\S+\s+)*|env\s+(?:-\S+\s+|\S+=\S*\s+)*|timeout\s+(?:-\S+\s+)*\S+\s+)*/i;
 const LISTEN_ONLY_RE = /-s\s*TCP:LISTEN\b/i;
 
 function stageCommand(stage: string): { word: string; args: string } {
   const rest = stage.trim().replace(KILL_PREFIX_RE, "");
   const m = rest.match(/^(?:[^\s;&|]*\/)?([^\s/]+)\s*(.*)$/s);
-  return { word: m?.[1] ?? "", args: m?.[2] ?? "" };
+  return { word: (m?.[1] ?? "").toLowerCase(), args: m?.[2] ?? "" };
 }
 
 function isProcessSearch(text: string): boolean {
-  if (/(^|[\s|(`])(pgrep|pidof|ps|fuser)(\s|$)/.test(text)) return true;
-  return /(^|[\s|(`])lsof(\s|$)/.test(text) && !LISTEN_ONLY_RE.test(text);
+  if (/(^|[\s|(`])(pgrep|pidof|ps|fuser)(\s|$)/i.test(text)) return true;
+  return /(^|[\s|(`])lsof(\s|$)/i.test(text) && !LISTEN_ONLY_RE.test(text);
 }
 
 function checkProcessKill(segment: string, subs: string[]): void {
@@ -574,7 +581,7 @@ function checkProcessKill(segment: string, subs: string[]): void {
     if (word === "fuser" && /(^|\s)-[a-zA-Z]*k/.test(` ${args}`)) {
       block("fuser -k kills every process on the port, including connected browsers", segment);
     }
-    if (word === "xargs" && /(^|\s)kill(\s|$)/.test(args)) {
+    if (word === "xargs" && /(^|\s)kill(\s|$)/i.test(args)) {
       if (isProcessSearch(stages.slice(0, i).join("|"))) {
         block(
           "kill fed by a process search can hit the browser; use lsof -sTCP:LISTEN or the PID you started",
@@ -620,6 +627,59 @@ interface ShellCtx {
   unterminated: boolean;
   /** Shared by every scope of one line: repositories change on disk. */
   repo: RepoState;
+  /** Shared by every scope of one line. */
+  opaque: OpaqueVars;
+  /** Operator in front of the command being read; null at the start of a scope. */
+  after: ShellSegment["joiner"];
+  /** Names assigned after `&&`: their value holds until that `&&` chain ends. */
+  chained: Set<string>;
+  /** What a variable assigned from a substitution, or read from a here-string,
+   *  may hold. An added reading only: the variable itself stays unread. */
+  guesses: Map<string, string>;
+}
+
+// Variables whose value the hook does not trust anywhere on the line, because
+// something other than a plain assignment or `export` sets them. Marking is
+// line-wide: the order loops, branches and functions run in is not followed.
+interface OpaqueVars {
+  all: boolean;
+  names: Set<string>;
+  /** Characters IFS is set to somewhere on the line: words may split on them. */
+  ifs: string;
+  /** IFS is set to something the hook cannot read (`read IFS`, `printf -v IFS`). */
+  ifsUnread: boolean;
+}
+
+// The command word in lower case, because macOS and Windows filesystems resolve
+// `GIT` and `Rm` to git and rm. `typed` keeps the spelling: the shell matches
+// its builtins (`cd`, `export`) and variable names exactly.
+interface Command extends ParsedShellCommand {
+  typed: string;
+}
+
+function parseCommand(stage: string): Command {
+  const c = parseShellCommand(stage);
+  return { ...c, word: c.word.toLowerCase(), typed: c.word };
+}
+
+function shellQuote(word: string): string {
+  return `'${word.replaceAll("'", "'\\''")}'`;
+}
+
+// `words` read as a command that keeps the assignments, redirections and
+// wrapper state of `c`.
+function reparse(words: string[], c: Command): Command {
+  const again = parseCommand(words.map(shellQuote).join(" "));
+  return {
+    ...c,
+    word: again.word,
+    typed: again.typed,
+    args: again.args,
+    env: { ...c.env, ...again.env },
+    viaXargs: c.viaXargs || again.viaXargs,
+    xargsReshapes: c.xargsReshapes || again.xargsReshapes,
+    chdirs: [...c.chdirs, ...again.chdirs],
+  };
 }
 
 interface RepoState {
@@ -651,32 +711,229 @@ function rootCtx(): ShellCtx {
     dir: baseDir ?? safeCwd(),
     unterminated: false,
     repo: { heads: new Map(), configChanged: new Set(), changed: false },
+    opaque: { all: false, names: new Set(), ifs: "", ifsUnread: false },
+    after: null,
+    chained: new Set(),
+    guesses: new Map(),
   };
 }
 
 function cloneCtx(ctx: ShellCtx): ShellCtx {
-  return { ...ctx, env: { ...ctx.env }, vars: { ...ctx.vars }, exported: new Set(ctx.exported) };
+  return {
+    ...ctx,
+    env: { ...ctx.env },
+    vars: { ...ctx.vars },
+    exported: new Set(ctx.exported),
+    after: null,
+    chained: new Set(),
+    guesses: new Map(ctx.guesses),
+  };
 }
 
-function trackState(c: ParsedShellCommand, ctx: ShellCtx): void {
+const BLOCK_OPEN_RE =
+  /^(?:(?:then|do|else|elif|[{!])\s+)*(?:if|while|until|for|select|case)(?:\s|$)/;
+const BLOCK_CLOSE_RE = /^(?:fi|done|esac)(?:\s|$)/;
+const FUNCTION_DEF_RE = /(?<![\w-])[A-Za-z_][\w-]*\s*\(\s*\)\s*[{(]|(?:^|[\s;&|({])function\s/;
+const GROUP_AFTER_JOIN_RE = /(?:&&|\|\|)\s*\{/;
+const ARRAY_ASSIGN_RE = /(?:^|[\s;&|({])([A-Za-z_]\w*)\+?=\(/g;
+const DEFAULT_ASSIGN_RE = /\$\{([A-Za-z_]\w*):{0,2}=/g;
+const VAR_SETTERS = new Set([
+  "read",
+  "declare",
+  "local",
+  "typeset",
+  "readonly",
+  "unset",
+  "mapfile",
+  "readarray",
+  "getopts",
+  "let",
+]);
+
+function markOpaqueVars(cmd: string, scan: ShellScan, opaque: OpaqueVars): void {
+  // IFS decides how every unquoted variable splits into words, so setting it
+  // leaves no variable trusted. `value` is what it is set to, when that is on
+  // the line as text.
+  const setsIfs = (value: string | undefined): void => {
+    opaque.all = true;
+    if (value === undefined || /[$`]/.test(value)) opaque.ifsUnread = true;
+    else opaque.ifs += value;
+  };
+  // `text` starts with the name a setter is given: `B`, `B=main`, `B+=x`.
+  const mark = (text: string | undefined): void => {
+    const name = text?.match(/^[A-Za-z_]\w*/)?.[0];
+    if (!name) return;
+    opaque.names.add(name);
+    if (name === "IFS") setsIfs(text?.match(/^IFS\+?=(.*)$/s)?.[1]);
+  };
+  // A function body, or a `{ }` group after `&&` or `||`, may never run.
+  if (FUNCTION_DEF_RE.test(cmd) || GROUP_AFTER_JOIN_RE.test(cmd)) opaque.all = true;
+  for (const m of cmd.matchAll(ARRAY_ASSIGN_RE)) mark(m[1]);
+  for (const m of cmd.matchAll(DEFAULT_ASSIGN_RE)) mark(m[1]);
+  // Open `if`, loop and `case` blocks: an assignment inside one may not run.
+  let depth = 0;
+  for (const seg of scan.segments) {
+    for (const stage of splitPipes(seg.clean)) {
+      const c = parseCommand(stage);
+      if (BLOCK_OPEN_RE.test(stage)) depth++;
+      else if (BLOCK_CLOSE_RE.test(stage)) depth--;
+      if (depth < 0 || c.word === "eval" || c.word === "source" || c.word === ".") {
+        opaque.all = true;
+      }
+      // A sourced file can set IFS.
+      if (c.word === "source" || c.word === ".") opaque.ifsUnread = true;
+      // An assignment inside a block may not run, and a prefix assignment
+      // outlives its command on a special builtin in `sh`.
+      if (depth > 0 || c.word !== "") for (const name of Object.keys(c.env)) opaque.names.add(name);
+      if (c.env.IFS !== undefined) setsIfs(c.env.IFS);
+      if (c.word === "export") {
+        for (const arg of c.args) if (/^IFS\+?=/.test(arg)) mark(arg);
+      }
+      // A nameref makes an assignment to one name change another.
+      if (
+        /^(?:declare|local|typeset)$/.test(c.word) &&
+        c.args.some((t) => /^-[a-zA-Z]*n/.test(t))
+      ) {
+        opaque.all = true;
+        opaque.ifsUnread = true; // the nameref may point at IFS
+      }
+      // `B+=x` and `B[0]=x` reach the parser as a command word.
+      if (/^[A-Za-z_]\w*(?:\+=|\[)/.test(c.typed)) mark(c.typed);
+      if (c.word === "for" || c.word === "select") mark(c.args[0]);
+      if (c.word === "read") mark("REPLY");
+      if (VAR_SETTERS.has(c.word) || (depth > 0 && c.word === "export")) c.args.forEach(mark);
+      if (c.word === "printf" || c.word === "print") {
+        const at = c.args.indexOf("-v");
+        mark(at >= 0 ? c.args[at + 1] : c.args.find((t) => /^-v./.test(t))?.slice(2));
+      }
+    }
+  }
+  if (depth !== 0) opaque.all = true;
+}
+
+function knownVar(name: string, ctx: ShellCtx): string | undefined {
+  if (ctx.opaque.all || ctx.opaque.names.has(name)) return undefined;
+  return ctx.vars[name] ?? ctx.env[name];
+}
+
+const VAR_REF_RE = /\$\{([A-Za-z_]\w*)\}|\$([A-Za-z_]\w*)/g;
+
+function expandVars(word: string, ctx: ShellCtx): string {
+  return word.replace(
+    VAR_REF_RE,
+    (m, braced, bare) => knownVar((braced ?? bare) as string, ctx) ?? m,
+  );
+}
+
+// Unquoted text splits on whitespace and on every character IFS is set to on
+// the line.
+function splitWords(text: string, ctx: ShellCtx): string[] {
+  const extra = ctx.opaque.ifs.replace(/[\\\]^-]/g, "\\$&");
+  return text.split(new RegExp(`[\\s${extra}]+`)).filter(Boolean);
+}
+
+// A command word with its variables filled in; null when one of them is not
+// known, or when another expansion is left (`${=G}`, `${!N}`, `$@`, a
+// substitution). A value goes in as it is: bash does not expand it again.
+function expandCommandWord(word: string, ctx: ShellCtx): string | null {
+  let known = true;
+  const text = word.replace(VAR_REF_RE, (m, braced, bare) => {
+    const value = knownVar((braced ?? bare) as string, ctx);
+    if (value === undefined || value.includes(SUBSTITUTION)) known = false;
+    return value ?? m;
+  });
+  return known && !/[$`]/.test(word.replace(VAR_REF_RE, "")) ? text : null;
+}
+
+// Readings past the two that are always kept cost a full pass of the rules
+// each, so only the first few are added.
+const MAX_ADDED_READINGS = 16;
+
+// The commands a stage may run when its command word is not literal text. The
+// first two are always among them: the word may be git (`$GIT push`), and it
+// may be empty, which leaves the next word as the command (`$UNSET git push`).
+// Every other reading is added to those two and never used in their place:
+// the word with its variables filled in and split as bash does
+// (`G="git push"; $G origin main`), the word with a substitution's printed
+// text pasted in (`$(echo git push origin main)`), and, when the word still
+// cannot be read, every value the line holds (`${=G}`, `${!N}`).
+function commandForms(c: Command, ctx: ShellCtx, seg: ShellSegment): Command[] {
+  if (!/[$`]/.test(c.typed)) return [c];
+  const forms = [c, reparse(c.args, c)];
+  // A reading left out, or split by an IFS the hook cannot read, may be the
+  // one that matters, so the command asks.
+  let unfollowed = ctx.opaque.ifsUnread;
+  const add = (text: string): void => {
+    if (forms.length >= 2 + MAX_ADDED_READINGS) unfollowed = true;
+    else forms.push(reparse([...splitWords(text, ctx), ...c.args], c));
+  };
+  const texts = new Set([c.typed]);
+  if (c.typed.includes(SUBSTITUTION)) {
+    if (seg.subs.length > MAX_ADDED_READINGS) unfollowed = true;
+    for (const inner of seg.subs.slice(0, MAX_ADDED_READINGS)) {
+      const output = processSubstitutionOutput(inner);
+      if (output !== null) texts.add(c.typed.replaceAll(SUBSTITUTION, () => output));
+    }
+  }
+  let unread = false;
+  for (const text of texts) {
+    const expanded = expandCommandWord(text, ctx);
+    if (expanded === null) unread = true;
+    else add(expanded);
+  }
+  if (unread) {
+    const held = [...Object.values(ctx.vars), ...Object.values(ctx.env), ...ctx.guesses.values()];
+    for (const value of new Set(held)) add(value);
+  }
+  if (unfollowed) pendingAsks.push(UNREAD_COMMAND_ASK);
+  return forms;
+}
+
+function trackState(c: Command, ctx: ShellCtx, seg: ShellSegment): void {
+  const assigned = (name: string, value: string): void => {
+    // A name assigned after `||` may keep its earlier value.
+    if (ctx.after === "&&") ctx.chained.add(name);
+    else if (ctx.after === "||") ctx.opaque.names.add(name);
+    // `G=$(echo git push)`: the printed text is what the value may be. The
+    // value itself keeps its placeholder, which leaves the variable unread.
+    const sole = seg.subs.length === 1 && seg.clean.split(SUBSTITUTION).length === 2;
+    const output =
+      sole && value.includes(SUBSTITUTION)
+        ? processSubstitutionOutput(seg.subs[0] as string)
+        : null;
+    if (output === null) ctx.guesses.delete(name);
+    else
+      ctx.guesses.set(
+        name,
+        value.replace(SUBSTITUTION, () => output),
+      );
+  };
   if (c.word === "") {
     // Assigning to an exported name (earlier in the line or in the session's
     // environment) updates what children see; bash keeps the export flag.
     for (const [name, value] of Object.entries(c.env)) {
+      assigned(name, value);
       if (name in ctx.env || ctx.exported.has(name) || process.env[name] !== undefined) {
         ctx.env[name] = value;
       } else ctx.vars[name] = value;
     }
-  } else if (c.word === "export") {
+  } else if (c.typed === "export") {
     for (const t of c.args) {
       const m = t.match(/^([A-Za-z_][A-Za-z0-9_]*)(?:=(.*))?$/s);
       if (!m) continue;
       const name = m[1] as string;
+      if (m[2] !== undefined) assigned(name, m[2]);
       const value = m[2] ?? ctx.vars[name];
       if (value !== undefined) ctx.env[name] = value;
       else ctx.exported.add(name);
     }
-  } else if (c.word === "cd" || c.word === "pushd") {
+  } else if (c.typed === "read" && c.hereStrings[0] !== undefined) {
+    // `read -r G <<< 'git push'`: the here-string is what the names may hold.
+    const names = c.args.filter((t) => /^[A-Za-z_]\w*$/.test(t));
+    for (const name of names.length > 0 ? names : ["REPLY"]) {
+      ctx.guesses.set(name, c.hereStrings[0]);
+    }
+  } else if (c.typed === "cd" || c.typed === "pushd") {
     const target = c.args.find((t) => !t.startsWith("-"));
     if (target === undefined) ctx.dir = homedir();
     else if (target === "~" || target.startsWith("~/")) ctx.dir = join(homedir(), target.slice(1));
@@ -684,9 +941,19 @@ function trackState(c: ParsedShellCommand, ctx: ShellCtx): void {
     else if (/[$`*?[]/.test(target) || target.startsWith("~") || target === "-" || !ctx.dir)
       ctx.dir = null;
     else ctx.dir = resolve(ctx.dir, target);
-  } else if (c.word === "popd") {
+  } else if (c.typed === "popd") {
     ctx.dir = null;
   }
+}
+
+// Ends the command in front of `joiner`. A value assigned after `&&` holds only
+// for the rest of its `&&` chain: past it, the assignment may not have run.
+function endCommand(ctx: ShellCtx, joiner: ShellSegment["joiner"]): void {
+  if (joiner !== "&&") {
+    for (const name of ctx.chained) ctx.opaque.names.add(name);
+    ctx.chained.clear();
+  }
+  ctx.after = joiner;
 }
 
 // --- Rule: git hook skips ---------------------------------------------------
@@ -816,6 +1083,8 @@ const MAIN_PUSH_ASK =
   "git push to main or master: approve only if the user asked for a direct push in this conversation; otherwise push a branch and open a PR";
 const UNKNOWN_PUSH_ASK =
   "git push to a branch or repository the hook cannot read (a variable, command substitution, xargs input, an earlier checkout, or config set on the command line): approve only if it does not update main or master, or the user asked for a direct push";
+const UNREAD_COMMAND_ASK =
+  "a command word or script the hook cannot read in full (more substitutions or values than it follows, or words split by an IFS it cannot read): approve only if it does not push to main or master, skip git hooks, write to another owner's repository or read a secret file";
 const SUBMODULE_PUSH_ASK =
   "git push --recurse-submodules=on-demand also pushes each submodule's current branch, which may be main or master: approve only if the user asked for that push";
 
@@ -890,9 +1159,15 @@ function readRefUpdate(args: string[]): (RefUpdate & { globals: GitGlobals }) | 
   let i = globals.sub;
   let verb: RefUpdate["verb"];
   if (args[i] === "push" || args[i] === "send-pack") verb = args[i] as RefUpdate["verb"];
-  else if (args[i] === "subtree" && args[i + 1] === "push") {
+  else if (args[i] === "subtree") {
+    // `git subtree -P lib push`: subtree takes its options on either side of the verb.
+    let j = i + 1;
+    while (j < args.length && (args[j] as string).startsWith("-")) {
+      j += REF_UPDATE_VALUE_OPTS["subtree push"].has(args[j] as string) ? 2 : 1;
+    }
+    if (args[j] !== "push") return null;
     verb = "subtree push";
-    i++;
+    i = j;
   } else return null;
   const subtree = verb === "subtree push";
   const positional: string[] = [];
@@ -1174,7 +1449,7 @@ function implicitRefspecs(
 ): string[] {
   if (!config) return [branch];
   const configured = remote === null ? undefined : config.get(`remote.${remote}.push`);
-  if (configured?.length) return configured.map((s) => s.replace(/^\+/, ""));
+  if (configured?.length) return configured;
   const mode = (lastValue(config, "push.default") ?? "simple").toLowerCase();
   if (mode === "nothing") return [];
   if (mode === "matching") return [":"];
@@ -1227,19 +1502,44 @@ function expandWord(
   seg: ShellSegment,
   branch: () => string | null,
 ): string | null {
-  let out = word.replace(/\$\{([A-Za-z_]\w*)\}|\$([A-Za-z_]\w*)/g, (m, braced, bare) => {
-    const name = (braced ?? bare) as string;
-    return ctx.vars[name] ?? ctx.env[name] ?? m;
-  });
+  // Placeholders are filled in before variables are expanded: one inside a
+  // variable's value stands for a substitution on an earlier command, whose
+  // body this segment does not hold, so it stays unread.
+  let out = word;
   if (
     out.includes(SUBSTITUTION) &&
     seg.subs.length > 0 &&
     seg.subs.every((s) => CURRENT_BRANCH_SUB_RE.test(s))
   ) {
     const current = branch();
-    if (current) out = out.replaceAll(SUBSTITUTION, current);
+    if (current) out = out.replaceAll(SUBSTITUTION, () => current);
   }
+  out = expandVars(out, ctx);
   return /[$`]/.test(out) ? null : out;
+}
+
+const BRACE_LIST_RE = /(?<!\$)\{([^{},]*,[^{}]*)\}/;
+const MAX_BRACE_WORD = 2000;
+const MAX_BRACE_WORDS = 64;
+
+// The words bash makes of one word with `{a,b}` lists; null for a `{a..b}`
+// sequence, or a word or list too long to follow.
+function braceExpand(word: string): string[] | null {
+  if (!word.includes("{")) return [word];
+  if (word.length > MAX_BRACE_WORD) return null;
+  const words = [word];
+  for (;;) {
+    const at = words.findIndex((w) => BRACE_LIST_RE.test(w));
+    if (at < 0) break;
+    const w = words[at] as string;
+    const m = w.match(BRACE_LIST_RE) as RegExpMatchArray;
+    const parts = (m[1] as string).split(",");
+    if (words.length + parts.length - 1 > MAX_BRACE_WORDS) return null;
+    const head = w.slice(0, m.index);
+    const tail = w.slice((m.index as number) + m[0].length);
+    words.splice(at, 1, ...parts.map((part) => `${head}${part}${tail}`));
+  }
+  return words.some((w) => /(?<!\$)\{[^{}]*\.\.[^{}]*\}/.test(w)) ? null : words;
 }
 
 // Git completes a destination `main` or `heads/main` to `refs/heads/main`. A
@@ -1261,21 +1561,83 @@ function mayBeMain(dst: string): boolean {
   return MAIN_REFS.some((ref) => ref.startsWith(prefix));
 }
 
+const MAX_NESTED_GIT = 8;
+
 function checkMainPush(
-  c: ParsedShellCommand,
+  c: Command,
   ctx: ShellCtx,
-  previous: ParsedShellCommand | undefined,
+  previous: Command | undefined,
   seg: ShellSegment,
   cmd: string,
 ): void {
+  // A wrapper the parser does not know (`script -q /dev/null git push`) leaves
+  // git among the arguments, as `git submodule foreach git push` does. Past
+  // MAX_NESTED_GIT such words the rest is not read, so the command asks.
+  if (c.word !== "echo" && c.word !== "printf") {
+    const nested = c.args.flatMap((t, at) => (basename(t).toLowerCase() === "git" ? [at] : []));
+    if (nested.length > MAX_NESTED_GIT) pendingAsks.push(UNKNOWN_PUSH_ASK);
+    for (const at of nested.slice(0, MAX_NESTED_GIT)) {
+      checkGitPush(reparse(c.args.slice(at), c), ctx, previous, seg, cmd);
+    }
+  }
   // A command word the hook cannot read (`$(SUB)`, `$GIT`) may be git.
-  const word = c.word.includes("$")
-    ? basename(expandWord(c.word, ctx, seg, () => null) ?? "git")
-    : c.word;
-  if (word !== "git") return;
+  if (c.word === "git" || c.typed.includes("$")) checkGitPush(c, ctx, previous, seg, cmd);
+}
+
+// Reads one git command as a push, under each reading of its arguments: as
+// typed, with `{a,b}` lists expanded, and with variables filled in and split
+// into words. Every reading is checked, so one can add an ask or a block and
+// none can take one away.
+function checkGitPush(
+  c: Command,
+  ctx: ShellCtx,
+  previous: Command | undefined,
+  seg: ShellSegment,
+  cmd: string,
+): void {
   // `echo main | xargs git push origin` adds the piped words to the arguments.
   const piped = c.viaXargs && previous ? literalOutput(previous, seg) : null;
-  const args = piped === null ? c.args : [...c.args, ...piped.split(/\s+/).filter(Boolean)];
+  // The words may differ from the piped text: xargs strips quotes and
+  // backslashes, printf rewrites `%`, and xargs can be told to split or place
+  // its input another way.
+  let unknown =
+    c.viaXargs &&
+    (piped === null ||
+      c.xargsReshapes ||
+      /[\\'"]/.test(piped) ||
+      (previous?.word === "printf" && piped.includes("%")));
+  const typed = piped === null ? c.args : [...c.args, ...piped.split(/\s+/).filter(Boolean)];
+  const braced: string[] = [];
+  for (const arg of typed) {
+    const words = braceExpand(arg);
+    if (words === null) unknown = true;
+    braced.push(...(words ?? [arg]));
+  }
+  const split = braced.flatMap((arg) => {
+    const filled = arg.replace(VAR_REF_RE, (m, bracedName, bare) => {
+      const name = (bracedName ?? bare) as string;
+      return ctx.guesses.get(name) ?? knownVar(name, ctx) ?? m;
+    });
+    return filled === arg ? [arg] : splitWords(filled, ctx);
+  });
+  const read = new Set<string>();
+  for (const args of [typed, braced, split]) {
+    const key = args.join("\0");
+    if (read.has(key)) continue;
+    read.add(key);
+    checkRefUpdate(c, args, unknown, ctx, seg, cmd);
+  }
+}
+
+function checkRefUpdate(
+  c: Command,
+  args: string[],
+  unreadWords: boolean,
+  ctx: ShellCtx,
+  seg: ShellSegment,
+  cmd: string,
+): void {
+  let unknown = unreadWords;
   const u = readRefUpdate(args);
   if (!u) return;
 
@@ -1289,7 +1651,7 @@ function checkMainPush(
   const branch = (): string | null => branchIn(dir, ctx);
   const shellBranch = (): string | null => branchIn(ctx.dir, ctx);
   const config = (): GitConfig | null => (dir === null ? null : pushConfig(dir));
-  let unknown = u.fromStdin || (c.viaXargs && piped === null);
+  if (u.fromStdin) unknown = true;
   const remote = u.remote === undefined ? undefined : expandWord(u.remote, ctx, seg, shellBranch);
   // Routing set on the line also remaps a refspec without a destination.
   if (remote === null || override.route) unknown = true;
@@ -1323,6 +1685,8 @@ function checkMainPush(
       unknown = true;
       continue;
     }
+    // The shell matches `?` and `[` against file names before git runs.
+    if (/[?[]/.test(spec)) unknown = true;
     const s = spec.replace(/^\+/, "");
     if (s.startsWith(":") && s !== ":") continue; // a delete
     let dst = s === ":" ? "*" : s.slice(s.lastIndexOf(":") + 1);
@@ -1333,6 +1697,16 @@ function checkMainPush(
         continue;
       }
       dst = current;
+    } else if (u.refspecs !== null && !s.includes(":")) {
+      // With push.default=upstream, git sends a branch named without a
+      // destination to that branch's upstream. `HEAD` is not a branch name,
+      // so git leaves it alone.
+      const settings = config();
+      const mode = settings ? (lastValue(settings, "push.default") ?? "") : "";
+      if (settings && /^(?:upstream|tracking)$/i.test(mode)) {
+        const short = dst.replace(/^(?:refs\/)?heads\//, "");
+        dst = lastValue(settings, `branch.${short}.merge`) ?? dst;
+      }
     }
     if (!mayBeMain(dst)) continue;
     toMain = true;
@@ -1766,6 +2140,18 @@ function parseGhApi(tokens: string[]): GhApiCall {
   };
 }
 
+// The path of a `gh api` endpoint as the server routes it: scheme, host and
+// query removed, percent-escapes decoded (`heads%2Fmain`, `m%61in`). Null when
+// an escape cannot be decoded.
+function ghApiPath(endpoint: string): string | null {
+  const path = endpoint.replace(/^https?:\/\/[^/]+(?:\/api\/v3)?/i, "").replace(/[?#].*$/s, "");
+  try {
+    return decodeURIComponent(path).replace(/^\/+|\/+$/g, "");
+  } catch {
+    return null;
+  }
+}
+
 const GH_API_MAIN_ASK =
   "gh api write to main or master: approve only if the user asked for a direct change to that branch in this conversation; otherwise push a branch and open a PR";
 const MAIN_BRANCH_RE = /^(?:refs\/)?(?:heads\/)?(?:main|master)$/;
@@ -1778,15 +2164,12 @@ const MAIN_BRANCH_RE = /^(?:refs\/)?(?:heads\/)?(?:main|master)$/;
 // main or forcing counts. A body read from a file (`--input`, `-F name=@file`)
 // is not known, so it counts as touching main.
 function checkGhApiMainWrite(api: GhApiCall, cmd: string): void {
-  if (/[$`]/.test(api.endpoint)) {
+  const path = /[$`]/.test(api.endpoint) ? null : ghApiPath(api.endpoint);
+  if (path === null) {
     pendingAsks.push(GH_API_MAIN_ASK);
     return;
   }
-  const path = api.endpoint
-    .replace(/^https?:\/\/api\.github\.com/i, "")
-    .replace(/[?#].*$/s, "")
-    .replace(/^\/+|\/+$/g, "");
-  const rest = path.match(/^repos\/[^/]+\/[^/]+\/(.*)$/s)?.[1];
+  const rest = path.match(/^repos\/[^/]+\/[^/]+\/(.*)$/is)?.[1];
   if (rest === undefined) return;
   const values = (name: string): string[] =>
     api.fields.filter((f) => f.startsWith(`${name}=`)).map((f) => f.slice(name.length + 1));
@@ -1870,7 +2253,9 @@ function ghTargetOwners(
     }
   }
   if (endpoint !== null) {
-    const m = endpoint.match(/^(?:https?:\/\/api\.github\.com)?\/?repos\/([^/]+)\//i);
+    const path = ghApiPath(endpoint);
+    if (path === null) return null;
+    const m = path.match(/^repos\/([^/]+)\//i);
     if (m?.[1] && !GH_PLACEHOLDER_OWNER.test(m[1])) owners.add(m[1]);
   }
   for (const spec of [c.env.GH_REPO, ctx.env.GH_REPO, process.env.GH_REPO]) {
@@ -1976,7 +2361,7 @@ function resolvePendingOwnerChecks(): void {
 const MAX_DEPTH = 3;
 
 function unwrapAndAnalyze(cmd: string, depth: number): void {
-  if (!/(bash|\/bash|sh|\/sh|zsh|\/zsh)\s+-c\s/.test(cmd)) return;
+  if (!/(bash|\/bash|sh|\/sh|zsh|\/zsh)\s+-c\s/i.test(cmd)) return;
   if (depth >= MAX_DEPTH) block("shell nesting too deep to analyze", cmd);
 
   let inner: string | null = null;
@@ -2006,7 +2391,7 @@ function extractDashCPayload(cmd: string): string | null {
 }
 
 function checkInterpreterOneliners(cmd: string, depth: number): void {
-  if (!/(python3?|node|ruby|perl)\s+-[ec]\s/.test(cmd)) return;
+  if (!/(python3?|node|ruby|perl)\s+-[ec]\s/i.test(cmd)) return;
   const dangerous =
     /(os\.system\(|subprocess\.|child_process|execSync\(|system\(|exec\(|popen\(|spawn\()/;
   if (!dangerous.test(cmd)) return;
@@ -2059,7 +2444,7 @@ const SHELLS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
 
 // What a command writes to stdout when that is plain text we can read:
 // `echo '...'`, `printf '...'`, `cat <<'EOF'`, `cat <<< '...'`.
-function literalOutput(c: ParsedShellCommand, seg: ShellSegment): string | null {
+function literalOutput(c: Command, seg: ShellSegment): string | null {
   const unescapeNewlines = (text: string): string =>
     text.replaceAll("\\n", "\n").replaceAll("\\t", "\t");
   if (c.word === "echo" || c.word === "printf") {
@@ -2074,22 +2459,20 @@ function literalOutput(c: ParsedShellCommand, seg: ShellSegment): string | null 
   return null;
 }
 
-// The text a `<( ... )` process substitution would produce, when it is literal.
+// The text a `<( ... )` or `$( ... )` substitution would produce, when its
+// last command prints literal text. A guess: escapes, formats and globs can
+// change what the shell makes of it, so it only ever adds a reading.
 function processSubstitutionOutput(inner: string): string | null {
   const last = scanShell(inner).segments.at(-1);
   if (!last) return null;
   const stage = splitPipes(last.clean).at(-1);
-  return stage === undefined ? null : literalOutput(parseShellCommand(stage), last);
+  return stage === undefined ? null : literalOutput(parseCommand(stage), last);
 }
 
 // Scripts a shell or `eval` stage will run that are not on its command line:
 // a heredoc or here-string on its stdin, the literal output of the pipe stage
 // feeding it, a `<( ... )` script operand, or `eval`'s joined arguments.
-function scriptsRunBy(
-  c: ParsedShellCommand,
-  previous: ParsedShellCommand | undefined,
-  seg: ShellSegment,
-): string[] {
+function scriptsRunBy(c: Command, previous: Command | undefined, seg: ShellSegment): string[] {
   if (c.word === "eval") return [c.args.join(" ")];
   if (!SHELLS.has(c.word)) return [];
   const hasCommandString = c.args.some((t) => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(t));
@@ -2118,8 +2501,8 @@ function scriptsRunBy(
 
 // `HUSKY=0 bash -c '...'`: the script runs with the assignments in front.
 function unwrapShellStage(
-  c: ParsedShellCommand,
-  previous: ParsedShellCommand | undefined,
+  c: Command,
+  previous: Command | undefined,
   seg: ShellSegment,
   ctx: ShellCtx,
   depth: number,
@@ -2142,26 +2525,57 @@ function unwrapShellStage(
   scripts.push(...scriptsRunBy(c, previous, seg));
   if (scripts.length === 0) return;
   if (depth >= MAX_DEPTH) block("shell nesting too deep to analyze", c.word);
-  for (const script of scripts) analyzeCommand(script, depth + 1, inner);
+  for (const script of scripts) {
+    analyzeCommand(script, depth + 1, inner);
+    if (!script.includes(SUBSTITUTION)) continue;
+    if (seg.subs.length > MAX_ADDED_READINGS) pendingAsks.push(UNREAD_COMMAND_ASK);
+    // `eval "$(echo git push origin main)"`: the script may also be what a
+    // substitution prints.
+    for (const body of seg.subs.slice(0, MAX_ADDED_READINGS)) {
+      const output = processSubstitutionOutput(body);
+      if (output === null) continue;
+      analyzeCommand(
+        script.replaceAll(SUBSTITUTION, () => output),
+        depth + 1,
+        inner,
+      );
+    }
+  }
+}
+
+function checkSegmentText(text: string, subs: string[]): void {
+  checkRmRf(text);
+  checkGitDestructive(text);
+  checkGhApiRepoDelete(text);
+  checkProcessKill(text, subs);
 }
 
 function analyzeSegment(seg: ShellSegment, ctx: ShellCtx, depth: number): void {
   const text = seg.clean;
-  checkRmRf(text);
-  checkGitDestructive(text);
-  checkGhApiRepoDelete(text);
-  checkProcessKill(text, seg.subs);
-  const stages = splitPipes(text).map(parseShellCommand);
-  stages.forEach((c, i) => {
+  checkSegmentText(text, seg.subs);
+  const stages = splitPipes(text).map(parseCommand);
+  stages.forEach((typed, i) => {
     if (i > 0) invalidateCheckoutBranches(ctx);
-    checkSecretReaders(c, ctx, text);
-    checkGhWrites(c, ctx, text);
-    checkGitHookSkips(c, ctx, text);
-    checkMainPush(c, ctx, stages[i - 1], seg, text);
-    unwrapShellStage(c, stages[i - 1], seg, ctx, depth);
-    trackRepo(c, ctx);
-    // Pipeline stages run in subshells, so only a lone command changes state.
-    if (stages.length === 1) trackState(c, ctx);
+    const forms = commandForms(typed, ctx, seg);
+    for (const c of forms) {
+      if (c !== typed) checkSegmentText([c.word, ...c.args].join(" "), seg.subs);
+      checkSecretReaders(c, ctx, text);
+      checkGhWrites(c, ctx, text);
+      checkGitHookSkips(c, ctx, text);
+      checkMainPush(c, ctx, stages[i - 1], seg, text);
+      unwrapShellStage(c, stages[i - 1], seg, ctx, depth);
+      if (forms.length === 1) trackRepo(c, ctx);
+    }
+    // What a command word that is not literal text runs is not known, so
+    // neither is the directory, the branch or any variable after it.
+    if (forms.length > 1) {
+      ctx.dir = null;
+      ctx.repo.changed = true;
+      ctx.opaque.all = true;
+    }
+    // Pipeline stages and background commands run in subshells, so only a
+    // lone foreground command changes state.
+    if (stages.length === 1 && seg.joiner !== "&") trackState(typed, ctx, seg);
   });
   if (stages.length > 1) invalidateCheckoutBranches(ctx);
 }
@@ -2172,10 +2586,15 @@ function invalidateCheckoutBranches(ctx: ShellCtx): void {
 
 function analyzeShell(cmd: string, depth: number, inherited: ShellCtx): void {
   const scan = scanShell(cmd);
+  for (const reading of scan.readings ?? [scan]) analyzeReading(cmd, reading, depth, inherited);
+}
+
+function analyzeReading(cmd: string, scan: ShellScan, depth: number, inherited: ShellCtx): void {
   const base: ShellCtx = cloneCtx({
     ...inherited,
     unterminated: scan.unterminated || inherited.unterminated,
   });
+  markOpaqueVars(cmd, scan, base.opaque);
   // Each subshell scope starts from a copy of its parent's state when its
   // first command is reached, and never writes back.
   const scopes = new Map<number, ShellCtx>([[0, base]]);
@@ -2200,7 +2619,7 @@ function analyzeShell(cmd: string, depth: number, inherited: ShellCtx): void {
       : scanned;
     if (seg.joiner === "|") {
       const ctx = ctxOf(scanned.scope);
-      trackRepo(parseShellCommand(scanned.clean), ctx);
+      trackRepo(parseCommand(scanned.clean), ctx);
       invalidateCheckoutBranches(ctx);
       pipelines.set(seg.scope, seg);
       continue;
@@ -2208,11 +2627,13 @@ function analyzeShell(cmd: string, depth: number, inherited: ShellCtx): void {
     pipelines.delete(seg.scope);
     const ctx = ctxOf(seg.scope);
     analyzeSegment(seg, ctx, depth);
+    endCommand(ctx, seg.joiner);
     if (seg.joiner !== "&&") invalidateCheckoutBranches(ctx);
   }
   for (const seg of pipelines.values()) {
     const ctx = ctxOf(seg.scope);
     analyzeSegment(seg, ctx, depth);
+    endCommand(ctx, null);
     invalidateCheckoutBranches(ctx);
   }
   if (scan.unterminated) {
@@ -2220,7 +2641,7 @@ function analyzeShell(cmd: string, depth: number, inherited: ShellCtx): void {
     // with the quote characters blanked: fail toward blocking.
     for (const piece of cmd.split(/[;&|\n]+/)) {
       const text = piece.replace(/["'`]/g, " ");
-      const c = parseShellCommand(text);
+      const c = parseCommand(text);
       checkSecretReaders(c, base, cmd);
       checkGhWrites(c, base, cmd);
       checkGitHookSkips(c, base, cmd);
@@ -2261,7 +2682,7 @@ function analyzeCommand(cmd: string, depth: number, ctx: ShellCtx = rootCtx()): 
 // markers appear. The markers let a reader (`cat`, `<`, `curl @file`, ...) reach
 // the secret-reader rule without listing every reader here.
 const FAST_PATH_VERBS_RE =
-  /\b(rm|git|gh|push|find|xargs|kill|pkill|killall|fuser|bash|sh|zsh|python|python3|node|ruby|perl)\b/;
+  /\b(rm|git|gh|push|find|xargs|kill|pkill|killall|fuser|bash|sh|zsh|python|python3|node|ruby|perl)\b/i;
 const SECRET_MARKER_RE =
   /\.(?:ssh|aws|gnupg|netrc|git-credentials|npmrc|kube)\b|\.docker\/config|hosts\.yml|\.env(?:rc|\b)|dotenvx/i;
 
@@ -2282,7 +2703,10 @@ export async function main(io: HookIO = processIO): Promise<void> {
     const plain = COMMAND.replace(/\\\r?\n/g, "").replace(/["'\\]/g, "");
     const interesting = (text: string): boolean =>
       FAST_PATH_VERBS_RE.test(text) || SECRET_MARKER_RE.test(text);
+    // A `$` or a backtick can build any of those words at run time (`$A$B`
+    // for git), so a command holding one is analyzed as well.
     if (
+      !/[$`]/.test(COMMAND) &&
       !interesting(COMMAND) &&
       !interesting(plain) &&
       !interesting(shellWords(COMMAND).join(" "))

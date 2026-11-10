@@ -9,6 +9,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { parseShellCommand, type ShellScan, scanShell } from "../src/lib/hook-command.ts";
 
 const SAFETY_NET_TS = resolve(import.meta.dir, "..", "src", "hooks", "safety-net.ts");
 const GITCONFIG_DIR = mkdtempSync(join(tmpdir(), "cc-safety-gitconfig-"));
@@ -2171,4 +2172,706 @@ describe("TS safety-net — updates of main or master", () => {
       test(`allow from a main checkout: ${cmd}`, () => expectAllow(cmd, onMain));
     }
   });
+
+  describe("command words in upper or mixed case", () => {
+    const feature = repo("fix/x");
+    const onMain = repo("main");
+    for (const cmd of [
+      "GIT push origin main",
+      "Git push origin main",
+      "/USR/BIN/GIT push origin main",
+      "SUDO git push origin main",
+      "SUDO ENV GIT push origin main",
+      "echo main | XARGS git push origin",
+      "BASH -c 'git push origin main'",
+      "GH api -X PATCH repos/darkroomengineering/x/git/refs/heads/main -f sha=abc",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    for (const cmd of [
+      "RM -rf /",
+      "Rm -rf ~",
+      "/BIN/RM -rf /",
+      "GIT checkout -- .",
+      "GIT stash clear",
+      "/USR/BIN/GIT stash clear",
+      "/usr/bin/git stash clear",
+      "GIT push --force origin fix/x",
+      "GIT commit --no-verify -m x",
+      "ENV HUSKY=0 GIT commit -m x",
+      "GH auth token",
+      "GH pr create -R vercel/next.js --title x",
+      "GH api -X DELETE repos/darkroomengineering/x",
+      "SUDO cat ~/.ssh/id_rsa",
+      "PKILL node",
+      "lsof -ti :3000 | XARGS KILL",
+      "FIND . -delete",
+      "BASH -c 'rm -rf /'",
+      `PYTHON3 -c 'import os; os.system("rm -rf /")'`,
+      'GIT commit -m "x" -m "Co-Authored-By: Claude <noreply@anthropic.com>"',
+    ]) {
+      test(`block: ${cmd}`, () => expectBlock(cmd, feature));
+    }
+    for (const cmd of [
+      "GIT status",
+      "Git push origin fix/x",
+      "RM -rf dist",
+      "SUDO git push origin fix/x",
+      "Echo done",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+    // The shell matches its builtins exactly: `CD` is a program that changes nothing.
+    test("allow: CD is not the cd builtin, so the push stays in this checkout", () =>
+      expectAllow(`CD ${onMain.replaceAll("\\", "/")} && git push origin HEAD`, feature));
+  });
+
+  describe("a << shift inside arithmetic hides no later line", () => {
+    const feature = repo("fix/x");
+    const SHIFT = "(( x = 1 << 2 ))";
+    for (const cmd of [
+      `${SHIFT}\ngit push origin main`,
+      "(( x = 1 << EOF ))\ngit push origin main\nEOF",
+      "(( x <<= 2 ))\ngit push origin main",
+      "for (( i = 0; i < 1 << 3; i++ )); do :; done\ngit push origin main",
+      "x=$[ 1 << 2 ]\ngit push origin main",
+      "a[1<<2]=x\ngit push origin main",
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
+      "echo ${x:1<<2}\ngit push origin main",
+      `${SHIFT}\nbash -c 'git push origin main'`,
+      `${SHIFT}\necho ok\ngit push origin main`,
+      "echo $(( 1 << 2 ))\ngit push origin main",
+      "while (( i << 1 < 8 )); do :; done\ngit push origin main",
+      // A real heredoc on a later line ends at its delimiter.
+      `${SHIFT}\ncat <<EOF\nhello\nEOF\ngit push origin main`,
+    ]) {
+      test(`ask: ${JSON.stringify(cmd)}`, () => expectAsk(cmd, feature));
+    }
+    test("ask: a cd in front of the shift applies to the lines after it", () =>
+      expectAsk(
+        `cd ${repo("main").replaceAll("\\", "/")}\n${SHIFT}\ngit push origin HEAD`,
+        feature,
+      ));
+    test("ask: a variable set in front of the shift applies to the lines after it", () =>
+      expectAsk(`B=main\n${SHIFT}\ngit push origin $B`, feature));
+    test("allow: a feature branch held in a variable set in front of the shift", () =>
+      expectAllow(`B=fix/x\n${SHIFT}\ngit push origin $B`, feature));
+    for (const cmd of [
+      `${SHIFT}\nrm -rf /`,
+      `${SHIFT}\ngit stash clear`,
+      `${SHIFT}\ngit commit --no-verify -m x`,
+      `${SHIFT}\ncat ~/.ssh/id_rsa`,
+      `${SHIFT}\ngh pr create -R vercel/next.js --title x`,
+      `${SHIFT}\npkill node`,
+      `${SHIFT}\nfind . -delete`,
+      `${SHIFT}\ngit push origin +main`,
+    ]) {
+      test(`block: ${JSON.stringify(cmd)}`, () => expectBlock(cmd, feature));
+    }
+    for (const cmd of [
+      `${SHIFT}\ngit status`,
+      `${SHIFT}\ngit push origin fix/x`,
+      "echo $(( 1 << 2 ))\ngit push origin fix/x",
+      "(( n++ ))\ncat > notes.md <<'EOF'\nrm -rf /\nEOF",
+      // The body of a real heredoc after a shift is text, not commands.
+      `${SHIFT}\ncat > notes.md <<'EOF'\nrm -rf /\nEOF`,
+      `${SHIFT}\ncat <<EOF\ngit push origin main\nEOF\ngit status`,
+      "cat <<EOF\ngit push origin main\nEOF",
+    ]) {
+      test(`allow: ${JSON.stringify(cmd)}`, () => expectAllow(cmd, feature));
+    }
+  });
+
+  describe("a command word held in a variable or a substitution", () => {
+    const feature = repo("fix/x");
+    for (const cmd of [
+      "P='git push origin'; $P main",
+      'G="git push"; $G origin main',
+      "$(echo git push origin main)",
+      "`echo git push origin main`",
+      "$(echo git push) origin main",
+      "$(printf 'git push origin main')",
+      "G=$(echo git push); $G origin main",
+      'eval "$(echo git push origin main)"',
+      'bash -c "$(echo git push origin main)"',
+      // An unset variable or an empty substitution leaves git as the command.
+      "$UNSET git push origin main",
+      "$(true) git push origin main",
+      "E=; $E git push origin main",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    for (const cmd of [
+      "R='rm -rf'; $R /",
+      "G='git push --force'; $G origin fix/x",
+      "C='git commit'; $C --no-verify -m x",
+      "$X git commit --no-verify -m x",
+      "$(echo git push origin +main)",
+      "g=gh; $g pr create -R vercel/next.js --title x",
+    ]) {
+      test(`block: ${cmd}`, () => expectBlock(cmd, feature));
+    }
+    for (const cmd of [
+      "P='git push origin'; $P fix/x",
+      "$(echo git push origin fix/x)",
+      "G=git; $G status",
+      '"$EDITOR" notes.txt',
+      "$(npm bin)/eslint .",
+      "$RUNNER test",
+      "$UNSET git push origin fix/x",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+  });
+
+  describe("xargs input the hook cannot read", () => {
+    const feature = repo("fix/x");
+    for (const cmd of [
+      "printf 'ma\\x69n' | xargs git push origin",
+      "printf 'main\\0' | xargs -0 git push origin",
+      "printf 'ma%sn' i | xargs git push origin",
+      "echo 'ma\\in' | xargs git push origin",
+      `echo '"ma""in"' | xargs git push origin`,
+      "echo ma | xargs -I{} git push origin {}in",
+      "echo ma | xargs -I R git push origin Rin",
+      "echo fix/x | xargs -a refs.txt git push origin",
+      "echo fix/x | xargs --arg-file=refs.txt git push origin",
+      "echo fixXmain | xargs -d X git push origin",
+      "echo ma | xargs -tI{} git push origin {}in",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    for (const cmd of [
+      "printf 'fix/x\\n' | xargs git push origin",
+      "echo fix/x | xargs -n1 git push origin",
+      "echo fix/x | xargs -t git push origin",
+      // A digit inside an option's value is not the -0 flag.
+      "echo fix/x | xargs -s1024 git push origin",
+      "echo fix/x | xargs -n10 git push origin",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+  });
+
+  describe("variables set by more than a plain assignment", () => {
+    const feature = repo("fix/x");
+    for (const cmd of [
+      "B=ma; B+=in; git push origin $B",
+      "B=fix/x; for B in main; do :; done; git push origin $B",
+      "B=fix/x; read B <<< main; git push origin $B",
+      "B=fix/x; echo main | read B; git push origin $B",
+      "B=fix/x; printf -v B main; git push origin $B",
+      "B=fix/x; declare B=main; git push origin $B",
+      "B=fix/x; eval B=main; git push origin $B",
+      "B=main; f() { B=fix/x; }; git push origin $B",
+      "B=fix/x; unset B; git push origin $B",
+      "B=(main); git push origin $B",
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
+      "B=; : ${B:=main}; git push origin $B",
+      "B=main; false && B=fix/x; git push origin $B",
+      "B=main; true || B=fix/x; git push origin $B",
+      "B=main; false && { echo; B=fix/x; }; git push origin $B",
+      "B=main; if false; then B=fix/x; fi; git push origin $B",
+      "B=main; for i in 1; do B=fix/x; done; git push origin $B",
+      "B=main; while false; do export B=fix/x; done; git push origin $B",
+      "B=main; case x in y) B=fix/x;; esac; git push origin $B",
+      "B=fix/x; while read B; do :; done < refs.txt; git push origin $B",
+      "B=fix/x; source ./env.sh; git push origin $B",
+      "B=main; B=fix/x & git push origin $B",
+      // A placeholder inside a variable's value belongs to an earlier command.
+      "B=$(cat branch.txt); git push origin $B $(git branch --show-current)",
+      "B=$(echo main); git push origin $B $(git branch --show-current)",
+      "B=$(echo main); git push origin $B",
+      // The printed text is only a guess at the value, so the variable stays unread.
+      "B=$(echo fix/x); git push origin $B",
+      "B=$(echo -e 'ma\\x69n'); git push origin $B",
+      "B=$(printf 'ma%sn' i); git push origin $B",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    for (const cmd of [
+      "A=1 && B=fix/x && git push origin $B",
+      "cd . && B=fix/x && git push -u origin $B",
+      "B=fix/x; read OTHER <<< y; git push origin $B",
+      "B=fix/x; if true; then echo ok; fi; git push origin $B",
+      "B=fix/x; for f in a b; do echo $f; done; git push origin $B",
+      "B=fix/x; git push origin $B & wait",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+  });
+
+  describe("brace expansion in a push", () => {
+    const feature = repo("fix/x");
+    for (const cmd of [
+      "git push origin {main,fix/x}",
+      "git push origin ma{in,x}",
+      "git push origin refs/heads/{fix/x,main}",
+      "git push origin {a,{b,main}}",
+      "git push {origin,main}",
+      // A sequence is not followed.
+      "git push origin mai{n..n}",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    test("block: a forced refspec inside braces", () =>
+      expectBlock("git push origin +{main,fix/x}", feature));
+    for (const cmd of ["git push origin feature{1,2}", "git push origin {fix/x,fix/y}"]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+  });
+
+  describe("forced and redirected pushes set in git config", () => {
+    const UPSTREAM_MAIN: Array<[string, string]> = [
+      ["push.default", "upstream"],
+      ["branch.fix/x.merge", "refs/heads/main"],
+    ];
+    test("block: a bare push through a forced remote.origin.push line", () =>
+      expectBlock("git push", repo("fix/x", [["remote.origin.push", "+HEAD:refs/heads/main"]])));
+    test("block: a bare push through a forced wildcard line", () =>
+      expectBlock(
+        "git push origin",
+        repo("fix/x", [["remote.origin.push", "+refs/heads/*:refs/heads/*"]]),
+      ));
+    test("allow: a forced remote.origin.push line that cannot reach main", () =>
+      expectAllow(
+        "git push",
+        repo("fix/x", [["remote.origin.push", "+refs/heads/fix/x:refs/heads/fix/x"]]),
+      ));
+    for (const cmd of ["git push origin fix/x", "git push origin refs/heads/fix/x"]) {
+      test(`ask: push.default=upstream sends ${cmd} to the upstream main`, () =>
+        expectAsk(cmd, repo("fix/x", UPSTREAM_MAIN)));
+    }
+    test("block: a forced branch that push.default=upstream sends to main", () =>
+      expectBlock("git push origin +fix/x", repo("fix/x", UPSTREAM_MAIN)));
+    for (const cmd of ["git push origin fix/x:fix/x", "git push origin HEAD"]) {
+      test(`allow: push.default=upstream leaves ${cmd} alone`, () =>
+        expectAllow(cmd, repo("fix/x", UPSTREAM_MAIN)));
+    }
+    test("allow: push.default=upstream with a feature upstream", () =>
+      expectAllow(
+        "git push origin fix/x",
+        repo("fix/x", [
+          ["push.default", "upstream"],
+          ["branch.fix/x.merge", "refs/heads/fix/x"],
+        ]),
+      ));
+    test("allow: an upstream of main without push.default=upstream", () =>
+      expectAllow(
+        "git push origin fix/x",
+        repo("fix/x", [["branch.fix/x.merge", "refs/heads/main"]]),
+      ));
+  });
+
+  describe("git behind a command the parser does not know", () => {
+    const feature = repo("fix/x");
+    for (const cmd of [
+      "xcrun git push origin main",
+      "arch -arm64 git push origin main",
+      "script -q /dev/null git push origin main",
+      "env -P /usr/bin git push origin main",
+      "env --unset FOO git push origin main",
+      "timeout --kill-after 5 10 git push origin main",
+      "timeout --signal KILL 10 git push origin main",
+      "sudo --chdir /tmp git push origin main",
+      "coproc git push origin main",
+      "nice -n 5 xcrun /usr/bin/git push origin main",
+      "git submodule foreach git push origin main",
+      "env -vS 'git push origin refs/heads/main'",
+      "env -iS 'git push origin main'",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    // Wrappers in the parser's table are read by every rule.
+    for (const cmd of [
+      "xcrun gh pr create -R vercel/next.js --title x",
+      "arch -arm64 gh pr create -R vercel/next.js --title x",
+      "timeout --signal KILL 10 git commit --no-verify -m x",
+      "env -P /usr/bin git commit --no-verify -m x",
+      "xcrun cat ~/.ssh/id_rsa",
+      "env -vS 'git push --force origin main'",
+    ]) {
+      test(`block: ${cmd}`, () => expectBlock(cmd, feature));
+    }
+    test("block: a forced update of main behind an unknown wrapper", () =>
+      expectBlock("xcrun git push origin +main", feature));
+    for (const cmd of [
+      "xcrun git push origin fix/x",
+      "env -vS 'git push origin fix/x'",
+      "arch -arm64 git status",
+      "echo git push origin main",
+      "printf '%s\\n' git push origin main",
+      "brew install git",
+      "which git",
+      "ls /usr/bin/git",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+  });
+
+  describe("git subtree options in front of push", () => {
+    const feature = repo("fix/x");
+    for (const cmd of [
+      "git subtree --prefix=lib push origin main",
+      "git subtree --prefix lib push origin main",
+      "git subtree -P lib push origin main",
+      "git subtree -d -P lib push origin main",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    for (const cmd of [
+      "git subtree --prefix=lib push origin fix/x",
+      "git subtree --prefix=lib pull origin main",
+      "git subtree -P lib split",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+  });
+
+  describe("every reading of a command is checked, and the strictest one decides", () => {
+    const feature = repo("fix/x");
+    const onMain = repo("main");
+    const slashed = (p: string): string => p.replaceAll("\\", "/");
+    const HEREDOC = "cat x[ <<EOF\nit's\nEOF\n";
+    const expectNotAllowed = async (cmd: string): Promise<void> => {
+      const r = await runSafetyNet(cmd, feature);
+      if (r.decision === "allow") throw new Error(`expected ASK or BLOCK for: ${cmd}`);
+    };
+    for (const cmd of [
+      // Quoted braces are not a list: the arguments as typed still count.
+      "git -c 'x.y={a,b}' push origin +HEAD:main",
+      "git -C '{a,b}' push origin +HEAD:main",
+      "git -c 'alias.x=!f() { a, b; }; f' push origin +HEAD:main",
+      // What a substitution prints is a guess; the word may still be git.
+      "$(printf git feature) push origin +HEAD:main",
+      "G=$(printf git feature); $G push origin +HEAD:main",
+      "touch git; $(echo 'gi?') push origin +HEAD:main",
+      "$(echo 'g*') push origin +HEAD:main",
+      // A `<<` after `x[` or inside `((` may be a real heredoc with a quote in its body.
+      `${HEREDOC}git push origin +HEAD:main # '`,
+      `${HEREDOC}git commit --no-verify -m x # '`,
+      `${HEREDOC}cat ~/.ssh/id_rsa # '`,
+      "((cat <<EOF\nit's\nEOF\n) | wc -l)\ngit push origin +HEAD:main # '",
+      // The script eval runs is read as typed and with each printed text pasted in.
+      'eval "$(cat f) push origin +HEAD:main $(echo x)"',
+      "env -vu FOO git commit --no-verify -m x",
+      // A command word that cannot be read may be any value the line holds.
+      "G='git -c a.b=$X push origin +HEAD:main'; $G",
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
+      "G='git push origin +HEAD:main'; ${=G}",
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
+      "N=G; G='git push origin +HEAD:main'; ${!N}",
+      "read -r G <<< 'git push origin +HEAD:main'; $G",
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
+      "G='gh pr create -R vercel/next.js --title x'; ${=G}",
+      "IFS=,; G='git,push,origin,+HEAD:main'; $G",
+      // An unquoted variable splits into words.
+      "B='feature +HEAD:main'; git push origin $B",
+    ]) {
+      test(`block: ${JSON.stringify(cmd)}`, () => expectBlock(cmd, feature));
+    }
+    for (const cmd of [
+      "git -c 'x.y={a,b}' push origin HEAD:main",
+      'eval "$(cat f) push origin main $(echo x)"',
+      "B='feature main'; git push origin $B",
+      "git push origin mai?",
+      "IFS=x; B=fooxmain; git push origin $B",
+      "declare -n R=B; B=fix/x; R=main; git push origin $B",
+      "B=fix/x; print -v B main; git push origin $B",
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
+      "B=fix/x; : ${B::=main}; git push origin $B",
+      "sh -c 'B=fix/x; B=main :; git push origin $B'",
+      // After a command word that is not literal text, no state is trusted.
+      "B=fix/x; $UNSET export B=main; git push origin +HEAD:$B",
+      "$UNSET git checkout main && git push --force-with-lease",
+      `G="cd ${slashed(onMain)}"; $G; git push`,
+      "$TOOL; git push",
+      // Wrapper options that name the directory, attached or in a cluster.
+      `sudo --chdir=${slashed(onMain)} git push`,
+      `env -iC ${slashed(onMain)} git push`,
+      `env -iC${slashed(onMain)} git push`,
+      // More git words than the rule follows.
+      `true ${"git status ".repeat(9)}`,
+      // A brace word too long to expand.
+      `git push origin {${"a".repeat(2000)},b}`,
+    ]) {
+      test(`ask: ${JSON.stringify(cmd.slice(0, 90))}`, () => expectAsk(cmd, feature));
+    }
+    test("block: git named more often than the text rule reads", () =>
+      expectBlock(`true ${"git status ".repeat(300)}`, feature));
+    for (const cmd of [
+      // The printed text is an added reading, and here it names a forced main.
+      "B=$(printf +HEAD:main feature); git push origin $B",
+      `eval "$(echo "git push origin +HEAD:\\$'\\\\x6dain'")"`,
+    ]) {
+      test(`block: ${cmd}`, () => expectBlock(cmd, feature));
+    }
+    for (const cmd of [
+      "B=$(echo -n -e main); git push origin $B",
+      "B=$(printf -- main); git push origin $B",
+    ]) {
+      test(`ask or block: ${cmd}`, () => expectNotAllowed(cmd));
+    }
+
+    // Past 16 added readings of a command word or script the rest is not
+    // followed, so the command asks.
+    const values = (n: number): string =>
+      Array.from({ length: n }, (_, i) => `A${i}=v${i}; `).join("");
+    const empties = "$(echo) ".repeat(16);
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
+    const forced = "G='git push origin +HEAD:main'; ${=G}";
+    test("block: the 16th value the line holds is still read", () =>
+      expectBlock(`${values(15)}${forced}`, feature));
+    test("ask: a 17th value the line holds is not read", () =>
+      expectAsk(`${values(16)}${forced}`, feature));
+    test("ask: a 17th substitution in a command word is not read", () =>
+      expectAsk(`${empties}$(echo git push origin +HEAD:main)`, feature));
+    test("ask: a 17th substitution in an eval script is not read", () =>
+      expectAsk(`eval "${empties}$(echo git push origin +HEAD:main)"`, feature));
+    test("block: 16 substitutions in a command word are all read", () =>
+      expectBlock(`${"$(echo) ".repeat(15)}$(echo git push origin +HEAD:main)`, feature));
+
+    for (const cmd of [
+      // IFS set through a builtin, not a plain assignment.
+      "git status; export IFS=x; G=gitxpushxoriginx+HEAD:main; $G",
+      "git status; declare IFS=x; G=gitxpushxoriginx+HEAD:main; $G",
+      "git status; IFS+=x; G=gitxpushxoriginx+HEAD:main; $G",
+      // No guarded word appears literally: variables build them at run time.
+      "IFS=x; G=gitxpushxoriginx+HEAD:main; $G",
+      "A=gi; B=t; C=pus; D=h; $A$B $C$D origin +HEAD:main",
+      "R=r; M=m; $R$M -rf ~",
+    ]) {
+      test(`block: ${cmd}`, () => expectBlock(cmd, feature));
+    }
+    for (const cmd of [
+      "git status; export IFS=x; B=fooxmain; git push origin $B",
+      "git status; declare IFS=x; B=fooxmain; git push origin $B",
+      // An IFS the hook cannot read: the command word may split anywhere.
+      "git status; read IFS <<< x; G=gitxpushxoriginx+HEAD:main; $G",
+      // IFS reached through a nameref, or set by a sourced file.
+      "declare -n R=IFS; R=x; G=gitxpushxoriginx+HEAD:main; $G",
+      "typeset -n R=IFS; R=x; G=gitxpushxoriginx+HEAD:main; $G",
+      ". ./f; G=gitxpushxoriginx+HEAD:main; $G",
+      "source ./f; G=gitxpushxoriginx+HEAD:main; $G",
+      "git push origin mai[n]",
+      // 65 words, one more than the brace list the rule expands.
+      "git push origin {a,b,c,d,e}{a,b,c,d,e,f,g,h,i,j,k,l,m}",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    for (const cmd of [
+      // 64 words: every one is read, and none names main.
+      "git push origin {a,b,c,d,e,f,g,h}{a,b,c,d,e,f,g,h}",
+      "echo $HOME",
+      'ls "$PWD"',
+      "IFS=,; echo $HOME",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+    for (const cmd of [
+      "git -c 'x.y={a,b}' push origin fix/x",
+      "$(printf git feature) status",
+      "G=$(echo git); $G status",
+      "B='fix/x fix/y'; git push origin $B",
+      'eval "$(echo git status)"',
+      "IFS=,; git push origin fix/x",
+      `${HEREDOC}git push origin fix/x # '`,
+      `${HEREDOC}git status # '`,
+      "$TOOL; git push origin fix/x",
+      `true ${"git status ".repeat(8)}`,
+      "env -vu FOO git commit -m x",
+    ]) {
+      test(`allow: ${JSON.stringify(cmd.slice(0, 90))}`, () => expectAllow(cmd, feature));
+    }
+    for (const cmd of [
+      `sudo --chdir=${slashed(feature)} git push`,
+      `env -iC ${slashed(feature)} git push`,
+    ]) {
+      test(`allow from a main checkout: ${cmd}`, () => expectAllow(cmd, onMain));
+    }
+  });
+
+  describe("gh api endpoints with percent-escapes or a full URL", () => {
+    const feature = repo("fix/x");
+    const REFS = "repos/darkroomengineering/x/git/refs";
+    for (const cmd of [
+      `gh api -X PATCH ${REFS}/heads%2Fmain -f sha=abc`,
+      `gh api -X PATCH ${REFS}/heads/m%61in -f sha=abc`,
+      `gh api -X PATCH https://api.github.com/${REFS}/heads%2Fmain -f sha=abc`,
+      `gh api -X PATCH https://ghe.example.com/api/v3/${REFS}/heads/main -f sha=abc`,
+      "gh api -X PUT repos/darkroomengineering/x/branches/m%61in/protection --input p.json",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    for (const cmd of [
+      `gh api -X PATCH ${REFS}/heads%2Fmain -f sha=abc -f force=true`,
+      "gh api -X DELETE https://api.github.com/repos/darkroomengineering/x",
+      "/opt/homebrew/bin/gh api -X DELETE repos/darkroomengineering/x",
+      "gh api -X DELETE repos%2Fdarkroomengineering%2Fx",
+      "gh api -X POST repos/v%65rcel/next.js/issues -f title=x",
+      "gh api -X POST https://ghe.example.com/api/v3/repos/vercel/next.js/issues -f title=x",
+      // An escape that cannot be decoded leaves the owner unknown.
+      `gh api -X PATCH ${REFS}/heads/%zz -f sha=abc`,
+    ]) {
+      test(`block: ${cmd}`, () => expectBlock(cmd, feature));
+    }
+    for (const cmd of [
+      `gh api -X PATCH ${REFS}/heads/fix%2Fx -f sha=abc`,
+      "gh api -X POST repos/darkroomengineering/x/issues -f title='100% done'",
+      "gh api https://api.github.com/repos/vercel/next.js/pulls",
+      "gh api -X DELETE https://api.github.com/repos/darkroomengineering/x/git/refs/heads/fix/x",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+  });
+});
+
+describe("shared scanner and parser — arithmetic shifts and wrappers", () => {
+  const commands = (scan: ShellScan | undefined): string[] =>
+    (scan?.segments ?? []).map((s) => s.clean);
+  const heredocs = (scan: ShellScan | undefined): Array<{ word: string; body: string }> =>
+    (scan?.segments ?? []).flatMap((s) => s.heredocs);
+
+  // In these places a `<<` may shift bits or open a heredoc, so the scan holds
+  // both readings: neither is trusted alone.
+  for (const shift of [
+    "(( x = 1 << 2 ))",
+    "(( x <<= 2 ))",
+    "(( x = 1 << EOF ))",
+    "for (( i = 0; i < 1 << 3; i++ )); do :; done",
+    "while (( i << 1 < 8 )); do :; done",
+    "x=$[ 1 << 2 ]",
+    "a[1<<2]=x",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
+    "echo ${x:1<<2}",
+  ]) {
+    test(`a << in ${shift} is read as a heredoc and as a shift`, () => {
+      const scan = scanShell(`${shift}\necho after\nEOF`);
+      const [asHeredoc, asShift] = scan.readings ?? [];
+      expect(heredocs(asHeredoc).length).toBe(1);
+      expect(commands(asHeredoc)).not.toContain("echo after");
+      expect(heredocs(asShift)).toEqual([]);
+      expect(commands(asShift)).toContain("echo after");
+      // The command list holds every command of both readings, each once.
+      expect(commands(scan).filter((c) => c === "echo after")).toEqual(["echo after"]);
+      expect(commands(scan).slice(0, commands(asHeredoc).length)).toEqual(commands(asHeredoc));
+    });
+  }
+
+  test("a << in $(( )) is a shift under a single reading", () => {
+    const scan = scanShell("echo $(( 1 << 2 ))\necho after\nEOF");
+    expect(scan.readings).toBeUndefined();
+    expect(heredocs(scan)).toEqual([]);
+    expect(commands(scan)).toContain("echo after");
+  });
+
+  test("a command with no such << has a single reading", () => {
+    expect(scanShell("cat <<EOF\nbody\nEOF\n(( n++ ))\necho after").readings).toBeUndefined();
+  });
+
+  test("a real heredoc on a later line keeps its body in the shift reading", () => {
+    const scan = scanShell("(( x = 1 << 2 ))\ncat <<EOF\nrm -rf /\nEOF\necho after");
+    const asShift = scan.readings?.[1];
+    expect(heredocs(asShift)).toEqual([{ word: "EOF", body: "rm -rf /\n" }]);
+    expect(commands(asShift)).toEqual(["x = 1 << 2", "cat <<EOF", "echo after"]);
+  });
+
+  test("a heredoc in a substitution inside arithmetic is a heredoc in the shift reading", () => {
+    const scan = scanShell("(( x = $(cat <<EOF\n1\nEOF\n) << 2 ))\necho after");
+    const asShift = scan.readings?.[1];
+    expect(heredocs(asShift)).toEqual([{ word: "EOF", body: "1\n" }]);
+    expect(commands(asShift)).toContain("echo after");
+  });
+
+  test("the shift reading's own commands sit in a scope apart from the first reading's", () => {
+    const scan = scanShell("(( x = 1 << 2 ))\necho later\n2\ncd /tmp");
+    const [asHeredoc, asShift] = scan.readings ?? [];
+    expect(commands(asHeredoc)).toEqual(["x = 1 << 2", "cd /tmp"]);
+    expect(commands(asShift)).toEqual(["x = 1 << 2", "echo later", "2", "cd /tmp"]);
+    const later = scan.segments.find((s) => s.clean === "echo later");
+    expect(later?.scope).toBeGreaterThan(0);
+    expect(scan.scopeParents[later?.scope ?? 0]).toBe(0);
+    expect(scan.segments.find((s) => s.clean === "cd /tmp")?.scope).toBe(0);
+  });
+
+  // A heredoc where only the shift reading loses lines: its body opens a quote
+  // that runs to a later line. The heredoc reading keeps the command after it.
+  for (const cmd of [
+    "cat x[ <<EOF\nit's\nEOF\necho after # '",
+    "((cat <<EOF\nit's\nEOF\n) | wc -l)\necho after # '",
+    "echo ${x <<EOF\nit's\nEOF\necho after # '",
+  ]) {
+    test(`the heredoc reading keeps later lines: ${JSON.stringify(cmd)}`, () => {
+      const scan = scanShell(cmd);
+      const [asHeredoc, asShift] = scan.readings ?? [];
+      expect(commands(asHeredoc)).toContain("echo after");
+      expect(commands(asShift)).not.toContain("echo after");
+      expect(commands(scan)).toContain("echo after");
+      expect(scan.unterminated).toBe(false);
+    });
+  }
+
+  for (const cmd of [
+    "cat <<EOF\nbody\nEOF\necho after",
+    "( (cat <<EOF\nbody\nEOF\n) )\necho after",
+    "ls x[ab] <<EOF\nbody\nEOF\necho after",
+    "if [ -f x ]; then cat <<EOF\nbody\nEOF\nfi\necho after",
+  ]) {
+    test(`a heredoc outside arithmetic keeps its body: ${JSON.stringify(cmd)}`, () => {
+      const scan = scanShell(cmd);
+      expect(scan.segments.flatMap((s) => s.heredocs)).toEqual([{ word: "EOF", body: "body\n" }]);
+      expect(scan.segments.map((s) => s.clean)).not.toContain("body");
+    });
+  }
+
+  for (const [stage, word, args] of [
+    ["SUDO -u root git push origin main", "git", ["push", "origin", "main"]],
+    ["/USR/BIN/ENV FOO=1 git status", "git", ["status"]],
+    ["env -vS 'git push origin refs/heads/main'", "git", ["push", "origin", "refs/heads/main"]],
+    ["env -iS'git\\_status'", "git", ["status"]],
+    ["env -P /usr/bin git status", "git", ["status"]],
+    ["env --unset FOO git status", "git", ["status"]],
+    ["timeout --kill-after 5 10 git status", "git", ["status"]],
+    ["timeout --signal KILL 10 git status", "git", ["status"]],
+    ["xcrun --sdk macosx git status", "git", ["status"]],
+    ["arch -arm64 git status", "git", ["status"]],
+    ["coproc git status", "git", ["status"]],
+    // Only the wrapper is folded: the command word keeps its spelling.
+    ["SUDO GIT status", "GIT", ["status"]],
+  ] as const) {
+    test(`parseShellCommand reads through the wrapper: ${stage}`, () => {
+      const c = parseShellCommand(stage);
+      expect(c.word).toBe(word);
+      expect(c.args).toEqual([...args]);
+    });
+  }
+
+  test("sudo --chdir names the directory the command runs in", () => {
+    expect(parseShellCommand("sudo --chdir /srv git status").chdirs).toEqual(["/srv"]);
+  });
+
+  for (const [stage, reshapes] of [
+    ["xargs git push origin", false],
+    ["xargs -n1 -t git push origin", false],
+    ["xargs -s1024 git push origin", false],
+    ["xargs -n10 git push origin", false],
+    ["xargs -0 git push origin", true],
+    ["xargs -t0 git push origin", true],
+    ["xargs -I{} git push origin {}", true],
+    ["xargs -I R git push origin R", true],
+    ["xargs -a refs.txt git push origin", true],
+    ["xargs -d , git push origin", true],
+    ["xargs -E END git push origin", true],
+    ["xargs --null git push origin", true],
+    ["xargs --arg-file=refs.txt git push origin", true],
+    ["XARGS -0 git push origin", true],
+    // The flag belongs to the command xargs runs, not to xargs.
+    ["xargs git push -a origin", false],
+  ] as const) {
+    test(`xargsReshapes is ${reshapes}: ${stage}`, () => {
+      const c = parseShellCommand(stage);
+      expect(c.viaXargs).toBe(true);
+      expect(c.xargsReshapes).toBe(reshapes);
+    });
+  }
 });

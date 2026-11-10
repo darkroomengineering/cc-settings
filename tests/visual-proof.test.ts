@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { bodyProof, editTarget, flagValue, main } from "../src/hooks/visual-proof.ts";
+import { join, resolve } from "node:path";
+import { bodyProof, editTarget, flagValue, main, prCommands } from "../src/hooks/visual-proof.ts";
 import { captureIO, HookBlocked } from "../src/lib/hook-runtime.ts";
 
 let root: string;
@@ -256,5 +256,35 @@ describe("bodyProof", () => {
     const body =
       "![a](https://raw.githubusercontent.com/o/r/b/a.png) ![b](https://i.imgur.com/b.png)";
     expect(bodyProof(body)).toEqual({ ok: true, committedOnly: false });
+  });
+});
+
+// A `<<` inside `(( ))` may shift bits or open a heredoc, so the command has
+// two readings. Each is walked on its own: a `cd` moves only the commands that
+// follow it in the same reading.
+describe("prCommands across the two readings of a <<", () => {
+  const PR = "gh pr create --title x --body y";
+  const args = ["pr", "create", "--title", "x", "--body", "y"];
+
+  test("a cd after the PR command does not move it", () => {
+    expect(prCommands(`(( x = 1 << 2 ))\n${PR}\n2\ncd /tmp`, "/repo")).toEqual([
+      { args, cwd: "/repo" },
+    ]);
+  });
+
+  test("a cd before the PR command moves it", () => {
+    expect(prCommands(`(( x = 1 << 2 ))\ncd sub\n${PR}`, "/repo")).toEqual([
+      { args, cwd: resolve("/repo", "sub") },
+    ]);
+  });
+
+  test("a PR command both readings hold is found once", () => {
+    expect(prCommands(`${PR}\n(( x = 1 << 2 ))\necho done`, "/repo")).toEqual([
+      { args, cwd: "/repo" },
+    ]);
+  });
+
+  test("the same PR command written twice is still found twice", () => {
+    expect(prCommands(`${PR}; ${PR}`, "/repo")).toHaveLength(2);
   });
 });

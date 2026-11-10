@@ -49,6 +49,29 @@ describe("configWrites: shell writes a permission glob cannot see", () => {
     ["perl -pi -e 's/a/b/' .mcp.json", "edits .mcp.json in place with perl"],
     ["cd pkg && echo x > .mcp.json", "redirects output into .mcp.json"],
     ["echo $(echo x > .mcp.json)", "redirects output into .mcp.json"],
+    // A `<<` inside arithmetic shifts bits; the lines after it are still commands.
+    ["(( x = 1 << 2 ))\necho '{}' > .mcp.json", "redirects output into .mcp.json"],
+    ["echo $(( 1 << 2 ))\necho '{}' > .mcp.json", "redirects output into .mcp.json"],
+    [
+      "for (( i = 0; i < 1 << 3; i++ )); do :; done\ncurl -s x | tee .mcp.json",
+      "writes .mcp.json through tee",
+    ],
+    ["a[1<<2]=x\necho '{}' > .mcp.json", "redirects output into .mcp.json"],
+    [
+      "(( x = 1 << 2 ))\ncat <<EOF\ntext\nEOF\necho '{}' > .mcp.json",
+      "redirects output into .mcp.json",
+    ],
+    // The same `<<` may be a real heredoc; an apostrophe in its body hides nothing.
+    ["cat x[ <<EOF\nit's\nEOF\necho {} > .mcp.json # '", "redirects output into .mcp.json"],
+    [
+      "((cat <<EOF\nit's\nEOF\n) | wc -l)\necho {} > .mcp.json # '",
+      "redirects output into .mcp.json",
+    ],
+    // Wrappers the parser reads: any letter case, flag clusters, launchers.
+    ["curl -s x | SUDO tee .mcp.json", "writes .mcp.json through tee"],
+    ["curl -s x | env -vS 'tee .mcp.json'", "writes .mcp.json through tee"],
+    ["curl -s x | xcrun tee .mcp.json", "writes .mcp.json through tee"],
+    ["timeout --signal KILL 5 sed -i s/a/b/ .mcp.json", "edits .mcp.json in place with sed"],
   ])("%s", (cmd, finding) => {
     expect(configWrites(cmd)).toEqual([finding]);
   });
@@ -61,6 +84,9 @@ describe("configWrites: shell writes a permission glob cannot see", () => {
     "tee /tmp/log < .mcp.json",
     "echo '> .mcp.json'",
     "bun test 2>&1 | tail -5",
+    // A real heredoc after arithmetic keeps its body out of the commands.
+    "(( x = 1 << 2 ))\ncat <<'EOF'\necho x > .mcp.json\nEOF",
+    "echo $(( 1 << 2 ))\ncat <<'EOF'\necho x > .mcp.json\nEOF",
   ])("%s writes nothing protected", (cmd) => {
     expect(configWrites(cmd)).toEqual([]);
   });
