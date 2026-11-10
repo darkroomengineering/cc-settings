@@ -62,7 +62,7 @@ Claude Code has a native **advisor** layered on the API's [advisor tool](https:/
 - `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` ignores `advisorModel` entirely.
 - A saved advisor the main model can't pair with is not attached, and the session shows a notification. When the API refuses one mid-conversation, the advisor stays off until `/clear` or `/compact`.
 
-**When it is called:** the model decides, usually before committing to an approach, when an error recurs, and before declaring done. There is no setting to force or cap calls, so `implementer`, `tester`, and `maestro` ask for those three checkpoints in their prompts. Ask for one directly with "consult the advisor before you continue".
+**When it is called:** the model decides, usually before committing to an approach, when an error recurs, and before declaring done. There is no setting to force or cap calls, so `implementer`, `tester`, and `maestro` name those checkpoints in their prompts, state what a call costs, and tell the agent to skip it for mechanical steps. Ask for one directly with "consult the advisor before you continue".
 
 **Interactions:**
 
