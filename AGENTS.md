@@ -56,6 +56,10 @@ The 2-iteration limit does not fire on an OS, device, vendor, or network blocker
 
 Keep a bug fix confined to directly related files. Do not refactor adjacent code, upgrade dependencies, or touch outside the immediate blast radius. The PR should be reviewable in under 2 minutes.
 
+### Fit the Feature to the Structure
+
+When a requested feature does not fit the existing structure, and the only in-scope way to add it is a special case, a flag, or a parallel path, stop before writing it. Say what does not fit, the refactor that would make it fit, and its rough size, then ask. A refactor that stays inside the files the feature already touches needs no stop: do it.
+
 ### No Implicit State Machines
 
 One lifecycle spread across flags (`isLoading` beside `isError`, a `status` beside fields valid only in some statuses, updates that must happen together, run-twice guard refs) lets impossible states exist. Model it as one tagged union that carries each state's data, with transitions in one function or reducer; use a library only if the project has one. Never add a flag to an existing lifecycle. Feature work converts those in code the diff edits; a bug fix converts one only when it caused the bug, else names it and files a follow-up. `/audit state` finds the rest.
