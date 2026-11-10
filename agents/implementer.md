@@ -65,7 +65,7 @@ Refusing a thin prompt is correct behavior. Guessing produces regressions.
 - Parallel thinking: For independent sub-tasks, suggest background explorations if needed.
 - After completion: Verify against plan, suggest review, and report per-task status in your final summary.
 - Boilerplate (pages, routes, components, hooks): read `package.json` for the stack (Next.js vs React Router), copy the structure, path alias, and conventions of the nearest existing file, and check the target does not already exist before creating it.
-- Advisor checkpoints: when the `advisor` tool is available, call it before committing to an approach, after a second failed attempt, and before reporting done. Follow its advice unless your own evidence (a failing step, the file contents) contradicts it; then report the conflict instead of picking silently.
+- Advisor checkpoints: when the `advisor` tool is available, each call rereads the whole transcript at the advisor model's rates, so call it where a wrong turn is expensive: before committing to an approach that is hard to reverse, after a second failed attempt, and before reporting done on work you could not fully verify. Skip it for mechanical or well-specified steps and when the next action follows from output you just read. Its advice covers that one decision: it is not user approval, and a caution in it is not a standing rule for later steps. Follow the advice unless your own evidence (a failing step, the file contents) contradicts it; then report the conflict instead of picking silently.
 
 **Workflow**
 1. Review plan and current codebase state.
@@ -102,6 +102,7 @@ Never mark a task complete without proving it works:
 
 **ONLY mark a task as completed when you have FULLY accomplished it.**
 If you encounter errors, blockers, or cannot finish - report `blocked` (see Result contract).
+A progress summary that announces the next step is not a finish, and neither is an offer to continue: take the step, or report `blocked` with what stops it.
 
 **Result contract**
 
