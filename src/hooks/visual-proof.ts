@@ -94,24 +94,32 @@ function ghPositionals(args: string[]): string[] {
  *  literal `cd` earlier in the command moved it to. */
 export function prCommands(command: string, cwd: string): PrCommand[] {
   const scan = scanShell(command);
-  if (scan.unterminated) return [];
   const found: PrCommand[] = [];
-  let dir = cwd;
-  for (const seg of scan.segments) {
-    for (const stage of splitPipes(seg.clean)) {
-      const { word, args } = parseShellCommand(stage);
-      if (word === "cd" && seg.scope === 0 && args.length === 1) {
-        const target = args[0] as string;
-        dir =
-          target === "-" || target.startsWith("~") || unresolved(target)
-            ? ""
-            : resolve(dir, target);
+  // Each reading of an ambiguous `<<` is walked on its own: a `cd` moves only
+  // the commands that follow it in the same reading.
+  for (const reading of scan.readings ?? [scan]) {
+    if (reading.unterminated) continue;
+    const earlier = [...found];
+    let dir = cwd;
+    for (const seg of reading.segments) {
+      for (const stage of splitPipes(seg.clean)) {
+        const { word, args } = parseShellCommand(stage);
+        if (word === "cd" && seg.scope === 0 && args.length === 1) {
+          const target = args[0] as string;
+          dir =
+            target === "-" || target.startsWith("~") || unresolved(target)
+              ? ""
+              : resolve(dir, target);
+        }
+        if (word !== "gh" || dir === "") continue;
+        const [group, sub] = ghPositionals(args);
+        if (group !== "pr") continue;
+        // An edit naming a PR can target any branch; the local diff says nothing about it.
+        if (sub !== "create" && !(sub === "edit" && !editTarget(args))) continue;
+        const same = (p: PrCommand): boolean =>
+          p.cwd === dir && p.args.join("\0") === args.join("\0");
+        if (!earlier.some(same)) found.push({ args, cwd: dir });
       }
-      if (word !== "gh" || dir === "") continue;
-      const [group, sub] = ghPositionals(args);
-      if (group !== "pr") continue;
-      // An edit naming a PR can target any branch; the local diff says nothing about it.
-      if (sub === "create" || (sub === "edit" && !editTarget(args))) found.push({ args, cwd: dir });
     }
   }
   return found;

@@ -266,6 +266,27 @@ describe("hasGitCommit", () => {
     expect(hasGitCommit("echo 'git commit'")).toBe(false);
     expect(hasGitCommit("gh pr create -t commit")).toBe(false);
   });
+
+  // A `<<` after `x[` or inside `((` may be a heredoc or a shift. Either way the
+  // command after it is found: an apostrophe in a heredoc body hides nothing,
+  // and neither does a shift read as a heredoc.
+  test.each([
+    "cat x[ <<EOF\nit's\nEOF\ngit commit -m x # '",
+    "((cat <<EOF\nit's\nEOF\n) | wc -l)\ngit commit -m x # '",
+    "(( x = 1 << 2 ))\ngit commit -m x",
+  ])("finds git commit after an ambiguous <<: %j", (cmd) => {
+    expect(hasGitCommit(cmd)).toBe(true);
+  });
+});
+
+describe("prCommands after an ambiguous <<", () => {
+  test.each([
+    "cat x[ <<EOF\nit's\nEOF\ngh pr create -t X # '",
+    "((cat <<EOF\nit's\nEOF\n) | wc -l)\ngh pr create -t X # '",
+    "(( x = 1 << 2 ))\ngh pr create -t X",
+  ])("%j", (cmd) => {
+    expect(prCommands(cmd)).toMatchObject([{ subcommand: "create", title: "X" }]);
+  });
 });
 
 describe("commitReminder", () => {

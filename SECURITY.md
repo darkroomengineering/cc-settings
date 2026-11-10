@@ -407,7 +407,8 @@ safety-net uses. The permission prompt and the deny-list remain the boundary.
 
 - gh aliases, and the destination of `gh issue transfer`.
 - `git rebase`, `git am` and `git pull` with `--no-verify`.
-- `declare -x HUSKY=0`, and a variable as the command word (`g=gh; $g ...`).
+- `declare -x HUSKY=0`, and a command word held in a variable that is not set
+  on the command line (`$TOOL pr create ...`).
 - `GIT_DIR=... gh ...` and `git -c alias.c='commit --no-verify' c`.
 - Commands inside `$(( ))` arithmetic.
 - Interpreter one-liners that read secrets (`python3 -c`, `node -e`,
@@ -424,14 +425,16 @@ safety-net uses. The permission prompt and the deny-list remain the boundary.
 
 ### What the main-push rule reads, and its known limits
 
-The rule covers `git push`, `git subtree push`, `git send-pack` and `gh api`
-branch writes. It asks for an update of main or master and blocks a forced one.
+The rule covers `git push`, `git subtree push` (with its options on either side
+of `push`), `git send-pack` and `gh api` branch writes. It asks for an update of
+main or master and blocks a forced one.
 It asks, rather than passing, when it cannot tell where a push goes:
 
-- a destination or remote that holds a variable not assigned earlier on the
-  line, a command substitution other than the current-branch lookups
-  (`$(git branch --show-current)` and its equivalents), or `xargs` input other
-  than a literal `echo`/`printf`;
+- a destination or remote that holds a variable whose value the hook does not
+  trust (see below), a command substitution other than the current-branch
+  lookups (`$(git branch --show-current)` and its equivalents), a `{a..b}`
+  brace sequence, a `?` or `[` that the shell matches against file names, or
+  `xargs` input it cannot read;
 - a push that relies on the current branch (a bare push, `HEAD`, `@`) after an
   earlier `git checkout`/`git switch` it cannot read, a `git worktree` or
   `git clone`, or in a directory that does not exist yet or that a `cd`,
@@ -451,39 +454,180 @@ URL rewrite (`url.*.insteadOf`, `url.*.pushInsteadOf`, `remote.*.url`,
 regular file, never a symlink), and git is asked only when that file cannot
 answer; a failing git means "unknown", which asks, not "detached".
 
+How safety-net reads the command line. One rule governs it: where a command
+can be read in more than one way, the hook checks every reading and the
+strictest decision stands. A reading can add an ask or a block and never
+removes one. Shifts, wrappers and the letter case of wrapper names come from
+the scanner and parser that safety-net shares with config-guard, linear-gate,
+test-protect and visual-proof, so those points hold for all five hooks. The
+next two hold for every safety-net rule, the rest for the push rule:
+
+- **Shifts.** A `<<` inside `(( ))`, `$[ ]`, `${ }` or after `name[` may shift
+  bits or open a heredoc (`cat x[ <<EOF` is a heredoc). The scanner reads such
+  a command both ways: with every such `<<` as a heredoc, and with every one
+  as a shift, where the lines after it are commands. safety-net and
+  visual-proof follow state from one command to the next (a `cd`, a
+  variable), so they walk each reading on its own. config-guard, linear-gate
+  and test-protect judge one command at a time and get the commands of both
+  readings in one list. The cost: the body of a heredoc that follows such a
+  `<<` is also read as commands, so text in it that names a guarded command
+  is reported.
+- **Wrappers.** The parser reads the command behind `sudo`, `env`, `time`,
+  `caffeinate`, `command`, `exec`, `builtin`, `nohup`, `nice`, `ionice`,
+  `stdbuf`, `timeout`, `xargs`, `xcrun`, `arch` and the `coproc` keyword. That
+  includes env's flag clusters (`env -vS 'git push origin main'`,
+  `env -iC DIR`, `env -vu NAME`), `env -P`, `env --unset`, `timeout --signal`
+  and `--kill-after`, and `sudo --chdir DIR` or `--chdir=DIR`. Wrapper names
+  match in any letter case (`SUDO git ...`).
+- **Letter case.** safety-net matches command words in any letter case, on
+  every platform: `GIT`, `Rm` and `/USR/BIN/GIT` are read as git and rm.
+  macOS and Windows resolve those spellings to the same program. On a
+  case-sensitive filesystem the spelling names a program that normally does
+  not exist, so matching it everywhere costs only a block or an ask on a
+  command that would have failed, and keeps one behavior across platforms.
+  Shell builtins are the exception, because the shell matches them exactly:
+  `CD` and `EXPORT` do not change the directory or the environment the hook
+  tracks.
+- **Command words that are not literal text.** A command word that holds a
+  variable or a substitution is always read two ways. The push rule reads it
+  as git (`$GIT push origin main`); no other rule does. Every rule reads it
+  as nothing, which leaves the next word as the command
+  (`$UNSET git push origin main`). Three more readings are added to those.
+  The word with the line's plain assignments filled in and split into words
+  (`G="git push"; $G origin main`). The word with the text that a
+  substitution's `echo`, `printf` or `cat` of a heredoc prints pasted in
+  (`$(echo git push origin main)`); that text is a guess, since escapes,
+  formats and globs can change it. And, when the word still cannot be read
+  (`${=G}`, `${!N}`, a variable set by `read`), every value assigned on the
+  line and every here-string given to `read`. Words split on whitespace and
+  on each character `IFS` is set to on the line. A script run by `eval` or
+  `sh -c` is read as typed, and again with each printed text pasted in. Up to
+  16 added readings are followed for one command word or script; when there
+  are more, the command asks. After such a command word the hook trusts no
+  directory, branch or variable for the rest of the command, because the
+  word may have run `cd`, `git checkout` or `export`.
+- **Git behind another command.** A `git` word among the arguments of a
+  command outside the wrapper list is read as a push that runs where the
+  outer command runs: `script -q /dev/null git push origin main` asks.
+  `echo` and `printf` are exempt. The first eight such words are read; a
+  command with more asks, and one that names git more than 256 times blocks,
+  because it is not read to the end.
+- **Variables.** A value is used only when a plain assignment or `export` set
+  it and nothing else on the line can change it. The hook stops trusting a
+  name, anywhere on the line, once `+=`, an array assignment, `read`,
+  `printf -v`, `print -v`, `declare`, `local`, `typeset`, `readonly`, `unset`,
+  `mapfile`, `getopts`, `let`, `${NAME:=...}` or `${NAME::=...}` names it,
+  once it is assigned in front of a command (`B=main :`), or once it is
+  assigned inside an `if`, `for`, `while`, `until`, `case` or `select` block,
+  which may not run. It stops trusting every variable when the line holds
+  `eval`, `source`, a function definition, a `{ }` group after `&&` or `||`,
+  a nameref (`declare -n`), or anything that sets `IFS` (an assignment,
+  `export`, `declare`, `read`, `printf -v`), because it does not follow
+  what those do; quoted text that looks like a function definition counts as
+  one. When `IFS` is set to something the hook cannot read, or the line holds
+a nameref or sources a file (either can set `IFS`), a command word
+  that is not literal text asks. A value assigned after `&&` holds until that
+  `&&` chain ends; a value assigned after `||` or in a background command is
+  not used.
+  A variable assigned from a substitution is never read:
+  `B=$(echo fix/x); git push origin $B` asks. The text the substitution
+  prints is kept as a guess that can only raise the decision
+  (`B=$(echo +HEAD:main); git push origin $B` blocks). A push that needs an
+  untrusted variable asks.
+- **Push arguments.** The arguments of a push are read three ways: as typed;
+  with `{a,b}` lists expanded (`git push origin {main,fix/x}`); and with
+  variables and guesses filled in and split into words
+  (`B='feature +HEAD:main'; git push origin $B` blocks). The parser has
+  removed the quotes by then, so quoted braces and quoted variables are
+  expanded too. That can add an ask and removes none, because the arguments
+  as typed are checked as well. A word longer than 2000 characters that holds
+  a `{`, a list that makes more than 64 words, and a `{a..b}` sequence are
+  not expanded: the push asks.
+- **Caps.** Each cap above (16 added readings, eight `git` words behind
+  another command, 2000 characters or 64 words of a brace list) ends in an
+  ask. A forced push to main that sits past a cap therefore asks; it does not
+  block.
+- **xargs.** The words a literal `echo` or `printf` pipes into `xargs` are
+  added to the push. The push also asks when that text holds a quote, a
+  backslash escape or a `printf` format, or when `xargs` is told to split or
+  place its input another way (`-0`, `-d`, `-I`, `-J`, `-a`, `-E` and their
+  long forms).
+- **Git config.** A `+` on a `remote.<name>.push` line counts as forced, so a
+  bare push through it onto main blocks. With `push.default=upstream`, git
+  sends a branch pushed without a destination to its upstream
+  (`branch.<name>.merge`), and the rule checks that destination as well as
+  the name as typed. A name with a `+` is not redirected: `git push origin
+  +main` updates main.
+- **`gh api` endpoints.** Percent-escapes are decoded (`heads%2Fmain`,
+  `m%61in`) and the scheme and host of a full URL are removed, including a
+  GitHub Enterprise `/api/v3` prefix, before the path is read. This applies
+  to the main-branch check, the owner check and the repository-delete block,
+  which also matches a path-prefixed `gh`. A write to an endpoint with an
+  escape that cannot be decoded blocks, because its owner is unknown.
+
 Known limits, open for a follow-up:
 
 - Abbreviated long options such as `--mi`, `--al` and `--force-w`.
 - `gh api` flag clusters such as `-iX DELETE`, which reads as GET and skips
-  owner checks, and absolute endpoint URLs. The repo-delete check misses a
-  quoted or path-prefixed `gh` command.
+  owner checks. The repo-delete check misses a quoted `gh` command.
 - Config sources selected by `HOME`, `XDG_CONFIG_HOME`, `include.path` and
   `GIT_COMMON_DIR`.
-- Wrapper and keyword forms `env --unset`, `env -P`, `env -vS`,
-  `timeout --signal`, `sudo --chdir`, `function` and `coproc`.
-- Forced updates that only ask: `--mirror`, a `+` in an on-disk
-  `remote.X.push`, and `gh --input` with force.
+- `--mirror` and `remote.<name>.mirror` ask instead of blocking, although a
+  mirror push force-updates every ref. Mirroring into a new, empty remote is
+  the standard way to migrate a repository, and the hook cannot tell that
+  case from overwriting an existing main, so the user decides.
+- A `gh api` body read from a file (`--input`) asks and cannot block: the
+  hook does not read the file, so it does not see `force`.
 - Upstream mode with a branch created on the same line.
 - The scanner's `chdirs` field is used only by the push rule.
 - `merge-upstream` and rulesets endpoints.
 - `remoteOwners` spawns git with no timeout.
-- A variable used as the command word when its value has spaces
-  (`G="git push"; $G origin main`), and a whole command produced by a
-  substitution (`$(echo git push origin main)`).
-- `xargs` input that `printf` escapes reshape, `xargs -I` replacement, `-a`
-  files, and empty words.
-- Variables set by anything other than a plain assignment or `export`: `+=`,
-  `for`, `read`, `printf -v`, `declare`, `eval`, and shell functions; a value
-  assigned earlier and changed this way is used as if unchanged.
-- Substitution placeholders: the scanner replaces each `$(...)` with a fixed
-  marker, so a literal marker typed in the command, and which body belongs to
-  which marker, are not tracked exactly.
-- Brace expansion in a refspec (`git push origin {main,dev}`).
-- Wrappers not in the parser's table, and `git subtree` options placed before
-  `push`.
-- Percent-encoded `gh api` endpoints (`git/refs/heads%2Fmain`).
-- On a case-insensitive filesystem, a command word spelled `GIT` or `Git`.
-- A `<<` inside `(( ))` arithmetic read as a heredoc.
+- A command that exists only at run time: a substitution that reads a file or
+  runs a program in command position (`$(cat cmd.txt) origin main`), and text
+  built with a `printf` format or escape (`$(printf 'git pu%sh ...' s)`).
+  Following these would mean running the command.
+- A variable that holds a command and continues with `/` in the same word
+  (`D='git push origin main x'; $D/y`). The parser keeps only the last path
+  segment of a command word, so the variable is gone before the hook reads it.
+- A wrapper outside the parser's list is followed by the push rule only
+  (`script -q /dev/null gh pr create ...` is not read by the gh rule). The
+  git hook, gh and secret-reader rules do not see the command behind it,
+  because finding a command among another command's arguments would turn
+  their blocks into false positives on text that only mentions it. If such a
+  wrapper also changes the directory git runs in, the push is read with the
+  shell's directory, since each wrapper has its own option grammar.
+- A `cd` after `&&` or `||` is tracked as if it ran. After
+  `false && cd /other; git push`, the hook reads the branch of `/other`,
+  while git pushes from the directory the shell is still in.
+- Variable tracking is a list of known setters, not an interpreter. A name
+  set by a builtin outside that list (`wait -p NAME`, zsh's `integer` and
+  `vared`) keeps its earlier value.
+- The scanner replaces each `$(...)` with one fixed marker and does not
+  record which body belongs to which marker. In a refspec, a marker is filled
+  in only when every substitution on the command is a current-branch lookup.
+  In command position and in an `eval` script, each printed text is pasted
+  into every marker, as an added reading.
+- A command that holds both a real shift and a real heredoc in the places
+  named under "Shifts" (`declare a[1<<2]=x` on one line, `cat x[ <<EOF` with
+  a quote in its body on the next) is read correctly by neither of the two
+  readings, so lines after it can stay unread.
+- `git submodule foreach git push ...` is read against the superproject:
+  its branch, its remotes, its git config. Each submodule pushes its own
+  branch, so `git submodule foreach git push --force-with-lease` passes from
+  a superproject on a feature branch even when a submodule is on main. With
+  the command in one quoted string
+  (`git submodule foreach 'git push origin main'`) it is not read at all.
+- A git subcommand that is not literal text
+  (`git $(echo push) origin +HEAD:main`). The "may be git" reading of a
+  command word belongs to the push rule only, so `$G commit --no-verify` is
+  not read by the git hook rule.
+- A glob in a command word (`/usr/bin/g?t push origin +HEAD:main`,
+  `/bin/r? -rf ~`).
+- A `<<` in the subscript of a bash array literal (`a=([1<<2]=x)`) is read
+  as a heredoc only, so the lines after it are not read.
+- A command word whose text is split across a variable and a here-string
+  (`G=gi; read H <<< 't push origin +HEAD:main'; $G$H`). The values a line
+  holds are tried one at a time, not joined.
 
 Related limits sit in the permission rules rather than safety-net:
 
