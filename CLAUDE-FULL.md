@@ -46,7 +46,7 @@ Work Mode":
 | build, change, fix across files | `implementer` |
 | plan or architecture | `planner` |
 | new test files | `tester` (**MUST**) |
-| read signed-in or third-party web pages | `browser` |
+| read signed-in or third-party web pages | `browser`, spawned without `name` (a named spawn gets no Chrome tools) |
 | auth, payments, crypto, input validation | `security-reviewer` (**MUST**) |
 | dead code or deslop | `deslopper` (**MUST**) |
 | Linear issue, status, checklist, comments, follow-ups | `linear`, in the background (**MUST** in a repo with a `Linear:` startup line) |

@@ -3,6 +3,7 @@ name: browser
 model: inherit
 description: |
   Reads signed-in or third-party web pages (dashboards, Search Console, analytics, production sites) in its own Chrome and reports what it read.
+  Spawn it without the Agent tool's `name`: a named spawn runs as a teammate, and teammates do not get this agent's Chrome server.
   RETURNS: pages read, findings with sources, what it couldn't do, state left behind.
 tools: [Read, Write, mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__type_text, mcp__chrome-devtools__press_key, mcp__chrome-devtools__evaluate_script, mcp__chrome-devtools__list_pages, mcp__chrome-devtools__new_page, mcp__chrome-devtools__select_page, mcp__chrome-devtools__close_page, mcp__chrome-devtools__wait_for]
 mcpServers:

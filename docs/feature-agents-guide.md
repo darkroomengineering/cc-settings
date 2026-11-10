@@ -15,7 +15,7 @@ cc-settings ships with **role agents** -- general-purpose agents defined by what
 | `implementer` | Code writing and editing |
 | `reviewer` | Code review against standards |
 | `tester` | Test writing and execution |
-| `browser` | Reads signed-in and third-party web pages in its own Chrome (Claude-only) |
+| `browser` | Reads signed-in and third-party web pages in its own Chrome (Claude-only; spawn without `name`, because teammates do not get its Chrome server) |
 | `deslopper` | Dead code removal and cleanup |
 | `maestro` | Multi-agent orchestration |
 | `security-reviewer` | Security audit |
