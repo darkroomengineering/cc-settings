@@ -919,6 +919,9 @@ function literalForms(c: Command): Command[] {
   if (braced === null) pendingAsks.push(UNREAD_COMMAND_ASK);
   else if (braced.length > 1) forms.push(reparse([...braced, ...c.args], c));
   for (const form of [...forms]) {
+    // A glob with no arguments is a `case` pattern or an array element far
+    // more often than a command, and git or rm alone does nothing.
+    if (form.args.length === 0) continue;
     for (const name of globCommands(form.typed)) forms.push(reparse([name, ...form.args], c));
   }
   return forms;

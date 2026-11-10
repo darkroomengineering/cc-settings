@@ -2531,6 +2531,10 @@ describe("TS safety-net — updates of main or master", () => {
       "[ -f x ] && echo ok",
       "[[ -n $X ]] && echo ok",
       "[ -f x ] && git push",
+      // A glob that is a whole command is a `case` pattern or an array element.
+      "case x in\n*) echo ok;;\nesac\ngit push",
+      "case $X in\n[a-z]*) echo ok;;\nesac\ngit push",
+      "files=(*); git push",
       "echo {a,b}",
       "{ echo hi; }",
       "{echo,hi}",

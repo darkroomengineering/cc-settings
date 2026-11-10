@@ -460,7 +460,8 @@ strictest decision stands. A reading can add an ask or a block and never
 removes one. Shifts, wrappers and the letter case of wrapper names come from
 the scanner and parser that safety-net shares with config-guard, linear-gate,
 test-protect and visual-proof, so those points hold for all five hooks. The
-next two hold for every safety-net rule, the rest for the push rule:
+first two points hold for every safety-net rule. Each later point names the
+rules it holds for; one that names none holds for the push rule:
 
 - **Shifts.** A `<<` inside `(( ))`, `$[ ]`, `${ }`, an array literal
   (`a=([1<<2]=x)`) or after `name[` may shift
@@ -531,7 +532,9 @@ next two hold for every safety-net rule, the rest for the push rule:
   holds `?`, `*` or a closed `[...]` is also read as `git` and as `rm` when
   the glob matches that name, in any letter case:
   `/usr/bin/g?t push origin +HEAD:main` and `/bin/r[m] -rf ~` block, while
-  `/bin/l? -la` and the test command `[` match neither. A `{a,b}` list in
+  `/bin/l? -la` and the test command `[` match neither. A glob with no
+  arguments is not read this way, because it is a `case` pattern or an array
+  element far more often than a command. A `{a,b}` list in
   the command word is also read expanded: `{git,push} origin main` asks and
   `{rm,-rf} ~` blocks. `alias NAME=TEXT` is recorded wherever it sits on the
   line, and a later command word `NAME` also runs TEXT followed by its
@@ -654,7 +657,9 @@ Known limits, open for a follow-up:
   tracked as if it ran. After `if false; then cd /other; fi; git push`, the
   hook reads the branch of `/other`, while git pushes from the directory the
   shell is still in. A `cd` that fails, because its directory does not exist,
-  is tracked as if it succeeded.
+  is tracked as if it succeeded. A `&&` chain that ends in a `( )` group is
+  not seen to end: after `false && cd /other && (true); git push`, the hook
+  reads `/other` only.
 - Variable tracking is a list of known setters, not an interpreter. A name
   set by a builtin outside that list (`wait -p NAME`, zsh's `integer` and
   `vared`) keeps its earlier value.
