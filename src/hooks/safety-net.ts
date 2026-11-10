@@ -1690,6 +1690,7 @@ function checkRefUpdate(
     const s = spec.replace(/^\+/, "");
     if (s.startsWith(":") && s !== ":") continue; // a delete
     let dst = s === ":" ? "*" : s.slice(s.lastIndexOf(":") + 1);
+    let upstream: string | null = null;
     if (dst === "HEAD" || dst === "@") {
       const current = branch();
       if (current === null) {
@@ -1697,18 +1698,19 @@ function checkRefUpdate(
         continue;
       }
       dst = current;
-    } else if (u.refspecs !== null && !s.includes(":")) {
+    } else if (u.refspecs !== null && !s.includes(":") && !spec.startsWith("+")) {
       // With push.default=upstream, git sends a branch named without a
-      // destination to that branch's upstream. `HEAD` is not a branch name,
-      // so git leaves it alone.
+      // destination to that branch's upstream, unless the name carries a `+`:
+      // `git push origin +main` updates main itself. The upstream is an added
+      // destination; the name as typed stays checked.
       const settings = config();
       const mode = settings ? (lastValue(settings, "push.default") ?? "") : "";
       if (settings && /^(?:upstream|tracking)$/i.test(mode)) {
         const short = dst.replace(/^(?:refs\/)?heads\//, "");
-        dst = lastValue(settings, `branch.${short}.merge`) ?? dst;
+        upstream = lastValue(settings, `branch.${short}.merge`) ?? null;
       }
     }
-    if (!mayBeMain(dst)) continue;
+    if (!mayBeMain(dst) && !(upstream !== null && mayBeMain(upstream))) continue;
     toMain = true;
     if (spec.startsWith("+")) forcedSpec = true;
   }

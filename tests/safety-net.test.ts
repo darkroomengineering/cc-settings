@@ -2442,8 +2442,18 @@ describe("TS safety-net — updates of main or master", () => {
       test(`ask: push.default=upstream sends ${cmd} to the upstream main`, () =>
         expectAsk(cmd, repo("fix/x", UPSTREAM_MAIN)));
     }
-    test("block: a forced branch that push.default=upstream sends to main", () =>
-      expectBlock("git push origin +fix/x", repo("fix/x", UPSTREAM_MAIN)));
+    // git applies the upstream mapping only to a name without a `+`:
+    // `git push origin +main` updates main itself.
+    const MAIN_TRACKS_FEATURE: Array<[string, string]> = [
+      ["push.default", "upstream"],
+      ["branch.main.merge", "refs/heads/fix/x"],
+    ];
+    test("block: a forced main is not redirected to its feature upstream", () =>
+      expectBlock("git push origin +main", repo("main", MAIN_TRACKS_FEATURE)));
+    test("ask: main named without a destination stays a push to main", () =>
+      expectAsk("git push origin main", repo("main", MAIN_TRACKS_FEATURE)));
+    test("allow: a forced feature branch is not redirected to its upstream main", () =>
+      expectAllow("git push origin +fix/x", repo("fix/x", UPSTREAM_MAIN)));
     for (const cmd of ["git push origin fix/x:fix/x", "git push origin HEAD"]) {
       test(`allow: push.default=upstream leaves ${cmd} alone`, () =>
         expectAllow(cmd, repo("fix/x", UPSTREAM_MAIN)));

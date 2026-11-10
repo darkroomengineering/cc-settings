@@ -555,7 +555,9 @@ a nameref or sources a file (either can set `IFS`), a command word
 - **Git config.** A `+` on a `remote.<name>.push` line counts as forced, so a
   bare push through it onto main blocks. With `push.default=upstream`, git
   sends a branch pushed without a destination to its upstream
-  (`branch.<name>.merge`), and the rule checks that destination.
+  (`branch.<name>.merge`), and the rule checks that destination as well as
+  the name as typed. A name with a `+` is not redirected: `git push origin
+  +main` updates main.
 - **`gh api` endpoints.** Percent-escapes are decoded (`heads%2Fmain`,
   `m%61in`) and the scheme and host of a full URL are removed, including a
   GitHub Enterprise `/api/v3` prefix, before the path is read. This applies
