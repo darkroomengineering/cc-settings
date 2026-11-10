@@ -732,6 +732,9 @@ export interface ParsedShellCommand {
   xargsReshapes: boolean;
   /** Directories a wrapper moves into first (`env -C DIR`, `sudo -D DIR`), in order. */
   chdirs: string[];
+  /** `env -S` split one word of the text into several of the command's, so a
+   *  rule that reads the text does not see the command. */
+  resplit: boolean;
 }
 
 const KEYWORDS = new Set([
@@ -816,6 +819,7 @@ export function parseShellCommand(stage: string): ParsedShellCommand {
   const env: Record<string, string> = {};
   let viaXargs = false;
   let reshapes = false;
+  let resplit = false;
   const chdirs: string[] = [];
   let i = 0;
   while (i < words.length) {
@@ -854,6 +858,7 @@ export function parseShellCommand(stage: string): ParsedShellCommand {
         if ((kind === "S" || kind === "split-string") && value !== undefined) {
           const parts = shellWords(value.replaceAll("\\_", " ")).filter((w) => !w.startsWith(OP));
           words.splice(i, separate ? 2 : 1, ...parts);
+          resplit = true;
           continue;
         }
         // `env -C DIR` runs the command in DIR.
@@ -884,5 +889,6 @@ export function parseShellCommand(stage: string): ParsedShellCommand {
     viaXargs,
     xargsReshapes: reshapes,
     chdirs,
+    resplit,
   };
 }

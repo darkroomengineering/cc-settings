@@ -2706,6 +2706,32 @@ describe("TS safety-net — updates of main or master", () => {
     }
   });
 
+  describe("the command env -S splits out of a string", () => {
+    const feature = repo("fix/x");
+    for (const cmd of [
+      "env -S 'git push --force origin fix/x'",
+      'env -S "git push -f origin fix/x"',
+      "env -vS 'git push --force origin fix/x'",
+      "env -S'git\\_push\\_--force origin fix/x'",
+      "env -S 'git' push --force origin fix/x",
+      "env --split-string='git stash clear'",
+      "env -S 'git checkout -- .'",
+      "env -S 'rm -rf ~'",
+      "sudo env -S 'rm -rf ~'",
+      "env -S 'pkill node'",
+    ]) {
+      test(`block: ${cmd}`, () => expectBlock(cmd, feature));
+    }
+    for (const cmd of [
+      "env -S 'git push origin fix/x'",
+      "env -S 'git status'",
+      "env -S 'rm -rf dist'",
+      "env -S 'echo hi'",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+  });
+
   describe("git subtree options in front of push", () => {
     const feature = repo("fix/x");
     for (const cmd of [

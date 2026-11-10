@@ -478,7 +478,12 @@ next two hold for every safety-net rule, the rest for the push rule:
   includes env's flag clusters (`env -vS 'git push origin main'`,
   `env -iC DIR`, `env -vu NAME`), `env -P`, `env --unset`, `timeout --signal`
   and `--kill-after`, and `sudo --chdir DIR` or `--chdir=DIR`. Wrapper names
-  match in any letter case (`SUDO git ...`).
+  match in any letter case (`SUDO git ...`). safety-net's rules that read
+  the command as text (`rm -rf`, destructive git, process kills) also read
+  the words `env -S` splits out of its string, joined by spaces:
+  `env -S 'git push --force origin fix/x'` and `env -S 'rm -rf ~'` block.
+  The join drops the quoting inside the string, so an argument there that
+  names a guarded command is reported.
 - **Letter case.** safety-net matches command words in any letter case, on
   every platform: `GIT`, `Rm` and `/USR/BIN/GIT` are read as git and rm.
   macOS and Windows resolve those spellings to the same program. On a

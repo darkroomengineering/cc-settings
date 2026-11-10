@@ -2710,7 +2710,9 @@ function analyzeSegment(seg: ShellSegment, ctx: ShellCtx, depth: number): void {
     const forms = commandForms(typed, ctx, seg);
     const dirs = dirReadings(ctx);
     for (const c of forms) {
-      if (c !== typed) checkSegmentText([c.word, ...c.args].join(" "), seg.subs);
+      // The rules that read text have seen the segment as typed, which is not
+      // this command when its words were filled in or split out of a string.
+      if (c !== typed || c.resplit) checkSegmentText([c.word, ...c.args].join(" "), seg.subs);
       for (const at of dirs) {
         checkSecretReaders(c, at, text);
         checkGhWrites(c, at, text);
