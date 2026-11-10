@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
+import { envWithoutPath, gitBashPath, prependTestPath } from "./support/portable-process.ts";
 
 const RUN = resolve(import.meta.dir, "../src/scripts/codex-run.ts");
 
@@ -24,7 +24,7 @@ async function spawnedArgv(
     await chmod(fake, 0o755);
     const home = join(dir, "home");
     const env: Record<string, string | undefined> = {
-      ...process.env,
+      ...envWithoutPath(),
       PATH: prependTestPath(dir),
       HOME: home,
       USERPROFILE: home,

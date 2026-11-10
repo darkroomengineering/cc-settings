@@ -20,6 +20,17 @@ export function prependTestPath(bin: string, current = process.env.PATH ?? ""): 
   return `${bin}${delimiter}${current}`;
 }
 
+/**
+ * The host environment without its PATH, for a child whose PATH the test sets.
+ * Windows names the variable `Path`; spreading `process.env` and then adding
+ * `PATH` hands the child both, and it may resolve commands from the inherited one.
+ */
+export function envWithoutPath(): Record<string, string | undefined> {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(([name]) => name.toUpperCase() !== "PATH"),
+  );
+}
+
 /** Git Bash accepts forward-slash Windows paths in both argv and shell variables. */
 export function gitBashPath(path: string): string {
   return path.replaceAll("\\", "/");

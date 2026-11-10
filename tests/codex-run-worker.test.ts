@@ -8,7 +8,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { GIT_ISOLATION_ENV } from "./support/git.ts";
-import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
+import { envWithoutPath, gitBashPath, prependTestPath } from "./support/portable-process.ts";
 
 // Git and bun subprocesses can exceed Bun's five-second default on a loaded Windows runner.
 setDefaultTimeout(30_000);
@@ -83,7 +83,7 @@ async function runCodexRun(
     }
     const home = join(dir, "home");
     const env: Record<string, string | undefined> = {
-      ...process.env,
+      ...envWithoutPath(),
       ...GIT_ISOLATION_ENV,
       PATH: prependTestPath(bin),
       HOME: home,
