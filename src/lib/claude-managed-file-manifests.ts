@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 44;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 45;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -575,12 +575,15 @@ const ADDED_IN_V44 = [
   "skills/proof-of-work/scripts/offscreen.m",
   "skills/proof-of-work/scripts/offscreen.sh",
 ];
+// Version 45: the process-tree kill and bounded pipe reads both model bridges import.
+const ADDED_IN_V45 = ["src/lib/process-tree.ts"];
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) =>
     !ADDED_IN_V17.includes(path) &&
     !ADDED_IN_V20.includes(path) &&
     !ADDED_SOURCES_IN_V37.includes(path) &&
-    !ADDED_IN_V40.includes(path),
+    !ADDED_IN_V40.includes(path) &&
+    !ADDED_IN_V45.includes(path),
 ).flatMap((path) => [path, ...(REJOINING_AFTER.get(path) ?? [])]);
 const historicalManifest = {
   full: [
@@ -932,9 +935,15 @@ const v43 = {
 };
 MANIFESTS.set(43, v43);
 // Version 44: the proof-of-work offscreen tool for native Mac apps (full profile only).
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v44 = {
   full: [...v43.full, ...ADDED_IN_V44],
   light: v43.light,
+};
+MANIFESTS.set(44, v44);
+// Version 45: the bridge process-tree helpers (every profile: src/ is installed from the light list).
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v44.full, ...ADDED_IN_V45],
+  light: [...v44.light, ...ADDED_IN_V45],
 });
 
 const GENERATED_MANAGED_FILES = new Set([

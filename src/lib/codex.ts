@@ -14,6 +14,12 @@
 import { z } from "zod";
 import { readState, writeState } from "./hook-runtime.ts";
 import { hasCommand } from "./platform.ts";
+import {
+  collectText,
+  KILL_DRAIN_GRACE_MS,
+  killProcessTree,
+  settlesWithin,
+} from "./process-tree.ts";
 import { redactSecrets } from "./redact.ts";
 
 const VERDICT_FILE = "codex-verdict.json";
@@ -28,11 +34,6 @@ const NO_ACCESS_TTL_MS = 24 * 60 * 60 * 1000; // entitlement: re-check daily
 const RATE_LIMIT_TTL_MS = 5 * 60 * 60 * 1000; // Codex meters per ~5-hour window
 const DEFAULT_EXEC_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_EXEC_TIMEOUT_MS = 15 * 60 * 1000; // hard cap so a hung call can't run unbounded
-// After the timeout kill, how long the exec waits for the process to exit and its
-// pipes to drain. A process Codex started can outlive the kill and hold the pipes
-// open, so the reads are cancelled when this runs out.
-const KILL_DRAIN_GRACE_MS = 500;
-const TREE_KILL_TIMEOUT_MS = 1500;
 // Skip the up-to-5s `codex login status` spawn when a recent "available" verdict
 // is still fresh. 60s is safe: the badge poll and exec preflight share this cache.
 const AVAILABLE_TTL_MS = 60_000;
@@ -351,97 +352,6 @@ export async function codexPreflight(force = false): Promise<CodexRunResult | nu
       );
     default:
       return null;
-  }
-}
-
-/** True when `pending` settles within `ms`, false when the time runs out first.
- *  The timer is cleared either way, so it never holds the caller's event loop. */
-async function settlesWithin(pending: Promise<unknown>, ms: number): Promise<boolean> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const settled = () => true;
-  try {
-    return await Promise.race([
-      pending.then(settled, settled),
-      new Promise<boolean>((resolve) => {
-        timer = setTimeout(() => resolve(false), ms);
-      }),
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/** Reads a pipe as it arrives, so the text read so far survives cancelling the read. */
-function collectText(stream: ReadableStream<Uint8Array>) {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let text = "";
-  const done = (async () => {
-    for (;;) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      text += decoder.decode(chunk.value, { stream: true });
-    }
-    text += decoder.decode();
-  })();
-  return {
-    done,
-    text: () => text,
-    cancel: () => {
-      reader.cancel().catch(() => {});
-    },
-  };
-}
-
-/** Every live descendant of `root`, parents before children, from one `ps` snapshot.
- *  Empty when `ps` fails, which leaves the caller with a kill of the root alone. */
-function descendantPids(root: number): number[] {
-  const ps = Bun.spawnSync(["ps", "-A", "-o", "pid=,ppid="], {
-    stdout: "pipe",
-    stderr: "ignore",
-    timeout: TREE_KILL_TIMEOUT_MS,
-  });
-  const childrenOf = new Map<number, number[]>();
-  for (const line of ps.stdout.toString().split("\n")) {
-    const [pid, ppid] = line.trim().split(/\s+/).map(Number);
-    if (!pid || !ppid) continue;
-    childrenOf.set(ppid, [...(childrenOf.get(ppid) ?? []), pid]);
-  }
-  const found = [...(childrenOf.get(root) ?? [])];
-  for (const pid of found) found.push(...(childrenOf.get(pid) ?? []));
-  return found;
-}
-
-/** Kill `proc` and the processes it started. Codex runs as a child of the spawned
- *  process under the npm launcher and the Windows `codex.cmd` shim, so a kill of
- *  that process alone leaves Codex running. Both tree walks need the root alive,
- *  so they run before it is killed. */
-function killProcessTree(proc: { pid: number; kill(signal: NodeJS.Signals): void }): void {
-  let descendants: number[] = [];
-  try {
-    if (process.platform === "win32") {
-      Bun.spawnSync(["taskkill", "/T", "/F", "/PID", String(proc.pid)], {
-        stdout: "ignore",
-        stderr: "ignore",
-        timeout: TREE_KILL_TIMEOUT_MS,
-      });
-    } else {
-      descendants = descendantPids(proc.pid);
-    }
-  } catch {
-    // The kill of the root below still runs.
-  }
-  try {
-    proc.kill("SIGKILL");
-  } catch {
-    // Already gone: taskkill ended it.
-  }
-  for (const pid of descendants) {
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {
-      // Already gone.
-    }
   }
 }
 

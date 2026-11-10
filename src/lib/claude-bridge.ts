@@ -8,6 +8,12 @@
 // from inside the other product's session so the two bridges cannot chain.
 
 import { whichCommand } from "./platform.ts";
+import {
+  collectText,
+  KILL_DRAIN_GRACE_MS,
+  killProcessTree,
+  settlesWithin,
+} from "./process-tree.ts";
 
 export const CLAUDE_BRIDGE_DEFAULT_MODEL = "claude-opus-5-5";
 export const CLAUDE_BRIDGE_MODEL_ENV = "CLAUDE_BRIDGE_MODEL";
@@ -116,11 +122,22 @@ export interface ClaudeRunOptions {
 
 export type ClaudeRunResult =
   | { ok: true; output: string }
-  | { ok: false; state: ClaudeBridgeState; detail: string };
+  | {
+      ok: false;
+      state: ClaudeBridgeState;
+      detail: string;
+      /** Set on a timeout: the stdout read before the kill. */
+      output?: string;
+    };
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_TIMEOUT_MS = 30 * 60 * 1000;
 
+/** Run headless `claude -p`. If the process is still running at the timeout, it
+ *  and the processes it started are killed, and the call returns within
+ *  KILL_DRAIN_GRACE_MS of the kill with the stdout read so far, even when a
+ *  survivor still holds the pipes. Bun's own `timeout` spawn option is not used:
+ *  it kills only the spawned process and leaves the pipe reads unbounded. */
 export async function runClaudePrint(opts: ClaudeRunOptions): Promise<ClaudeRunResult> {
   const verdict = preflightClaudeBridge();
   if (verdict.state !== "available") {
@@ -134,22 +151,41 @@ export async function runClaudePrint(opts: ClaudeRunOptions): Promise<ClaudeRunR
       stdin: new Blob([opts.prompt]),
       stdout: "pipe",
       stderr: "pipe",
-      timeout,
-      killSignal: "SIGKILL",
     });
-    const [stdout, stderr] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-    ]);
+    const stdoutPipe = collectText(proc.stdout);
+    const stderrPipe = collectText(proc.stderr);
+    const finished = Promise.all([proc.exited, stdoutPipe.done, stderrPipe.done]);
+    if (await settlesWithin(finished, timeout)) {
+      await finished; // a pipe read error reaches the catch below
+    } else {
+      const timedOut = proc.exitCode === null && proc.signalCode === null;
+      if (timedOut) {
+        // SIGKILL, so a process that ignores SIGTERM cannot outrun the limit.
+        killProcessTree(proc);
+        await settlesWithin(finished, KILL_DRAIN_GRACE_MS);
+      }
+      stdoutPipe.cancel();
+      stderrPipe.cancel();
+      if (timedOut) {
+        // Returns without awaiting the exit, which can still be pending after the kill.
+        return {
+          ok: false,
+          state: "unknown",
+          detail: `claude timed out after ${Math.round(timeout / 60_000)}m; narrow the review scope or ask a smaller question.`,
+          output: stdoutPipe.text().trimEnd(),
+        };
+      }
+    }
+    const stderr = stderrPipe.text().trim();
     const exit = await proc.exited;
     if (exit !== 0) {
       return {
         ok: false,
         state: "unknown",
-        detail: `claude exited ${exit}${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+        detail: `claude exited ${exit}${stderr ? `: ${stderr}` : ""}`,
       };
     }
-    return { ok: true, output: stdout.trimEnd() };
+    return { ok: true, output: stdoutPipe.text().trimEnd() };
   } catch (error) {
     return {
       ok: false,
