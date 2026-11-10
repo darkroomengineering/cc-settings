@@ -4,6 +4,11 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [Unreleased]
+
+**Fixed:**
+- The `browser` agent's description and the routing docs say to spawn it without the Agent tool's `name`. A named spawn runs as a teammate, and teammates start without the agent's Chrome server, so the agent came up with no Chrome tools (OSS-187).
+
 ## [16.0.0] — 2026-11-09
 
 A major version because three defaults change what you see: sessions start on Claude Fable 5.2 instead of Opus 5.5, the safety net asks or blocks in more cases, and a handoff is offered only on an unrelated topic or finished work instead of being suggested routinely.
