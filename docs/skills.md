@@ -52,10 +52,7 @@ not need repeated approval.
 |---|---|---|---|
 | [`build`](../skills/build/SKILL.md): "build this feature" | Takes a feature through research, plan, implementation, tests, and review. Returns changed files and proof. | Repository write. Stops at the GO/NO-GO gate or a material scope change. | Background. Both hosts; Codex uses native research when Context7 is absent. |
 | [`fix`](../skills/fix/SKILL.md): "fix this bug" | Names the cause, reproduces the failure, lands the smallest fix, and verifies it. | Repository write. Bug scope stays narrow; unresolved contract changes stop. | Background. Both hosts with native agents. |
-| [`refactor`](../skills/refactor/SKILL.md): "refactor this module" | Restructures code outside the current diff while preserving behavior. Returns tests and review evidence. | Repository write. Broad plans and behavior uncertainty stop before editing. | Background. Both hosts; parallel writers need separate ownership. |
-| [`zero-tech-debt`](../skills/zero-tech-debt/SKILL.md): "rewrite this patch as the end state" | Removes compatibility layers, flags, and wrappers that the current patch no longer needs. | Repository write limited to the current diff and its direct callers. | Inline. Both hosts. Use `refactor` for code outside the patch. |
 | [`component`](../skills/component/SKILL.md): "create a Button component" | Produces a stack-aware React component in the repository's existing structure. | Repository write. Asks only when the stack or location cannot be inferred safely. | Inline. Both hosts. |
-| [`hook`](../skills/hook/SKILL.md): "create useAuth" | Produces a reusable React hook using the project's path and client-boundary conventions. | Repository write. | Inline. Both hosts. |
 | [`dr-init`](../skills/dr-init/SKILL.md): "start a Darkroom project" | Creates a project from the satus or novus starter and explains the chosen stack. | Creates a new directory and downloads a starter. Confirms the starter when unspecified. | Inline. Both hosts; needs network access and Git. |
 | [`case-study`](../skills/case-study/SKILL.md): "make a case study of this project" | Turns a shipped site or browser game into case-study material: 16:9 clips per chapter and transition (games played through by a script), layer-by-layer scene decompositions, Blender turntables, colour and typography sheets, every sound, image asset and sprite sheet as its own file, and a shareable board with playable pieces rebuilt from the project's assets. | Writes masters next to the project in `<project>-case-study-assets/`; the project repo stays clean. Publishes the board as a private artifact. | Inline, delegates Blender to a background agent. Needs ffmpeg, Chrome, Blender and puppeteer-core. |
 | [`ship`](../skills/ship/SKILL.md): "ship it", "create a PR", or "land this" | Runs the configured proof gates, reviews the diff, performs the requested GitHub operation, watches CI, and reports the final state. | Repository and external write. A failing selected suite stops the pipeline; publication and external-repository policy remain explicit boundaries. | Background. Both hosts need Git and authenticated GitHub access; standalone Codex uses native reviewers. |
@@ -110,10 +107,8 @@ The closest review tools answer different questions:
 
 ## Nearby alternatives
 
-- Use `build` for an end-to-end feature. Use `component` or `hook` for one known UI unit.
+- Use `build` for an end-to-end feature. Use `component` for one known UI component.
 - Commit (or use Claude Code's built-in `/rewind`) inside a session. Use `handoff` when another session must continue the work.
-- Use `refactor` for behavior-preserving work outside the current diff. Use `zero-tech-debt` to
-  simplify the patch currently in front of you.
 
 For the first harmless workflow, follow [your first session](./first-session.md). For missing tools
 or unexpected routing, see [troubleshooting](./troubleshooting.md).

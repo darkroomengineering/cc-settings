@@ -388,7 +388,6 @@ describe("standalone Codex workflow branches", () => {
   test.each([
     "skills/fix/SKILL.md",
     "skills/orchestrate/SKILL.md",
-    "skills/refactor/SKILL.md",
     "skills/dr-review/SKILL.md",
     "skills/ship/SKILL.md",
     "skills/poke-holes/SKILL.md",
@@ -422,7 +421,6 @@ describe("standalone Codex workflow branches", () => {
       "codex/AGENTS.append.md",
       "skills/fix/SKILL.md",
       "skills/orchestrate/SKILL.md",
-      "skills/refactor/SKILL.md",
       "skills/dr-review/SKILL.md",
       "skills/ship/SKILL.md",
       "skills/poke-holes/SKILL.md",
@@ -441,7 +439,6 @@ describe("standalone Codex workflow branches", () => {
       "codex/AGENTS.append.md",
       "skills/fix/SKILL.md",
       "skills/orchestrate/SKILL.md",
-      "skills/refactor/SKILL.md",
       "skills/dr-review/SKILL.md",
       "skills/ship/SKILL.md",
       "skills/poke-holes/SKILL.md",
@@ -466,7 +463,6 @@ describe("standalone Codex workflow branches", () => {
   test.each([
     "skills/fix/SKILL.md",
     "skills/proof-of-work/SKILL.md",
-    "skills/refactor/SKILL.md",
     "skills/dr-review/SKILL.md",
     "skills/ship/SKILL.md",
     "skills/poke-holes/SKILL.md",

@@ -77,19 +77,12 @@ for you.
 ### Create one known unit
 
 - Say "create a Button component" for `component`.
-- Say "create useAuth" for `hook`.
 - Say "start a Darkroom project" for `dr-init`, which asks you to choose satus or novus when the
   request does not already decide.
 
 These workflows inspect `package.json` and visible imports. Profile files document stack intent;
 there is no supported `settings.json` switch that activates a profile. See
 [profiles](./docs/profiles.md).
-
-### Refactor or simplify a patch
-
-Use `refactor` for behavior-preserving restructuring outside the current diff. Use
-`zero-tech-debt` when the current patch has accumulated compatibility layers, flags, or wrappers
-that the intended end state no longer needs.
 
 ### Ship
 
@@ -275,7 +268,7 @@ warnings, run `bun ~/.claude/src/scripts/audit-hooks.ts`. Follow
 
 ## Reference routes
 
-- [All 26 skills, effects, approvals, output, prerequisites, and host behavior](./docs/skills.md)
+- [All 23 skills, effects, approvals, output, prerequisites, and host behavior](./docs/skills.md)
 - [Installation flags, tiers, paths, side effects, rollback, and uninstall](./docs/install.md)
 - [Claude Code and Codex parity](./docs/claude-vs-codex.md)
 - [Models, effort, advisor, and quota policy](./docs/agent-models.md)

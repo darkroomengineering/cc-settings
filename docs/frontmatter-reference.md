@@ -135,11 +135,11 @@ Skills define slash commands (e.g., `/handoff`, `/dr-review`) that users invoke 
 
 There's no third `inherit` value — `context: inherit` is never written anywhere in the repo, and `src/schemas/skill.ts` defines the field as `z.enum(["fork", "main"])`.
 
-Skills using `fork` (12): `autoresearch`, `build`, `dr-review`, `fix`, `handoff`, `harvest`, `orchestrate`, `poke-holes`, `refactor`, `retro`, `ship`, `triage`. All 12 run in the background by default as of v2.1.218 — invoking one hands the result back as a task notification instead of holding up the conversation.
+Skills using `fork` (11): `autoresearch`, `build`, `dr-review`, `fix`, `handoff`, `harvest`, `orchestrate`, `poke-holes`, `retro`, `ship`, `triage`. All 11 run in the background by default as of v2.1.218 — invoking one hands the result back as a task notification instead of holding up the conversation.
 
-Skills declaring `context: main` explicitly (5): `audit`, `codex`, `freeze`, `stories`, `zero-tech-debt`.
+Skills declaring `context: main` explicitly (4): `audit`, `codex`, `freeze`, `stories`.
 
-Skills that omit `context` (8, same behavior as `main`): `cc`, `component`, `context-doc`, `dr-init`, `hook`, `proof-of-work`, `review-batch`, `share-learning`.
+Skills that omit `context` (8, same behavior as `main`): `case-study`, `cc`, `component`, `context-doc`, `dr-init`, `proof-of-work`, `review-batch`, `share-learning`.
 
 ### Agent Delegation
 

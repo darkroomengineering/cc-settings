@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 45;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 46;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -941,9 +941,22 @@ const v44 = {
 };
 MANIFESTS.set(44, v44);
 // Version 45: the bridge process-tree helpers (every profile: src/ is installed from the light list).
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v45 = {
   full: [...v44.full, ...ADDED_IN_V45],
   light: [...v44.light, ...ADDED_IN_V45],
+};
+MANIFESTS.set(45, v45);
+// Version 46: the hook, refactor and zero-tech-debt skills left the library (see
+// TOMBSTONE_SKILLS in managed-skills.ts). Full versions 1-45 still own them; light installs
+// never carried them.
+const REMOVED_IN_V46 = [
+  "skills/hook/SKILL.md",
+  "skills/refactor/SKILL.md",
+  "skills/zero-tech-debt/SKILL.md",
+];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: v45.full.filter(notAddedAfter(REMOVED_IN_V46)),
+  light: v45.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([

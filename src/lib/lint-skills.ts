@@ -59,7 +59,7 @@ export interface LintResult {
 // currently says. "Descend-only" is enforced by the diff being visible in review,
 // not by this file — which is the intended trade, since a legitimate raise has to
 // stay possible. Verifying a baseline against its merge-base is a CI-side job.
-export const SKILL_COUNT_BASELINE = 26;
+export const SKILL_COUNT_BASELINE = 23;
 
 // The count ratchet above is a proxy — the real per-turn cost is the byte size
 // of the name+description index the Skill selector reads every turn, not the
@@ -88,7 +88,7 @@ export const SKILL_DESCRIPTION_BYTE_BUDGET = 7424;
 // its entry.
 export const SKILL_BODY_LINE_LIMIT = 500;
 export const SKILL_BODY_LINE_EXEMPTIONS: Readonly<Record<string, number>> = {
-  audit: 691,
+  audit: 690,
   autoresearch: 484,
 };
 

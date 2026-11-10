@@ -182,6 +182,13 @@ const FILES_REMOVED_IN_V25 = [
   "hooks/checkpoint.md",
 ];
 
+// Skills manifest version 46 dropped; every earlier full version owns them.
+const FILES_REMOVED_IN_V46 = [
+  "skills/hook/SKILL.md",
+  "skills/refactor/SKILL.md",
+  "skills/zero-tech-debt/SKILL.md",
+];
+
 async function seedRemovedFiles(
   claudeDir: string,
   managedFiles?: Record<string, string>,
@@ -192,6 +199,7 @@ async function seedRemovedFiles(
     ...FILES_REMOVED_IN_V19,
     ...FILES_REMOVED_IN_V23,
     ...FILES_REMOVED_IN_V25,
+    ...FILES_REMOVED_IN_V46,
   ]) {
     await mkdir(dirname(join(claudeDir, path)), { recursive: true });
     await writeFile(join(claudeDir, path), bytes);
@@ -625,7 +633,7 @@ exit $rc
       expect(existsSync(readmePath)).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "verify"))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "poke-holes", "SKILL.md"))).toBe(true);
-      for (const path of FILES_REMOVED_IN_V25)
+      for (const path of [...FILES_REMOVED_IN_V25, ...FILES_REMOVED_IN_V46])
         expect(existsSync(join(claudeDir, path))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "review"))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "dr-review", "SKILL.md"))).toBe(true);
@@ -694,6 +702,8 @@ exit $rc
       expect(existsSync(join(claudeDir, "skills", "verify"))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "review"))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "dr-review", "SKILL.md"))).toBe(true);
+      for (const path of FILES_REMOVED_IN_V46)
+        expect(existsSync(join(claudeDir, path))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "oracle"))).toBe(false);
       const upgraded = JSON.parse(await readFile(sentinelPath, "utf8")) as {
         managed_files: Record<string, string>;

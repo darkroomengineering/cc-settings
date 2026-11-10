@@ -59,7 +59,6 @@ Debt mode is a mechanical grep — run it standalone or as a cheap first pass be
 
 - `/dr-review` — per-diff Darkroom checklist (TypeScript / React / a11y / perf / security, plus motion when the diff touches it). Every change.
 - `/audit` (this skill) — periodic whole-repo audit; Full mode merges every mode that applies into one ranked report.
-- `/zero-tech-debt` — rework a specific patch to its intended end-state. Not a review — it edits.
 - `/poke-holes` — adversarial check of a single change/claim, not a repo sweep.
 
 Each mode answers one question:
@@ -76,7 +75,7 @@ Each mode answers one question:
 | SEO | Will this site be found, ranked, and cited? | Before a site launch, first pass on any client marketing/content site |
 | Debt | What did we defer on purpose? | Cheap first pass before Codebase |
 
-A typical sequence: `/audit codebase` produces findings → engineers cherry-pick the highest-leverage ones → the right executor by finding type: dead code and duplication go to the `deslopper` agent (auto-removes what's provably dead, stages consolidations for approval), structural rework to `/zero-tech-debt` or `/refactor`, client-runtime perf findings to `/fix`.
+A typical sequence: `/audit codebase` produces findings → engineers cherry-pick the highest-leverage ones → the right executor by finding type: dead code and duplication go to the `deslopper` agent (auto-removes what's provably dead, stages consolidations for approval), structural rework to the `implementer` agent, client-runtime perf findings to `/fix`.
 
 > **Claude Code only (v2.1.154+)**: standalone Codex skips this tip and the
 > Workflow command below. In Claude, run `/effort ultracode` before invoking
@@ -401,7 +400,7 @@ Run the confirming measurement for every hypothesis:
 
 ### Output
 
-Shared Contract report at `docs/audits/performance-audit-YYYY-MM-DD.md`, with mode-specific mechanics: the summary-table status column reads **measured** (there is no PLAUSIBLE); every finding row carries its number, the command that produced it, and its anchor (budget source or leverage math); two extra sections — **Measurement Log** (every command run, median, spread, environment) and **Unmeasured candidates**. Findings hand off to `/fix` (client-runtime fixes) or `/refactor` (structural fixes); this mode never applies fixes itself. **Boundary:** animation frame-rate and jank findings belong to Motion mode's performance category, not here — note them and move on.
+Shared Contract report at `docs/audits/performance-audit-YYYY-MM-DD.md`, with mode-specific mechanics: the summary-table status column reads **measured** (there is no PLAUSIBLE); every finding row carries its number, the command that produced it, and its anchor (budget source or leverage math); two extra sections — **Measurement Log** (every command run, median, spread, environment) and **Unmeasured candidates**. Findings hand off to `/fix` (client-runtime fixes) or the `implementer` agent (structural fixes); this mode never applies fixes itself. **Boundary:** animation frame-rate and jank findings belong to Motion mode's performance category, not here — note them and move on.
 
 ## Mode: Threat-Model
 
@@ -627,8 +626,8 @@ Write `docs/audits/full-audit-YYYY-MM-DD.md`:
    as clean.
 2. Merged summary table (ID | mode | severity | area | issue | file:line | status) in global
    priority order.
-3. The first 10 to act on, each naming its executor: `deslopper`, `/zero-tech-debt`, `/refactor`,
-   `/fix`, or a security fix through `security-reviewer`.
+3. The first 10 to act on, each naming its executor: `deslopper`, `implementer`, `/fix`, or a
+   security fix through `security-reviewer`.
 4. One section per mode in that mode's own structure (maps, findings, Motion's plans,
    Threat-Model's diagram and mitigations, the Debt ledger).
 5. Design tensions, open questions, and considered-and-rejected, merged across modes.
@@ -685,7 +684,7 @@ End with: `<N> markers, <M> with no trigger.` Nothing found: `No SHORTCUT: debt.
 
 ### Boundaries
 
-Reads and reports only — never edits, never implements a marker. A `SHORTCUT:` is not a TODO to clear on sight (see `AGENTS.md` → Comments); it comes out only when its trigger has actually fired, and then via `/zero-tech-debt` or `/refactor`, not here.
+Reads and reports only — never edits, never implements a marker. A `SHORTCUT:` is not a TODO to clear on sight (see `AGENTS.md` → Comments); it comes out only when its trigger has actually fired, and then in the diff that implements the upgrade, not here.
 
 **No invented savings.** Report the count of markers and what each defers. Never print a "you saved N lines by deferring these" figure — the built version was never written, so there is no baseline to subtract from. Counted markers are real; an extrapolated saving is not.
 
