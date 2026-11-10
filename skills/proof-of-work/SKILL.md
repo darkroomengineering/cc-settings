@@ -26,6 +26,8 @@ Projects can opt into **advisory** probes by depending on the tool — the gate 
 
 For UI changes, attach a screenshot (via the `tester` agent, which starts the chrome-devtools MCP for the run) as the visual half of the proof — tests can't prove "looks right".
 
+For a native macOS app, run and capture it on a virtual display with the `offscreen` tool, never by driving the user's real cursor, keyboard, or focus. Read `references/offscreen.md` first; it gives the tool's installed path.
+
 ## Standalone Codex semantic probe
 
 Use `spawn_agent` to create a fresh read-only `reviewer`, `send_message` to

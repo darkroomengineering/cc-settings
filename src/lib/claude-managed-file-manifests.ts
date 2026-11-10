@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 43;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 44;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -570,6 +570,11 @@ const ADDED_IN_V41 = [
 ];
 // Version 42: the /audit State mode reference.
 const ADDED_IN_V42 = ["skills/audit/references/state-machines.md"];
+const ADDED_IN_V44 = [
+  "skills/proof-of-work/references/offscreen.md",
+  "skills/proof-of-work/scripts/offscreen.m",
+  "skills/proof-of-work/scripts/offscreen.sh",
+];
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) =>
     !ADDED_IN_V17.includes(path) &&
@@ -921,9 +926,15 @@ MANIFESTS.set(42, v42);
 // Version 43: the browser agent (full profile only, like every agent), its guard
 // hook and its sign-in helper (every profile: src/ is installed from the light list).
 const ADDED_IN_V43 = ["src/hooks/browser-guard.ts", "src/scripts/browser-signin.ts"];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v43 = {
   full: [...v42.full, "agents/browser.md", ...ADDED_IN_V43],
   light: [...v42.light, ...ADDED_IN_V43],
+};
+MANIFESTS.set(43, v43);
+// Version 44: the proof-of-work offscreen tool for native Mac apps (full profile only).
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v43.full, ...ADDED_IN_V44],
+  light: v43.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([

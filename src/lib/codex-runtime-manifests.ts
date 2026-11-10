@@ -283,7 +283,13 @@ const ADDED_IN_V29 = [
 ];
 // Version 30: the /audit State mode reference.
 const ADDED_IN_V30 = ["skills/audit/references/state-machines.md"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 30;
+// Version 31: the proof-of-work offscreen tool for native Mac apps.
+const ADDED_IN_V31 = [
+  "skills/proof-of-work/references/offscreen.md",
+  "skills/proof-of-work/scripts/offscreen.m",
+  "skills/proof-of-work/scripts/offscreen.sh",
+];
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 31;
 // Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
 // CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.
 const REMOVED_IN_V20 = [
@@ -444,9 +450,10 @@ const RUNTIME_SOURCE_FILES_V26: readonly string[] = [...RUNTIME_SOURCE_FILES_V25
 const RUNTIME_SOURCE_FILES_V27: readonly string[] = [...RUNTIME_SOURCE_FILES_V26, ...ADDED_IN_V27];
 const RUNTIME_SOURCE_FILES_V28: readonly string[] = [...RUNTIME_SOURCE_FILES_V27, ...ADDED_IN_V28];
 const RUNTIME_SOURCE_FILES_V29: readonly string[] = [...RUNTIME_SOURCE_FILES_V28, ...ADDED_IN_V29];
+const RUNTIME_SOURCE_FILES_V30: readonly string[] = [...RUNTIME_SOURCE_FILES_V29, ...ADDED_IN_V30];
 export const RUNTIME_SOURCE_FILES: readonly string[] = [
-  ...RUNTIME_SOURCE_FILES_V29,
-  ...ADDED_IN_V30,
+  ...RUNTIME_SOURCE_FILES_V30,
+  ...ADDED_IN_V31,
 ];
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
@@ -494,6 +501,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [27, RUNTIME_SOURCE_FILES_V27],
   [28, RUNTIME_SOURCE_FILES_V28],
   [29, RUNTIME_SOURCE_FILES_V29],
+  [30, RUNTIME_SOURCE_FILES_V30],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

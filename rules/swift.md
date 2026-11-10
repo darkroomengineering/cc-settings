@@ -51,6 +51,14 @@ Fix a data-race error in this order: stop sharing the object, make it a
 synchronization, never a way to silence the compiler. Model classes stay
 non-`Sendable` (or `@MainActor`).
 
+## Running a Mac app
+
+Launch, drive, and screenshot a macOS app on a virtual display with the
+proof-of-work `offscreen` tool; read
+`~/.claude/skills/proof-of-work/references/offscreen.md` first.
+Never click, type, or take focus on the user's real screen, and run XCUITest
+targets only when the user says the machine is free: they move the real cursor.
+
 ## Testing and logging
 
 - New tests use Swift Testing: `@Test`, `#expect`, `try #require`,
