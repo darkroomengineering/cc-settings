@@ -10,6 +10,7 @@ import {
   refreshSessionInstallMap,
   SESSION_MAP_CAP,
 } from "../src/lib/version-delta.ts";
+import { GIT_ISOLATION_ENV } from "./support/git.ts";
 
 async function tmp(): Promise<string> {
   return mkdtemp(join(tmpdir(), "ccver-"));
@@ -273,10 +274,12 @@ describe("readPackagedVersion", () => {
 });
 
 async function git(cwd: string, ...args: string[]): Promise<void> {
-  const proc = Bun.spawn(
-    ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args],
-    { cwd, stdout: "ignore", stderr: "ignore" },
-  );
+  const proc = Bun.spawn(["git", ...args], {
+    cwd,
+    env: { ...process.env, ...GIT_ISOLATION_ENV },
+    stdout: "ignore",
+    stderr: "ignore",
+  });
   if ((await proc.exited) !== 0) throw new Error(`git ${args.join(" ")} failed`);
 }
 
@@ -298,11 +301,15 @@ describe("readDefaultBranchVersion", () => {
     const parent = await tmp();
     try {
       await git(upstream, "init", "-q", "-b", "main");
+      await git(upstream, "config", "user.name", "t");
+      await git(upstream, "config", "user.email", "t@t");
       await writeManifest(upstream, "1.0.0");
       await git(upstream, "add", ".");
       await git(upstream, "commit", "-q", "-m", "init");
       await git(parent, "clone", "-q", upstream, "checkout");
       const checkout = join(parent, "checkout");
+      await git(checkout, "config", "user.name", "t");
+      await git(checkout, "config", "user.email", "t@t");
       await git(checkout, "switch", "-q", "-c", "feature");
       await writeManifest(checkout, "1.1.0");
       await git(checkout, "commit", "-q", "-am", "bump");

@@ -1,13 +1,22 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sandbox } from "./tmp.ts";
 
-// Fixture repos must never inherit the developer/CI machine's ambient git
-// config (commit.gpgsign + a signing program, core.hooksPath, aliases, ...).
-// Nulling both config files is what actually isolates everything in one
-// place; per-repo user.email/user.name (set below) remain the only identity
-// available once the global/system files are gone.
-export const GIT_ISOLATION_ENV = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
+const GITCONFIG_DIR = mkdtempSync(join(tmpdir(), "cc-fixture-gitconfig-"));
+const EMPTY_GITCONFIG = join(GITCONFIG_DIR, "gitconfig");
+writeFileSync(EMPTY_GITCONFIG, "");
+// Other test files reuse this module after the importing file's afterAll hooks.
+process.once("exit", () => rmSync(GITCONFIG_DIR, { recursive: true, force: true }));
+
+// Environment config overrides file config, so isolate both sources.
+export const GIT_ISOLATION_ENV = {
+  GIT_CONFIG_GLOBAL: EMPTY_GITCONFIG,
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_COUNT: "0",
+  GIT_CONFIG_PARAMETERS: "",
+};
 
 export async function git(repo: string, args: string[]): Promise<void> {
   const proc = Bun.spawn(["git", "-C", repo, ...args], {

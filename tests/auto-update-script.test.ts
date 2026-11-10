@@ -15,16 +15,10 @@ import { describe, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { GIT_ISOLATION_ENV } from "./support/git.ts";
 import { gitBashPath, prependTestPath, shellFixtureCommand } from "./support/portable-process.ts";
 
 const AUTO_UPDATE_SCRIPT = resolve(import.meta.dir, "..", "src", "scripts", "auto-update.ts");
-
-// Fixture repos must never inherit the developer/CI machine's ambient git
-// config (commit.gpgsign + a signing program, core.hooksPath, aliases, ...).
-// Nulling both config files is what actually isolates everything in one
-// place; per-repo user.email/user.name (set below) remain the only identity
-// available once the global/system files are gone.
-const GIT_ISOLATION_ENV = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
 
 interface GitResult {
   exit: number;

@@ -37,6 +37,7 @@ import { verifySrcManifest } from "../src/lib/hooks-fingerprint.ts";
 import { AUDIT_PERFORMANCE_RESOURCES } from "../src/lib/install-source-inventory.ts";
 import { LIGHT_SKILLS } from "../src/lib/light-profile.ts";
 import { autoUpdateLogPath, buildPlist } from "../src/lib/schedule.ts";
+import { GIT_ISOLATION_ENV } from "./support/git.ts";
 import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
 
 const REPO = resolve(import.meta.dir, "..");
@@ -73,6 +74,7 @@ async function runInstall(
     {
       env: {
         ...process.env,
+        ...GIT_ISOLATION_ENV,
         HOME: home,
         // os.homedir() reads USERPROFILE on Windows, not HOME — set both so the
         // installer targets the tmpdir on every platform.
@@ -219,6 +221,7 @@ async function copySourceFixture(parent: string): Promise<string> {
 
 async function gitBytes(sourceDir: string, args: string[]): Promise<Buffer> {
   const child = Bun.spawn(["git", "-C", sourceDir, ...args], {
+    env: { ...process.env, ...GIT_ISOLATION_ENV },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -338,18 +341,10 @@ async function createHistoricalSourceFixture(home: string): Promise<{
     writeFile(retiredPath, "historical retired rule bytes\n"),
   ]);
   await gitBytes(source, ["init"]);
+  await gitBytes(source, ["config", "user.name", "cc-settings tests"]);
+  await gitBytes(source, ["config", "user.email", "tests@invalid.example"]);
   await gitBytes(source, ["add", "."]);
-  await gitBytes(source, [
-    "-c",
-    "user.name=cc-settings tests",
-    "-c",
-    "user.email=tests@invalid.example",
-    "-c",
-    "commit.gpgsign=false",
-    "commit",
-    "-m",
-    "legacy fixture",
-  ]);
+  await gitBytes(source, ["commit", "-m", "legacy fixture"]);
   await Promise.all([
     writeFile(packagePath, currentPackage),
     writeFile(skillPath, currentSkill),
@@ -401,6 +396,7 @@ esac
   const proc = Bun.spawn(["bash", "-c", 'bash <(cat "$BOOTSTRAP_SOURCE") --light'], {
     env: {
       ...process.env,
+      ...GIT_ISOLATION_ENV,
       HOME: home,
       USERPROFILE: home,
       PATH: prependTestPath(bin),
@@ -439,8 +435,9 @@ describe("setup.sh remote bootstrap", () => {
       mkdir(home, { recursive: true }),
     ]);
     const fixtureGit = (...args: string[]) =>
-      Bun.spawnSync(["git", "-c", "user.email=t@t", "-c", "user.name=t", ...args], {
+      Bun.spawnSync(["git", ...args], {
         cwd: fixture,
+        env: { ...process.env, ...GIT_ISOLATION_ENV },
         stdout: "pipe",
         stderr: "pipe",
       });
@@ -456,6 +453,8 @@ describe("setup.sh remote bootstrap", () => {
     ]);
     for (const args of [
       ["-c", "init.defaultBranch=main", "init", "."],
+      ["config", "user.email", "t@t"],
+      ["config", "user.name", "t"],
       ["add", "-A"],
       ["commit", "-qm", "init"],
     ]) {
@@ -485,6 +484,7 @@ exit $rc
     return {
       env: {
         ...process.env,
+        ...GIT_ISOLATION_ENV,
         HOME: home,
         USERPROFILE: home,
         PATH: prependTestPath(bin),
