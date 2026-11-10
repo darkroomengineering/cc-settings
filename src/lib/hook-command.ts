@@ -215,7 +215,7 @@ export interface ShellScan {
   /** A quote or substitution never closed. */
   unterminated: boolean;
   /** Set when a `<<` sits where it may shift bits (`(( ))`, `$[ ]`, `${ }`,
-   *  an array index): the scan with every such `<<` as a heredoc, then the scan
+   *  an array index or literal): the scan with every such `<<` as a heredoc, then the scan
    *  with every one as a shift. Neither is trusted alone: a shift read as a
    *  heredoc swallows the lines after it, and a heredoc read as a shift has its
    *  body scanned as commands, where a quote can swallow them too. A rule that
@@ -419,9 +419,11 @@ function run(cmd: string, shared: Shared, startScope: number): void {
     let cur = "";
     let subs: string[] = [];
     let depth = 0; // bare `(` groups opened in this scan
-    // Where a `<<` may shift bits: inside `(( ))`, `$[ ]`, `${ }` and an
-    // array index. `arith` is the depth a `((` opened at, and `expr` counts
-    // the open `${`, `$[` and `name[` of the current command. These only
+    // Where a `<<` may shift bits: inside `(( ))`, `$[ ]`, `${ }`, an array
+    // index and an array literal, whose subscripts are arithmetic
+    // (`a=([1<<2]=x)`). `arith` is the depth a `((` or `=(` opened at, and
+    // `expr` counts the open `${`, `$[` and `name[` of the current command.
+    // These only
     // look like arithmetic (`cat x[ <<EOF` is a heredoc), so scanShell reads
     // the command both ways.
     let arith: number | null = null;
@@ -558,7 +560,7 @@ function run(cmd: string, shared: Shared, startScope: number): void {
         flush("|");
         i++;
       } else if (ch === "(") {
-        if (cmd[i + 1] === "(" && arith === null) arith = depth;
+        if ((cmd[i + 1] === "(" || cmd[i - 1] === "=") && arith === null) arith = depth;
         flush();
         depth++;
         enterScope();

@@ -929,9 +929,11 @@ function literalForms(c: Command): Command[] {
 // may be empty, which leaves the next word as the command (`$UNSET git push`).
 // Every other reading is added to those two and never used in their place:
 // the word with its variables filled in and split as bash does
-// (`G="git push"; $G origin main`), the word with a substitution's printed
-// text pasted in (`$(echo git push origin main)`), and, when the word still
-// cannot be read, every value the line holds (`${=G}`, `${!N}`).
+// (`G="git push"; $G origin main`), the word with each variable filled in
+// with whatever the line last held for it (`read H <<< in; $G$H`), the word
+// with a substitution's printed text pasted in
+// (`$(echo git push origin main)`), and, when the word still cannot be read,
+// every value the line holds (`${=G}`, `${!N}`).
 function commandForms(c: Command, ctx: ShellCtx, seg: ShellSegment): Command[] {
   if (!/[$`]/.test(c.typed)) return literalForms(c);
   const forms = [c, reparse(c.args, c)];
@@ -943,6 +945,13 @@ function commandForms(c: Command, ctx: ShellCtx, seg: ShellSegment): Command[] {
     else forms.push(reparse([...splitWords(text, ctx), ...c.args], c));
   };
   const texts = new Set([c.typed]);
+  // Every variable filled in with what the line last held for it, trusted or
+  // not, so that a command split across them is read joined (`$G$H`).
+  const joined = c.typed.replace(VAR_REF_RE, (m, braced, bare) => {
+    const name = (braced ?? bare) as string;
+    return ctx.guesses.get(name) ?? ctx.vars[name] ?? ctx.env[name] ?? m;
+  });
+  if (!/[$`]/.test(joined)) texts.add(joined);
   if (c.typed.includes(SUBSTITUTION)) {
     if (seg.subs.length > MAX_ADDED_READINGS) unfollowed = true;
     for (const inner of seg.subs.slice(0, MAX_ADDED_READINGS)) {
@@ -951,11 +960,13 @@ function commandForms(c: Command, ctx: ShellCtx, seg: ShellSegment): Command[] {
     }
   }
   let unread = false;
+  const readings = new Set<string>();
   for (const text of texts) {
     const expanded = expandCommandWord(text, ctx);
     if (expanded === null) unread = true;
-    else add(expanded);
+    else readings.add(expanded);
   }
+  for (const text of readings) add(text);
   if (unread) {
     const held = [...Object.values(ctx.vars), ...Object.values(ctx.env), ...ctx.guesses.values()];
     for (const value of new Set(held)) add(value);
@@ -2644,6 +2655,17 @@ function scriptsRunBy(c: Command, previous: Command | undefined, seg: ShellSegme
   return scripts;
 }
 
+// The command `git submodule foreach` runs in each submodule, as one script
+// (git hands a single argument to the shell); "" for any other command.
+function submoduleCommand(c: Command): string {
+  if (c.word !== "git") return "";
+  const args = c.args.slice(readGitGlobals(c.args).sub);
+  let at = args.indexOf("foreach") + 1;
+  if (args[0] !== "submodule" || at === 0) return "";
+  while (args[at]?.startsWith("-")) at++;
+  return args.slice(at).join(" ");
+}
+
 // `HUSKY=0 bash -c '...'`: the script runs with the assignments in front.
 function unwrapShellStage(
   c: Command,
@@ -2668,6 +2690,13 @@ function unwrapShellStage(
     if (script) scripts.push(script);
   }
   scripts.push(...scriptsRunBy(c, previous, seg));
+  const foreach = submoduleCommand(c);
+  if (foreach) {
+    // Each submodule is a checkout of its own, on a branch the hook does not read.
+    inner.dir = null;
+    inner.elseDirs = [];
+    scripts.push(foreach);
+  }
   const alias = ctx.aliases.get(c.typed);
   if (alias !== undefined) {
     // The shell does not expand an alias again inside its own text.

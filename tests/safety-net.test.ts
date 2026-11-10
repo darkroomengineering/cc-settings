@@ -1884,6 +1884,36 @@ describe("TS safety-net — updates of main or master", () => {
     ]) {
       test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
     }
+    // Each submodule is on a branch of its own, which may be main.
+    for (const cmd of [
+      "git submodule foreach git push --force-with-lease",
+      "git submodule foreach 'git push --force-with-lease'",
+      "git submodule foreach --recursive 'git push origin HEAD'",
+      "git submodule --quiet foreach 'git push'",
+      "git submodule foreach 'git push origin main'",
+      "git -C . submodule foreach 'cd lib && git push'",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    for (const cmd of [
+      "git submodule foreach 'git push origin +HEAD:main'",
+      "git submodule foreach 'git push --force origin fix/x'",
+      "git submodule foreach 'git commit --no-verify -m x'",
+      "git submodule foreach 'git stash clear'",
+      "git submodule foreach --recursive 'rm -rf ~'",
+    ]) {
+      test(`block: ${cmd}`, () => expectBlock(cmd, feature));
+    }
+    for (const cmd of [
+      "git submodule foreach 'git status'",
+      "git submodule foreach git fetch",
+      "git submodule foreach --recursive git pull",
+      "git submodule foreach 'git push origin fix/x'",
+      "git submodule update --init",
+      "git submodule status",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
   });
 
   describe("gh api option spellings and repeated fields", () => {
@@ -2282,6 +2312,10 @@ describe("TS safety-net — updates of main or master", () => {
       "for (( i = 0; i < 1 << 3; i++ )); do :; done\ngit push origin main",
       "x=$[ 1 << 2 ]\ngit push origin main",
       "a[1<<2]=x\ngit push origin main",
+      "a=([1<<2]=x)\ngit push origin main",
+      "a=(x [1<<2]=y)\ngit push origin main",
+      "a+=( [1<<2]=x )\ngit push origin main",
+      "declare -a a=([1<<2]=x)\ngit push origin main",
       // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
       "echo ${x:1<<2}\ngit push origin main",
       `${SHIFT}\nbash -c 'git push origin main'`,
@@ -2311,12 +2345,15 @@ describe("TS safety-net — updates of main or master", () => {
       `${SHIFT}\npkill node`,
       `${SHIFT}\nfind . -delete`,
       `${SHIFT}\ngit push origin +main`,
+      "a=([1<<2]=x)\ngit push origin +HEAD:main",
     ]) {
       test(`block: ${JSON.stringify(cmd)}`, () => expectBlock(cmd, feature));
     }
     for (const cmd of [
       `${SHIFT}\ngit status`,
       `${SHIFT}\ngit push origin fix/x`,
+      "a=([1<<2]=x)\ngit push origin fix/x",
+      "a=(1 2 3)\ngit push origin fix/x",
       "echo $(( 1 << 2 ))\ngit push origin fix/x",
       "(( n++ ))\ncat > notes.md <<'EOF'\nrm -rf /\nEOF",
       // The body of a real heredoc after a shift is text, not commands.
@@ -2785,6 +2822,10 @@ describe("TS safety-net — updates of main or master", () => {
       // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
       "N=G; G='git push origin +HEAD:main'; ${!N}",
       "read -r G <<< 'git push origin +HEAD:main'; $G",
+      // The values a line holds for the variables of one word are joined.
+      "read H <<< in; G='git push origin +HEAD:ma'; $G$H",
+      "G=gi; read H <<< 't push origin +HEAD:main'; $G$H",
+      "read G <<< 'git push origin '; read H <<< +HEAD:main; $G$H",
       // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
       "G='gh pr create -R vercel/next.js --title x'; ${=G}",
       "IFS=,; G='git,push,origin,+HEAD:main'; $G",
@@ -2895,6 +2936,7 @@ describe("TS safety-net — updates of main or master", () => {
       "git -c 'x.y={a,b}' push origin fix/x",
       "$(printf git feature) status",
       "G=$(echo git); $G status",
+      "read H <<< x; G='git push origin fix/'; $G$H",
       "B='fix/x fix/y'; git push origin $B",
       'eval "$(echo git status)"',
       "IFS=,; git push origin fix/x",
@@ -2965,6 +3007,7 @@ describe("shared scanner and parser — arithmetic shifts and wrappers", () => {
     "while (( i << 1 < 8 )); do :; done",
     "x=$[ 1 << 2 ]",
     "a[1<<2]=x",
+    "a=([1<<2]=x)",
     // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
     "echo ${x:1<<2}",
   ]) {

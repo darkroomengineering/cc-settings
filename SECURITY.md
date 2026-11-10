@@ -462,7 +462,8 @@ the scanner and parser that safety-net shares with config-guard, linear-gate,
 test-protect and visual-proof, so those points hold for all five hooks. The
 next two hold for every safety-net rule, the rest for the push rule:
 
-- **Shifts.** A `<<` inside `(( ))`, `$[ ]`, `${ }` or after `name[` may shift
+- **Shifts.** A `<<` inside `(( ))`, `$[ ]`, `${ }`, an array literal
+  (`a=([1<<2]=x)`) or after `name[` may shift
   bits or open a heredoc (`cat x[ <<EOF` is a heredoc). The scanner reads such
   a command both ways: with every such `<<` as a heredoc, and with every one
   as a shift, where the lines after it are commands. safety-net and
@@ -508,9 +509,13 @@ next two hold for every safety-net rule, the rest for the push rule:
   git hook rule read it as git (`$GIT push origin main`,
   `$G commit --no-verify`); no other rule does. Every rule reads it
   as nothing, which leaves the next word as the command
-  (`$UNSET git push origin main`). Three more readings are added to those.
+  (`$UNSET git push origin main`). Four more readings are added to those.
   The word with the line's plain assignments filled in and split into words
-  (`G="git push"; $G origin main`). The word with the text that a
+  (`G="git push"; $G origin main`). The word with each variable filled in
+  with the last value or guess the line holds for it, trusted or not, so a
+  command split across them is read joined
+  (`read H <<< in; G='git push origin +HEAD:ma'; $G$H` blocks). The word
+  with the text that a
   substitution's `echo`, `printf` or `cat` of a heredoc prints pasted in
   (`$(echo git push origin main)`); that text is a guess, since escapes,
   formats and globs can change it. And, when the word still cannot be read
@@ -553,7 +558,14 @@ next two hold for every safety-net rule, the rest for the push rule:
   outer command runs: `script -q /dev/null git push origin main` asks.
   `echo` and `printf` are exempt. The first eight such words are read; a
   command with more asks, and one that names git more than 256 times blocks,
-  because it is not read to the end.
+  because it is not read to the end. The command
+  `git submodule foreach` runs is also read as a script of its own, by every
+  rule, whether it is typed as words or as one quoted string
+  (`git submodule foreach 'git push origin +HEAD:main'` blocks). That script
+  runs in each submodule, whose branch the hook does not read, so a push in
+  it that relies on the current branch asks:
+  `git submodule foreach git push --force-with-lease` asks from a
+  superproject on a feature branch.
 - **Variables.** A value is used only when a plain assignment or `export` set
   it and nothing else on the line can change it. The hook stops trusting a
   name, anywhere on the line, once `+=`, an array assignment, `read`,
@@ -655,12 +667,9 @@ Known limits, open for a follow-up:
   named under "Shifts" (`declare a[1<<2]=x` on one line, `cat x[ <<EOF` with
   a quote in its body on the next) is read correctly by neither of the two
   readings, so lines after it can stay unread.
-- `git submodule foreach git push ...` is read against the superproject:
-  its branch, its remotes, its git config. Each submodule pushes its own
-  branch, so `git submodule foreach git push --force-with-lease` passes from
-  a superproject on a feature branch even when a submodule is on main. With
-  the command in one quoted string
-  (`git submodule foreach 'git push origin main'`) it is not read at all.
+- A forced push without a refspec inside `git submodule foreach` asks and
+  cannot block, even when a submodule is on main: the hook does not read each
+  submodule's branch, remotes or git config.
 - A git subcommand that is not literal text is read by the push rule and the
   git hook rule only: `git $P --force origin fix/x` and `git $S clear` pass
   the rules that read the command as text. It is not guessed when the command
@@ -676,11 +685,6 @@ Known limits, open for a follow-up:
 - A zsh global alias (`alias -g`), which expands outside command position, is
   read as an ordinary alias. An alias defined in a shell startup file is not
   seen.
-- A `<<` in the subscript of a bash array literal (`a=([1<<2]=x)`) is read
-  as a heredoc only, so the lines after it are not read.
-- A command word whose text is split across a variable and a here-string
-  (`G=gi; read H <<< 't push origin +HEAD:main'; $G$H`). The values a line
-  holds are tried one at a time, not joined.
 
 Related limits sit in the permission rules rather than safety-net:
 
