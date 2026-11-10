@@ -488,6 +488,16 @@ next two hold for every safety-net rule, the rest for the push rule:
   Shell builtins are the exception, because the shell matches them exactly:
   `CD` and `EXPORT` do not change the directory or the environment the hook
   tracks.
+- **Directories.** The hook follows `cd`, `pushd` and `popd`, and the rules
+  that depend on the directory use it: the push rule, the owner a `gh` write
+  falls back to, and relative secret paths. A `cd` behind `||` may not have
+  run, and one behind `&&` ran only if the rest of its `&&` chain does. Past
+  that point the command is read once for each directory the shell may be
+  in: `false && cd /feature; git push origin HEAD` asks from a checkout of
+  main, while `true && cd /feature && git push origin HEAD` is read in
+  `/feature` only. Up to eight such directories are followed; with more, the
+  directory is unknown. A `git checkout` read under more than one directory
+  leaves the branches it set unknown.
 - **Command words that are not literal text.** A command word that holds a
   variable or a substitution is always read two ways. The push rule and the
   git hook rule read it as git (`$GIT push origin main`,
@@ -623,9 +633,11 @@ Known limits, open for a follow-up:
   their blocks into false positives on text that only mentions it. If such a
   wrapper also changes the directory git runs in, the push is read with the
   shell's directory, since each wrapper has its own option grammar.
-- A `cd` after `&&` or `||` is tracked as if it ran. After
-  `false && cd /other; git push`, the hook reads the branch of `/other`,
-  while git pushes from the directory the shell is still in.
+- A `cd` inside an `if`, loop or `case` block, or inside a function body, is
+  tracked as if it ran. After `if false; then cd /other; fi; git push`, the
+  hook reads the branch of `/other`, while git pushes from the directory the
+  shell is still in. A `cd` that fails, because its directory does not exist,
+  is tracked as if it succeeded.
 - Variable tracking is a list of known setters, not an interpreter. A name
   set by a builtin outside that list (`wait -p NAME`, zsh's `integer` and
   `vared`) keeps its earlier value.

@@ -7,7 +7,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseShellCommand, type ShellScan, scanShell } from "../src/lib/hook-command.ts";
 
@@ -2170,6 +2170,52 @@ describe("TS safety-net — updates of main or master", () => {
       "git --git-dir=/x/.git push origin fix/x",
     ]) {
       test(`allow from a main checkout: ${cmd}`, () => expectAllow(cmd, onMain));
+    }
+  });
+
+  describe("a cd behind && or || may not have run", () => {
+    const slashed = (p: string): string => p.replaceAll("\\", "/");
+    const onMain = slashed(repo("main"));
+    const feature = slashed(repo("fix/x"));
+    const other = slashed(repo("fix/y"));
+    // Run from a main checkout: the shell may still be in it when git pushes.
+    for (const cmd of [
+      `false && cd ${feature}; git push origin HEAD`,
+      `false && cd ${feature}\ngit push`,
+      `true || cd ${feature}; git push origin HEAD`,
+      `true || cd ${feature} && git push origin HEAD`,
+      `test -d x && cd ${feature} || git push origin HEAD`,
+      `false && pushd ${feature}; git push origin HEAD`,
+      `(false && cd ${feature}; git push origin HEAD)`,
+      `false && cd ${feature}; bash -c 'git push origin HEAD'`,
+      `false && cd ${feature}; cd .; git push origin HEAD`,
+    ]) {
+      test(`ask from a main checkout: ${JSON.stringify(cmd)}`, () => expectAsk(cmd, onMain));
+    }
+    test("block: a forced push that may run in the main checkout", () =>
+      expectBlock(`false && cd ${feature}; git push --force-with-lease origin HEAD`, onMain));
+    test("ask: the cd may have run, into a main checkout", () =>
+      expectAsk(`false && cd ${onMain}; git push origin HEAD`, feature));
+    test("ask: a checkout made in one of the two directories leaves both branches unknown", () =>
+      expectAsk(
+        `false && cd ${onMain}; git checkout fix/q && git -C ${onMain} push origin HEAD`,
+        feature,
+      ));
+    test.skipIf(process.platform === "win32")(
+      "block: a relative secret path is read from both directories",
+      () => expectBlock("false && cd /tmp; cat .ssh/id_rsa", undefined, undefined, homedir()),
+    );
+    for (const cmd of [
+      // Within its `&&` chain the cd ran.
+      `true && cd ${feature} && git push origin HEAD`,
+      `true && cd ${feature} && (git push origin HEAD)`,
+      `cd ${feature} && git push origin HEAD`,
+      `cd ${feature}; git push origin HEAD`,
+      // Both directories are feature checkouts.
+      `cd ${other}; false && cd ${feature}; git push origin HEAD`,
+      `false && cd ${feature}; git push origin fix/x`,
+    ]) {
+      test(`allow from a main checkout: ${JSON.stringify(cmd)}`, () => expectAllow(cmd, onMain));
     }
   });
 

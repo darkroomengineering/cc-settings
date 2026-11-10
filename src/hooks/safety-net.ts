@@ -623,6 +623,12 @@ interface ShellCtx {
   exported: Set<string>;
   /** Directory the command runs in; null once a `cd` target cannot be read. */
   dir: string | null;
+  /** Directories the command may run in instead: where the shell is when a
+   *  `cd` behind `&&` or `||` did not run. */
+  elseDirs: Array<string | null>;
+  /** Directories in front of each `cd` after `&&`. That `cd` ran if the rest
+   *  of its `&&` chain does, so they join `elseDirs` when the chain ends. */
+  chainDirs: Array<string | null>;
   /** The line has a quote or substitution that never closed. */
   unterminated: boolean;
   /** Shared by every scope of one line: repositories change on disk. */
@@ -712,6 +718,8 @@ function rootCtx(): ShellCtx {
     vars: {},
     exported: new Set(),
     dir: baseDir ?? safeCwd(),
+    elseDirs: [],
+    chainDirs: [],
     unterminated: false,
     repo: { heads: new Map(), configChanged: new Set(), changed: false },
     opaque: { all: false, names: new Set(), ifs: "", ifsUnread: false },
@@ -728,6 +736,8 @@ function cloneCtx(ctx: ShellCtx): ShellCtx {
     env: { ...ctx.env },
     vars: { ...ctx.vars },
     exported: new Set(ctx.exported),
+    elseDirs: [...ctx.elseDirs],
+    chainDirs: [],
     after: null,
     chained: new Set(),
     guesses: new Map(ctx.guesses),
@@ -998,16 +1008,24 @@ function trackState(c: Command, ctx: ShellCtx, seg: ShellSegment): void {
     for (const name of names.length > 0 ? names : ["REPLY"]) {
       ctx.guesses.set(name, c.hereStrings[0]);
     }
-  } else if (c.typed === "cd" || c.typed === "pushd") {
+  } else if (c.typed === "cd" || c.typed === "pushd" || c.typed === "popd") {
     const target = c.args.find((t) => !t.startsWith("-"));
-    if (target === undefined) ctx.dir = homedir();
-    else if (target === "~" || target.startsWith("~/")) ctx.dir = join(homedir(), target.slice(1));
-    // Bash expands `~` only at the start of a word; Windows short names (`RUNNER~1`) carry one mid-path.
-    else if (/[$`*?[]/.test(target) || target.startsWith("~") || target === "-" || !ctx.dir)
-      ctx.dir = null;
-    else ctx.dir = resolve(ctx.dir, target);
-  } else if (c.typed === "popd") {
-    ctx.dir = null;
+    // Where the command leaves a shell that was in `dir`.
+    const move = (dir: string | null): string | null => {
+      if (c.typed === "popd") return null;
+      if (target === undefined) return homedir();
+      if (target === "~" || target.startsWith("~/")) return join(homedir(), target.slice(1));
+      // Bash expands `~` only at the start of a word; Windows short names (`RUNNER~1`) carry one mid-path.
+      if (/[$`*?[]/.test(target) || target.startsWith("~") || target === "-" || !dir) return null;
+      return resolve(dir, target);
+    };
+    const before = [ctx.dir, ...ctx.elseDirs];
+    ctx.dir = move(ctx.dir);
+    ctx.elseDirs = otherDirs(ctx.elseDirs.map(move));
+    // Behind `||` the command may not have run; behind `&&` it ran if the
+    // rest of its chain does.
+    if (ctx.after === "||") ctx.elseDirs = otherDirs([...ctx.elseDirs, ...before]);
+    else if (ctx.after === "&&") ctx.chainDirs.push(...before);
   } else if (c.typed === "alias") {
     for (const t of c.args) {
       const m = t.match(/^([^=\s]+)=(.*)$/s);
@@ -1016,12 +1034,30 @@ function trackState(c: Command, ctx: ShellCtx, seg: ShellSegment): void {
   }
 }
 
+// Past this many the alternatives are not followed: the directory is unknown.
+const MAX_ELSE_DIRS = 8;
+
+function otherDirs(dirs: Array<string | null>): Array<string | null> {
+  const unique = [...new Set(dirs)];
+  return unique.length > MAX_ELSE_DIRS ? [null] : unique;
+}
+
+// One context for each directory the command may run in.
+function dirReadings(ctx: ShellCtx): ShellCtx[] {
+  const others = ctx.elseDirs.filter((dir) => dir !== ctx.dir);
+  if (others.length === 0) return [ctx];
+  return [ctx.dir, ...others].map((dir) => ({ ...ctx, dir, elseDirs: [] }));
+}
+
 // Ends the command in front of `joiner`. A value assigned after `&&` holds only
-// for the rest of its `&&` chain: past it, the assignment may not have run.
+// for the rest of its `&&` chain: past it, the assignment may not have run. The
+// same goes for a `cd`.
 function endCommand(ctx: ShellCtx, joiner: ShellSegment["joiner"]): void {
   if (joiner !== "&&") {
     for (const name of ctx.chained) ctx.opaque.names.add(name);
     ctx.chained.clear();
+    ctx.elseDirs = otherDirs([...ctx.elseDirs, ...ctx.chainDirs]);
+    ctx.chainDirs = [];
   }
   ctx.after = joiner;
 }
@@ -2672,20 +2708,27 @@ function analyzeSegment(seg: ShellSegment, ctx: ShellCtx, depth: number): void {
   stages.forEach((typed, i) => {
     if (i > 0) invalidateCheckoutBranches(ctx);
     const forms = commandForms(typed, ctx, seg);
+    const dirs = dirReadings(ctx);
     for (const c of forms) {
       if (c !== typed) checkSegmentText([c.word, ...c.args].join(" "), seg.subs);
-      checkSecretReaders(c, ctx, text);
-      checkGhWrites(c, ctx, text);
-      checkGitHookSkips(c, ctx, seg, text);
-      checkMainPush(c, ctx, stages[i - 1], seg, text);
-      unwrapShellStage(c, stages[i - 1], seg, ctx, depth);
-      if (forms.length === 1) trackRepo(c, ctx);
+      for (const at of dirs) {
+        checkSecretReaders(c, at, text);
+        checkGhWrites(c, at, text);
+        checkGitHookSkips(c, at, seg, text);
+        checkMainPush(c, at, stages[i - 1], seg, text);
+        unwrapShellStage(c, stages[i - 1], seg, at, depth);
+        if (forms.length === 1) trackRepo(c, at);
+      }
     }
+    // A checkout tracked under several directories ran in only one of them.
+    if (dirs.length > 1) invalidateCheckoutBranches(ctx);
     // What a command word that is not literal text runs is not known, and an
     // alias runs its text in this shell, so neither is the directory, the
     // branch or any variable after it.
     if (forms.length > 1 || ctx.aliases.has(typed.typed)) {
       ctx.dir = null;
+      ctx.elseDirs = [];
+      ctx.chainDirs = [];
       ctx.repo.changed = true;
       ctx.opaque.all = true;
     }
