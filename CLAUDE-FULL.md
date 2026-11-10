@@ -101,13 +101,8 @@ nest teams and share files — assign distinct file ownership. See
 
 ### Implementer briefing contract
 
-An implementer receives only its prompt. Every prompt **MUST** inline: the
-user's ask verbatim; exact paths and line ranges; the concrete change (never
-"based on findings"); verification commands with expected output; off-limits
-scope; stop conditions; for port/migrate work the source artifact, fidelity,
-and "STOP if the source cannot be read"; prior attempts and why they failed.
-Thin prompts must be refused. The implementer leaves changes uncommitted and
-reports verification plus changed files. Full contract: `agents/implementer.md`.
+An implementer receives only its prompt, and thin prompts must be refused.
+The full contract is in `agents/implementer.md`.
 
 ## Autonomy
 

@@ -6,7 +6,7 @@ paths:
 
 # React
 
-> No manual memoization, composition over props drilling.
+> Composition over props drilling.
 
 ---
 
