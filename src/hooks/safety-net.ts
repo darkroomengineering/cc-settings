@@ -1298,6 +1298,9 @@ function subcommandReadings(args: string[], ctx: ShellCtx, seg: ShellSegment): s
     return ctx.guesses.get(name) ?? knownVar(name, ctx) ?? m;
   });
   const texts = new Set(["", "push", guessed]);
+  if (word.includes(SUBSTITUTION) && seg.subs.length > MAX_ADDED_READINGS) {
+    pendingAsks.push(UNREAD_COMMAND_ASK);
+  }
   for (const inner of seg.subs.slice(0, MAX_ADDED_READINGS)) {
     const output = processSubstitutionOutput(inner);
     if (output !== null) texts.add(guessed.replaceAll(SUBSTITUTION, () => output));

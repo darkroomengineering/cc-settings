@@ -2896,6 +2896,8 @@ describe("TS safety-net — updates of main or master", () => {
       expectAsk(`${empties}$(echo git push origin +HEAD:main)`, feature));
     test("ask: a 17th substitution in an eval script is not read", () =>
       expectAsk(`eval "${empties}$(echo git push origin +HEAD:main)"`, feature));
+    test("ask: a 17th substitution in a git subcommand is not read", () =>
+      expectAsk(`git ${"$(true)".repeat(16)}$(echo commit) -n -m x`, feature));
     test("block: 16 substitutions in a command word are all read", () =>
       expectBlock(`${"$(echo) ".repeat(15)}$(echo git push origin +HEAD:main)`, feature));
 
