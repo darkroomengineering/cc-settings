@@ -28,6 +28,11 @@ const NO_ACCESS_TTL_MS = 24 * 60 * 60 * 1000; // entitlement: re-check daily
 const RATE_LIMIT_TTL_MS = 5 * 60 * 60 * 1000; // Codex meters per ~5-hour window
 const DEFAULT_EXEC_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_EXEC_TIMEOUT_MS = 15 * 60 * 1000; // hard cap so a hung call can't run unbounded
+// After the timeout kill, how long the exec waits for the process to exit and its
+// pipes to drain. A process Codex started can outlive the kill and hold the pipes
+// open, so the reads are cancelled when this runs out.
+const KILL_DRAIN_GRACE_MS = 500;
+const TREE_KILL_TIMEOUT_MS = 1500;
 // Skip the up-to-5s `codex login status` spawn when a recent "available" verdict
 // is still fresh. 60s is safe: the badge poll and exec preflight share this cache.
 const AVAILABLE_TTL_MS = 60_000;
@@ -349,14 +354,109 @@ export async function codexPreflight(force = false): Promise<CodexRunResult | nu
   }
 }
 
+/** True when `pending` settles within `ms`, false when the time runs out first.
+ *  The timer is cleared either way, so it never holds the caller's event loop. */
+async function settlesWithin(pending: Promise<unknown>, ms: number): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const settled = () => true;
+  try {
+    return await Promise.race([
+      pending.then(settled, settled),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Reads a pipe as it arrives, so the text read so far survives cancelling the read. */
+function collectText(stream: ReadableStream<Uint8Array>) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  const done = (async () => {
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+    text += decoder.decode();
+  })();
+  return {
+    done,
+    text: () => text,
+    cancel: () => {
+      reader.cancel().catch(() => {});
+    },
+  };
+}
+
+/** Every live descendant of `root`, parents before children, from one `ps` snapshot.
+ *  Empty when `ps` fails, which leaves the caller with a kill of the root alone. */
+function descendantPids(root: number): number[] {
+  const ps = Bun.spawnSync(["ps", "-A", "-o", "pid=,ppid="], {
+    stdout: "pipe",
+    stderr: "ignore",
+    timeout: TREE_KILL_TIMEOUT_MS,
+  });
+  const childrenOf = new Map<number, number[]>();
+  for (const line of ps.stdout.toString().split("\n")) {
+    const [pid, ppid] = line.trim().split(/\s+/).map(Number);
+    if (!pid || !ppid) continue;
+    childrenOf.set(ppid, [...(childrenOf.get(ppid) ?? []), pid]);
+  }
+  const found = [...(childrenOf.get(root) ?? [])];
+  for (const pid of found) found.push(...(childrenOf.get(pid) ?? []));
+  return found;
+}
+
+/** Kill `proc` and the processes it started. Codex runs as a child of the spawned
+ *  process under the npm launcher and the Windows `codex.cmd` shim, so a kill of
+ *  that process alone leaves Codex running. Both tree walks need the root alive,
+ *  so they run before it is killed. */
+function killProcessTree(proc: { pid: number; kill(signal: NodeJS.Signals): void }): void {
+  let descendants: number[] = [];
+  try {
+    if (process.platform === "win32") {
+      Bun.spawnSync(["taskkill", "/T", "/F", "/PID", String(proc.pid)], {
+        stdout: "ignore",
+        stderr: "ignore",
+        timeout: TREE_KILL_TIMEOUT_MS,
+      });
+    } else {
+      descendants = descendantPids(proc.pid);
+    }
+  } catch {
+    // The kill of the root below still runs.
+  }
+  try {
+    proc.kill("SIGKILL");
+  } catch {
+    // Already gone: taskkill ended it.
+  }
+  for (const pid of descendants) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Already gone.
+    }
+  }
+}
+
 /** Run `codex exec` with the gate in front. On success the plain final message is
  *  returned (no --json, so stdout is the answer, not an event stream). On failure
  *  the error is classified and cached so repeated entitlement failures stop
  *  retrying while one-off errors don't poison the cache.
  *
- *  Timeout: if the process is still running at the effective timeout limit, the
- *  partial stdout is surfaced with a human-readable detail message. Timeouts are
- *  NOT cached as sticky failures — the bridge stays "available" for the next call.
+ *  Timeout: if the process is still running at the effective timeout limit, it and
+ *  the processes it started are killed, and the call returns within
+ *  KILL_DRAIN_GRACE_MS of the kill even when a survivor still holds the pipes. A
+ *  process that exits on its own but leaves the pipes held is read up to the same
+ *  limit. The partial stdout is surfaced with a human-readable detail message.
+ *  Timeouts are NOT cached as sticky failures — the bridge stays "available" for
+ *  the next call.
  *
  *  Output sanitization: both success and failure output paths run sanitizeOutput
  *  before returning, so callers never need to strip credentials themselves. */
@@ -368,8 +468,8 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   if (!ALLOWED_SANDBOXES.includes(sandbox)) {
     return blocked("unknown", `Refusing to run Codex: unknown sandbox "${sandbox}".`);
   }
-  // Clamp to a hard ceiling, and treat 0/negative (which Bun reads as "no
-  // timeout") as the default so a hung call can never run unbounded.
+  // Clamp to a hard ceiling, and treat 0/negative as unset so the default limit
+  // applies and a hung call can never run unbounded.
   const requested = opts.timeoutMs && opts.timeoutMs > 0 ? opts.timeoutMs : DEFAULT_EXEC_TIMEOUT_MS;
   const timeout = Math.min(requested, MAX_EXEC_TIMEOUT_MS);
   // The prompt goes over stdin (`-`), never argv: a prompt beginning with `-`
@@ -381,6 +481,7 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   let stderr: string;
   let exit: number;
   let signalCode: string | null;
+  let timedOut = false;
   try {
     // Model pin goes before the `--` end-of-options marker, alongside --sandbox.
     const modelArgs = opts.model ? ["--model", opts.model] : [];
@@ -395,17 +496,27 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
         stdin: new Blob([opts.prompt]),
         stdout: "pipe",
         stderr: "pipe",
-        timeout,
-        // Hard kill on the timeout: a child that ignores SIGTERM (Bun's default) could
-        // otherwise outrun the ceiling. SIGKILL guarantees the bound is real.
-        killSignal: "SIGKILL",
       },
     );
-    [stdout, stderr] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-    ]);
-    exit = await proc.exited;
+    const stdoutPipe = collectText(proc.stdout);
+    const stderrPipe = collectText(proc.stderr);
+    const finished = Promise.all([proc.exited, stdoutPipe.done, stderrPipe.done]);
+    if (await settlesWithin(finished, timeout)) {
+      await finished; // a pipe read error reaches the catch below
+    } else {
+      timedOut = proc.exitCode === null && proc.signalCode === null;
+      if (timedOut) {
+        // SIGKILL, so a process that ignores SIGTERM cannot outrun the ceiling.
+        killProcessTree(proc);
+        await settlesWithin(finished, KILL_DRAIN_GRACE_MS);
+      }
+      stdoutPipe.cancel();
+      stderrPipe.cancel();
+    }
+    stdout = stdoutPipe.text();
+    stderr = stderrPipe.text();
+    // After the timeout kill the exit can still be pending; the timeout branch below ignores it.
+    exit = timedOut ? (proc.exitCode ?? 1) : await proc.exited;
     signalCode = proc.signalCode; // set when the process was killed by a signal
   } catch (err) {
     // Bun.spawn throws synchronously on ENOENT (codex vanished from PATH inside the
@@ -439,11 +550,12 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
     return { ok: true, output: sanitizeOutput(stdout.trim()), state: "available" };
   }
 
-  // Detect timeout: the process was killed by a signal (our SIGKILL hard cap), or —
-  // as a fallback if the runtime didn't surface a signal — a non-zero exit at/after
-  // the effective limit. The partial stdout (captured before the kill) is surfaced
-  // so the caller has context. Timeouts are not sticky-cached — the bridge stays open.
-  if (signalCode !== null || (exit !== 0 && elapsed >= timeout)) {
+  // Detect timeout: the process was still running at the effective limit and its
+  // tree was killed, it was killed by a signal from elsewhere, or it failed and its
+  // exit or its output took until the limit. The partial stdout (captured before
+  // the kill) is surfaced so the caller has context. Timeouts are not sticky-cached
+  // — the bridge stays open.
+  if (timedOut || signalCode !== null || (exit !== 0 && elapsed >= timeout)) {
     await commitReconciled({ state: "available", checkedAt: now });
     const minutes = Math.round(timeout / 60_000);
     return {

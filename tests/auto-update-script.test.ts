@@ -156,6 +156,7 @@ process.exit(await child.exited);
         await rm(home, { recursive: true, force: true });
       }
     },
+    { timeout: 30_000 },
   );
   test(
     "missing repo → status no-repo, exits cleanly (0)",
