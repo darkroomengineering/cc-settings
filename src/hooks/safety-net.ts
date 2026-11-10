@@ -1012,9 +1012,14 @@ function hasShortNoVerify(token: string): boolean {
   return false;
 }
 
-function checkGitHookSkips(c: ParsedShellCommand, ctx: ShellCtx, cmd: string): void {
-  if (c.word !== "git") return;
-  const a = c.args;
+function checkGitHookSkips(c: Command, ctx: ShellCtx, seg: ShellSegment, cmd: string): void {
+  // A command word the hook cannot read (`$G commit`) may be git.
+  if (c.word !== "git" && !c.typed.includes("$")) return;
+  const readings = c.word === "git" ? subcommandReadings(c.args, ctx, seg) : [];
+  for (const args of [c.args, ...readings]) checkHookSkipArgs(args, c, ctx, cmd);
+}
+
+function checkHookSkipArgs(a: string[], c: Command, ctx: ShellCtx, cmd: string): void {
   const configKeys: string[] = [];
   let i = 0;
   while (i < a.length && (a[i] as string).startsWith("-")) {
@@ -1150,6 +1155,34 @@ function readGitGlobals(args: string[]): GitGlobals {
   }
   g.sub = i;
   return g;
+}
+
+// More readings of a git command's arguments when its subcommand is not literal
+// text (`git $P`, `git $(echo push)`); none when it is. A variable the hook
+// trusts is filled in. Any other word is read as nothing, which leaves the next
+// word as the subcommand (`git $UNSET push`), as `push`, and as each guess the
+// line holds: a variable's guess, or a substitution's printed text.
+function subcommandReadings(args: string[], ctx: ShellCtx, seg: ShellSegment): string[][] {
+  const at = readGitGlobals(args).sub;
+  const word = args[at];
+  if (word === undefined || !/[$`]/.test(word)) return [];
+  const put = (text: string): string[] => [
+    ...args.slice(0, at),
+    ...splitWords(text, ctx),
+    ...args.slice(at + 1),
+  ];
+  const trusted = expandVars(word, ctx);
+  if (!/[$`]/.test(trusted)) return [put(trusted)];
+  const guessed = word.replace(VAR_REF_RE, (m, braced, bare) => {
+    const name = (braced ?? bare) as string;
+    return ctx.guesses.get(name) ?? knownVar(name, ctx) ?? m;
+  });
+  const texts = new Set(["", "push", guessed]);
+  for (const inner of seg.subs.slice(0, MAX_ADDED_READINGS)) {
+    const output = processSubstitutionOutput(inner);
+    if (output !== null) texts.add(guessed.replaceAll(SUBSTITUTION, () => output));
+  }
+  return [...texts].filter((text) => !/[$`]/.test(text)).map(put);
 }
 
 // Null when the args are not a ref update, or one that changes nothing
@@ -1620,8 +1653,12 @@ function checkGitPush(
     });
     return filled === arg ? [arg] : splitWords(filled, ctx);
   });
+  const readings = [typed, braced, split];
+  if (c.word === "git") {
+    readings.push(...readings.flatMap((args) => subcommandReadings(args, ctx, seg)));
+  }
   const read = new Set<string>();
-  for (const args of [typed, braced, split]) {
+  for (const args of readings) {
     const key = args.join("\0");
     if (read.has(key)) continue;
     read.add(key);
@@ -2563,7 +2600,7 @@ function analyzeSegment(seg: ShellSegment, ctx: ShellCtx, depth: number): void {
       if (c !== typed) checkSegmentText([c.word, ...c.args].join(" "), seg.subs);
       checkSecretReaders(c, ctx, text);
       checkGhWrites(c, ctx, text);
-      checkGitHookSkips(c, ctx, text);
+      checkGitHookSkips(c, ctx, seg, text);
       checkMainPush(c, ctx, stages[i - 1], seg, text);
       unwrapShellStage(c, stages[i - 1], seg, ctx, depth);
       if (forms.length === 1) trackRepo(c, ctx);
@@ -2644,16 +2681,11 @@ function analyzeReading(cmd: string, scan: ShellScan, depth: number, inherited: 
     for (const piece of cmd.split(/[;&|\n]+/)) {
       const text = piece.replace(/["'`]/g, " ");
       const c = parseCommand(text);
+      const seg: ShellSegment = { clean: text, subs: [], heredocs: [], scope: 0, joiner: null };
       checkSecretReaders(c, base, cmd);
       checkGhWrites(c, base, cmd);
-      checkGitHookSkips(c, base, cmd);
-      checkMainPush(
-        c,
-        base,
-        undefined,
-        { clean: text, subs: [], heredocs: [], scope: 0, joiner: null },
-        cmd,
-      );
+      checkGitHookSkips(c, base, seg, cmd);
+      checkMainPush(c, base, undefined, seg, cmd);
     }
   }
 }

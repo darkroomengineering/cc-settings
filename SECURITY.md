@@ -489,8 +489,9 @@ next two hold for every safety-net rule, the rest for the push rule:
   `CD` and `EXPORT` do not change the directory or the environment the hook
   tracks.
 - **Command words that are not literal text.** A command word that holds a
-  variable or a substitution is always read two ways. The push rule reads it
-  as git (`$GIT push origin main`); no other rule does. Every rule reads it
+  variable or a substitution is always read two ways. The push rule and the
+  git hook rule read it as git (`$GIT push origin main`,
+  `$G commit --no-verify`); no other rule does. Every rule reads it
   as nothing, which leaves the next word as the command
   (`$UNSET git push origin main`). Three more readings are added to those.
   The word with the line's plain assignments filled in and split into words
@@ -506,6 +507,19 @@ next two hold for every safety-net rule, the rest for the push rule:
   are more, the command asks. After such a command word the hook trusts no
   directory, branch or variable for the rest of the command, because the
   word may have run `cd`, `git checkout` or `export`.
+- **Git subcommands that are not literal text.** When the word after `git`
+  and its options holds a variable or a substitution, the push rule and the
+  git hook rule read the command more than once. A variable the hook trusts
+  is filled in (`P=push; git $P origin main`). Any other word is read as
+  nothing, which leaves the next word as the subcommand
+  (`git $UNSET push origin main`); as `push`
+  (`git $(cat verb.txt) origin +HEAD:main` blocks); and as each guess the
+  line holds, a substitution's printed text included
+  (`git $(echo commit) -n -m x` blocks). Read as `push`, a command without a
+  refspec is a push of the current branch, so `git $SUB` and
+  `git $(echo status)` ask from a checkout of main. `--no-verify`,
+  `-c core.hooksPath` and a hook-skip variable block under the `push`
+  reading; commit's `-n` blocks only when the word reads as `commit`.
 - **Git behind another command.** A `git` word among the arguments of a
   command outside the wrapper list is read as a push that runs where the
   outer command runs: `script -q /dev/null git push origin main` asks.
@@ -617,10 +631,11 @@ Known limits, open for a follow-up:
   a superproject on a feature branch even when a submodule is on main. With
   the command in one quoted string
   (`git submodule foreach 'git push origin main'`) it is not read at all.
-- A git subcommand that is not literal text
-  (`git $(echo push) origin +HEAD:main`). The "may be git" reading of a
-  command word belongs to the push rule only, so `$G commit --no-verify` is
-  not read by the git hook rule.
+- A git subcommand that is not literal text is read by the push rule and the
+  git hook rule only: `git $P --force origin fix/x` and `git $S clear` pass
+  the rules that read the command as text. It is not guessed when the command
+  word is not literal either (`$G $P origin +HEAD:main`). `git $C -n -m x`
+  passes when nothing on the line says `$C` is `commit`.
 - A glob in a command word (`/usr/bin/g?t push origin +HEAD:main`,
   `/bin/r? -rf ~`).
 - A `<<` in the subscript of a bash array literal (`a=([1<<2]=x)`) is read

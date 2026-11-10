@@ -2324,6 +2324,76 @@ describe("TS safety-net — updates of main or master", () => {
     }
   });
 
+  describe("a git subcommand held in a variable or a substitution", () => {
+    const feature = repo("fix/x");
+    const onMain = repo("main");
+    for (const cmd of [
+      "git $(echo push) origin +HEAD:main",
+      "git $P origin +HEAD:main",
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
+      "git ${P:-push} origin +HEAD:main",
+      "$(echo git) $(echo push) origin +HEAD:main",
+      "git `echo push` origin +HEAD:main",
+      "git -C . $P origin +HEAD:main",
+      "P=push; git $P origin +HEAD:main",
+      "read P <<< push; git $P origin +HEAD:main",
+      // An unset variable leaves the next word as the subcommand.
+      "git $UNSET push origin +HEAD:main",
+      "git $(true) push --force origin main",
+      "git $(echo commit) --no-verify -m x",
+      "git $C --no-verify -m x",
+      "git $(cat verb.txt) --no-ver -m x",
+      "git $UNSET commit --no-verify -m x",
+      "$G commit --no-verify -m x",
+      "$G commit -nm x",
+      "$G push --no-verify origin fix/x",
+      "$G config core.hooksPath /dev/null",
+      "C=commit; git $C --no-verify -m x",
+      // `-n` skips hooks on a commit only, so the subcommand has to read as commit.
+      "C=commit; git $C -n -m x",
+      "git $(echo commit) -n -m x",
+      "C=$(echo commit); git $C -nm x",
+      "HUSKY=0 git $C -m x",
+      "git -c core.hooksPath=/dev/null $C -m x",
+    ]) {
+      test(`block: ${cmd}`, () => expectBlock(cmd, feature));
+    }
+    for (const cmd of [
+      "git $P origin main",
+      "git $(echo push) origin main",
+      "git $(cat verb.txt) origin HEAD:master",
+    ]) {
+      test(`ask: ${cmd}`, () => expectAsk(cmd, feature));
+    }
+    // A subcommand the hook cannot read may be a bare push of the current branch.
+    for (const cmd of ["git $SUB", "git $SUB origin HEAD", "git $(echo status)"]) {
+      test(`ask from a main checkout: ${cmd}`, () => expectAsk(cmd, onMain));
+    }
+    for (const cmd of [
+      "git $SUB",
+      "git $SUB --oneline -5",
+      "git $SUB -n 5",
+      "git $SUB origin fix/x",
+      "git $SUB origin HEAD",
+      "git $(echo status)",
+      "git $(echo log) -n 5",
+      "SUB=log; git $SUB -n 5",
+      "$G status",
+      "$RUNNER commit -m x",
+    ]) {
+      test(`allow: ${cmd}`, () => expectAllow(cmd, feature));
+    }
+    for (const cmd of [
+      "SUB=status; git $SUB",
+      "SUB=log; git $SUB -n 5",
+      "git $SUB origin fix/x",
+      "git $SUB -n 5 fix/x",
+      "$G status",
+    ]) {
+      test(`allow from a main checkout: ${cmd}`, () => expectAllow(cmd, onMain));
+    }
+  });
+
   describe("xargs input the hook cannot read", () => {
     const feature = repo("fix/x");
     for (const cmd of [
