@@ -570,7 +570,7 @@ const ADDED_IN_V41 = [
 ];
 // Version 42: the /audit State mode reference.
 const ADDED_IN_V42 = ["skills/audit/references/state-machines.md"];
-const ADDED_IN_OFFSCREEN = [
+const ADDED_IN_V44 = [
   "skills/proof-of-work/references/offscreen.md",
   "skills/proof-of-work/scripts/offscreen.m",
   "skills/proof-of-work/scripts/offscreen.sh",
@@ -933,7 +933,7 @@ const v43 = {
 MANIFESTS.set(43, v43);
 // Version 44: the proof-of-work offscreen tool for native Mac apps (full profile only).
 MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
-  full: [...v43.full, ...ADDED_IN_OFFSCREEN],
+  full: [...v43.full, ...ADDED_IN_V44],
   light: v43.light,
 });
 

@@ -32,7 +32,7 @@ Each shell call is a fresh process, so keep the app pid in a file, not a
 variable, and stop the display with `stop`.
 
 ```bash
-nohup bash "$OFFSCREEN" display >/dev/null 2>&1 &   # stays up until `stop`
+nohup bash "$OFFSCREEN" display >/dev/null 2>&1 &   # stays up until `stop` or 60 idle minutes
 sleep 3
 bash "$OFFSCREEN" launch path/to/Debug/App.app > /tmp/app.pid
 APP_PID=$(cat /tmp/app.pid)
@@ -40,7 +40,7 @@ bash "$OFFSCREEN" tree "$APP_PID" 8      # find controls by title, description o
 bash "$OFFSCREEN" press "$APP_PID" "New Message"
 bash "$OFFSCREEN" set "$APP_PID" "search-field" "hello"
 bash "$OFFSCREEN" menu "$APP_PID" File "New Window"
-bash "$OFFSCREEN" park "$APP_PID"        # after anything that opens a window
+bash "$OFFSCREEN" park "$APP_PID"        # a window opened some other way, such as by a timer
 bash "$OFFSCREEN" type "$APP_PID" "some text"
 bash "$OFFSCREEN" key "$APP_PID" return
 bash "$OFFSCREEN" shot "$APP_PID" /path/to/proof.png
@@ -49,16 +49,20 @@ bash "$OFFSCREEN" stop                   # quits every app `launch` opened, then
 ```
 
 - `display` creates a 1920x1200 monitor (`--size WxH` to change it) and places
-  it below and to the left of the real displays. It lasts as long as the
-  process runs.
+  it below and to the left of the real displays. It runs until `stop`, or until
+  no command has used it for 60 minutes (`--idle-minutes N`, `0` for never), so
+  an agent that dies mid-run does not leave the display and its apps behind.
 - `launch` opens a new instance without activating it and without restoring
   windows from an earlier run, moves its windows onto the virtual display, and
   prints the pid. If the app activates itself anyway,
   `launch` gives focus back to the app that had it. The app's environment
   carries `CC_OFFSCREEN=1`, so a dev build can skip activating itself.
-- `park <pid>` moves windows that opened later onto the virtual display.
 - `press`, `set`, `menu` and `close` act through the Accessibility API. `type` and `key`
   post keystrokes to the app's process only, never to the system event stream.
+  After `press`, `menu`, `close` and `key`, the tool hands focus back if the app
+  took it and moves any window the action opened onto the virtual display.
+- `park <pid>` moves windows that opened some other way (a timer, a network
+  response) onto the virtual display. Windows already there stay put.
 - `shot` captures the app's front window, wherever it is.
 
 Open the screenshot and look at it before reporting. The proof is the image,
@@ -87,12 +91,12 @@ not the exit code.
   focused view (formatting buttons, Edit menu commands, `cmd+a`) can do
   nothing; buttons, text values, menus, sheets, typing and return work. Test
   through the app's own buttons and fields, or report that path as unverified.
-- A window the app opens after `launch` shows on the user's screen until the
-  next `park`, usually for under a second. Run `park` right after any action
-  that opens one.
-- Focus is handed back by a poll during `launch` (about 0.5 s), so the frontmost
-  app can flip briefly. Actions that open a window can do the same; check
-  `status` afterwards.
+- A window opened by an action shows on the user's screen until the tool's
+  next check, at most 0.1 s after the action. A window opened later on its own
+  stays there until `park`.
+- Focus is handed back by polling (0.5 s during `launch`, 0.1 s after an
+  action), so the frontmost app can flip for that long if the app activates
+  itself. Check `status` afterwards.
 - The display, its pidfile and the launched-apps list are shared by every
   session on the machine. Run `status` first, reuse a display that is up, and
   `stop` only one you started.

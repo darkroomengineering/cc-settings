@@ -55,9 +55,16 @@ static CGDirectDisplayID findDisplay(void) {
   return 0;
 }
 
+static NSString *displayPidFile(void) {
+  return [NSTemporaryDirectory() stringByAppendingPathComponent:@"cc-offscreen-display.pid"];
+}
+
+// Every command that needs the display touches the pidfile; `display` stops
+// itself once the pidfile has gone untouched for its idle limit.
 static CGDirectDisplayID requireDisplay(void) {
   CGDirectDisplayID d = findDisplay();
   if (!d) die(@"no virtual display; start one with `offscreen display` (keep it running)");
+  utimes(displayPidFile().fileSystemRepresentation, NULL);
   return d;
 }
 
@@ -127,14 +134,12 @@ static void quitLaunchedApps(void) {
   [NSFileManager.defaultManager removeItemAtPath:launchedFile() error:nil];
 }
 
-static NSString *displayPidFile(void) {
-  return [NSTemporaryDirectory() stringByAppendingPathComponent:@"cc-offscreen-display.pid"];
-}
-
 static int cmdDisplay(int argc, const char **argv) {
   unsigned int w = 1920, h = 1200;
+  double idleMinutes = 60;
   for (int i = 0; i < argc; i++) {
     if (!strcmp(argv[i], "--size") && i + 1 < argc) sscanf(argv[++i], "%ux%u", &w, &h);
+    else if (!strcmp(argv[i], "--idle-minutes") && i + 1 < argc) idleMinutes = atof(argv[++i]);
   }
   if (findDisplay()) die(@"a virtual display is already running");
 
@@ -147,7 +152,12 @@ static int cmdDisplay(int argc, const char **argv) {
   desc.vendorID = 0xCC;
   desc.productID = 0x0FF;
   desc.serialNum = kSerial;
-  desc.terminationHandler = ^(id a, id b) { exit(0); };
+  void (^stop)(void) = ^{
+    quitLaunchedApps();
+    [NSFileManager.defaultManager removeItemAtPath:displayPidFile() error:nil];
+    exit(0);
+  };
+  desc.terminationHandler = ^(id a, id b) { stop(); };
 
   CGVirtualDisplay *display = [[CGVirtualDisplay alloc] initWithDescriptor:desc];
   if (!display) die(@"CGVirtualDisplay init failed (private API unavailable on this macOS?)");
@@ -160,17 +170,26 @@ static int cmdDisplay(int argc, const char **argv) {
   // The display needs a moment to come online before it can be arranged.
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     parkDisplay(display.displayID);
-    [[NSString stringWithFormat:@"%d", getpid()] writeToFile:displayPidFile() atomically:YES encoding:NSUTF8StringEncoding error:nil];
     CGRect b = displayBounds(display.displayID);
-    out([NSString stringWithFormat:@"display %u up at %.0f,%.0f %.0fx%.0f (Ctrl-C or kill to remove)",
-                                   display.displayID, b.origin.x, b.origin.y, b.size.width, b.size.height]);
+    out([NSString stringWithFormat:@"display %u up at %.0f,%.0f %.0fx%.0f (stops after %g idle minutes, or `offscreen stop`)",
+                                   display.displayID, b.origin.x, b.origin.y, b.size.width, b.size.height, idleMinutes]);
   });
 
-  void (^stop)(void) = ^{
-    quitLaunchedApps();
-    [NSFileManager.defaultManager removeItemAtPath:displayPidFile() error:nil];
-    exit(0);
-  };
+  // An agent that dies mid-run never calls `stop`; without this the display and its apps outlive it.
+  if (idleMinutes > 0) {
+    dispatch_source_t idle = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    dispatch_source_set_timer(idle, dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC), 30 * NSEC_PER_SEC, NSEC_PER_SEC);
+    dispatch_source_set_event_handler(idle, ^{
+      NSDate *touched = [NSFileManager.defaultManager attributesOfItemAtPath:displayPidFile() error:nil].fileModificationDate;
+      if (!touched || -[touched timeIntervalSinceNow] > idleMinutes * 60) {
+        out(@"display idle; stopping");
+        stop();
+      }
+    });
+    dispatch_resume(idle);
+    (void)CFBridgingRetain(idle);
+  }
+
   int sigs[] = {SIGINT, SIGTERM, SIGHUP};
   for (int k = 0; k < 3; k++) {
     int sig = sigs[k];
@@ -180,6 +199,8 @@ static int cmdDisplay(int argc, const char **argv) {
     dispatch_resume(s);
     (void)CFBridgingRetain(s);
   }
+  // Written only once the signal handlers exist, so `stop` works from the first moment it can find us.
+  [[NSString stringWithFormat:@"%d", getpid()] writeToFile:displayPidFile() atomically:YES encoding:NSUTF8StringEncoding error:nil];
   (void)CFBridgingRetain(display);
   dispatch_main();
 }
@@ -242,14 +263,29 @@ static int moveWindowsToDisplay(pid_t pid, CGDirectDisplayID d) {
   int i = 0;
   for (id w in axWindows(pid)) {
     AXUIElementRef win = (__bridge AXUIElementRef)w;
-    CGPoint p = CGPointMake(b.origin.x + 40 + 30 * i, b.origin.y + 60 + 30 * i);
+    i++;
+    CGPoint cur = CGPointZero;
+    id pos = axGet(win, kAXPositionAttribute);
+    if (pos && AXValueGetValue((__bridge AXValueRef)pos, kAXValueCGPointType, &cur) && CGRectContainsPoint(b, cur)) continue;
+    CGPoint p = CGPointMake(b.origin.x + 40 + 30 * (i - 1), b.origin.y + 60 + 30 * (i - 1));
     AXValueRef v = AXValueCreate(kAXValueCGPointType, &p);
     AXError err = AXUIElementSetAttributeValue(win, kAXPositionAttribute, v);
     CFRelease(v);
     if (err != kAXErrorSuccess) failed++;
-    i++;
   }
   return failed;
+}
+
+// After an action, for a moment: hand focus back if the app took it, and move
+// any window it opened onto the virtual display before the user sees it.
+static void settle(pid_t pid, NSRunningApplication *front) {
+  CGDirectDisplayID d = findDisplay();
+  NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+  for (int k = 0; k < 6; k++) {
+    if (app.isActive && front && front.processIdentifier != pid) [front activateWithOptions:0];
+    if (d) moveWindowsToDisplay(pid, d);
+    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
+  }
 }
 
 // A label for matching: title, then description, then identifier, then value.
@@ -389,9 +425,11 @@ static int cmdPress(int argc, const char **argv) {
   NSString *role = argc > 2 ? [NSString stringWithUTF8String:argv[2]] : nil;
   AXUIElementRef el = axFind(pid, [NSString stringWithUTF8String:argv[1]], role);
   if (!el) die(@"element not found (see `offscreen tree <pid>`)");
+  NSRunningApplication *front = NSWorkspace.sharedWorkspace.frontmostApplication;
   AXError e = AXUIElementPerformAction(el, kAXPressAction);
   CFRelease(el);
   if (e != kAXErrorSuccess) die([NSString stringWithFormat:@"AXPress failed (%d)", e]);
+  settle(pid, front);
   return 0;
 }
 
@@ -429,8 +467,10 @@ static int cmdMenu(int argc, const char **argv) {
     if (!next) die([NSString stringWithFormat:@"menu item \"%@\" not found", want]);
     cur = next;
   }
+  NSRunningApplication *front = NSWorkspace.sharedWorkspace.frontmostApplication;
   AXError e = AXUIElementPerformAction((__bridge AXUIElementRef)cur, kAXPressAction);
   if (e != kAXErrorSuccess) die([NSString stringWithFormat:@"menu press failed (%d)", e]);
+  settle(pid, front);
   return 0;
 }
 
@@ -446,8 +486,10 @@ static int cmdClose(int argc, const char **argv) {
     if (title && ![axStr(win, kAXTitleAttribute) isEqualToString:title]) continue;
     id button = axGet(win, kAXCloseButtonAttribute);
     if (!button) die(@"window has no close button");
+    NSRunningApplication *front = NSWorkspace.sharedWorkspace.frontmostApplication;
     AXError e = AXUIElementPerformAction((__bridge AXUIElementRef)button, kAXPressAction);
     if (e != kAXErrorSuccess) die([NSString stringWithFormat:@"close failed (%d)", e]);
+    settle(pid, front);
     return 0;
   }
   die(@"no matching window");
@@ -455,10 +497,10 @@ static int cmdClose(int argc, const char **argv) {
 }
 
 // Key events go straight to the process, never through the system event stream.
-static void postKey(pid_t pid, CGKeyCode code, UniChar ch, CGEventFlags flags) {
+static void postKey(pid_t pid, CGKeyCode code, const UniChar *chars, UniCharCount len, CGEventFlags flags) {
   for (int down = 1; down >= 0; down--) {
     CGEventRef ev = CGEventCreateKeyboardEvent(NULL, code, down);
-    if (ch) CGEventKeyboardSetUnicodeString(ev, 1, &ch);
+    if (len) CGEventKeyboardSetUnicodeString(ev, len, chars);
     CGEventSetFlags(ev, flags);
     CGEventPostToPid(pid, ev);
     CFRelease(ev);
@@ -471,11 +513,19 @@ static int cmdType(int argc, const char **argv) {
   requireAX();
   pid_t pid = parsePid(argv[0]);
   NSString *s = [NSString stringWithUTF8String:argv[1]];
-  for (NSUInteger i = 0; i < s.length; i++) {
-    UniChar c = [s characterAtIndex:i];
-    if (c == '\n') postKey(pid, 36, 0, 0);
-    else postKey(pid, 0, c, 0);
-  }
+  // One event per composed character, so emoji and accented letters arrive whole.
+  [s enumerateSubstringsInRange:NSMakeRange(0, s.length)
+                        options:NSStringEnumerationByComposedCharacterSequences
+                     usingBlock:^(NSString *ch, NSRange r, NSRange er, BOOL *stop) {
+                       if ([ch isEqualToString:@"\n"]) {
+                         postKey(pid, 36, NULL, 0, 0);
+                         return;
+                       }
+                       UniChar buf[16];
+                       UniCharCount n = MIN(ch.length, (NSUInteger)16);
+                       [ch getCharacters:buf range:NSMakeRange(0, n)];
+                       postKey(pid, 0, buf, n, 0);
+                     }];
   return 0;
 }
 
@@ -504,7 +554,9 @@ static int cmdKey(int argc, const char **argv) {
     code = (CGKeyCode)[letters rangeOfString:k].location;
     ch = [k characterAtIndex:0];
   } else die([NSString stringWithFormat:@"unknown key %@", k]);
-  postKey(pid, code, ch, flags);
+  NSRunningApplication *front = NSWorkspace.sharedWorkspace.frontmostApplication;
+  postKey(pid, code, ch ? &ch : NULL, ch ? 1 : 0, flags);
+  settle(pid, front);
   return 0;
 }
 
@@ -550,7 +602,7 @@ int main(int argc, const char **argv) {
     if (argc < 2) {
       fprintf(stderr,
               "usage: offscreen <command>\n"
-              "  display [--size WxH]     create the virtual display; stays running until killed\n"
+              "  display [--size WxH] [--idle-minutes N]  create the virtual display; runs until `stop` or N idle minutes (60)\n"
               "  stop                     quit the apps `launch` opened, then remove the display\n"
               "  status                   display, cursor, frontmost app, permissions\n"
               "  launch <App.app> [-- args] open without activating, move windows to the display, print pid\n"
