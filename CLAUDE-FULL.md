@@ -155,10 +155,9 @@ bridge passes no model, so Codex runs its configured default; `--model`
 overrides. Standalone Codex has the reverse,
 read-only bridge (`claude-run.ts`, `claude-verifier`) to Opus 5.5.
 
-- **Fable 5.2:** the session and `planner`: planning, synthesis, gate
-  decisions; never tight loop bodies. When the weekly Fable cap runs hot,
-  `/model claude-opus-5-5` keeps the work going at half the price.
-- **Opus 5.5:** `maestro` and `security-reviewer`.
+- **Opus 5.5:** the session, `maestro`, and `security-reviewer`.
+- **Fable 5.2:** `planner` and the advisor; `/model claude-fable-5-2`
+  steps up for hard planning or stuck work; never tight loop bodies.
 - **Session model:** agents that edit code (`implementer`, `tester`,
   `deslopper`) use `model: inherit`, so your model choice applies.
 - **Sonnet:** loop bodies and read-only fan-out (`explore`, `reviewer`, the
@@ -172,7 +171,7 @@ read-only bridge (`claude-run.ts`, `claude-verifier`) to Opus 5.5.
 
 Never export `CLAUDE_CODE_EFFORT_LEVEL`: while set, it overrides `/effort`.
 Thinking tokens are output-priced and every inheriting agent spends them, so the
-default Fable 5.2 session stays at `/effort medium` for routine work. Raise
+default Opus 5.5 session stays at `/effort medium` for routine work. Raise
 deliberately: `/effort high` for hard non-coding reasoning, `/effort xhigh` for
 audits, migrations, and hard debugging, `ultrathink` for one xhigh turn. Agent
 frontmatter pins effort where depth is non-negotiable (`security-reviewer`,
