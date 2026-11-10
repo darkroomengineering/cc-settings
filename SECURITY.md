@@ -507,6 +507,19 @@ next two hold for every safety-net rule, the rest for the push rule:
   are more, the command asks. After such a command word the hook trusts no
   directory, branch or variable for the rest of the command, because the
   word may have run `cd`, `git checkout` or `export`.
+- **Globs, brace lists and aliases in a command word.** A command word that
+  holds `?`, `*` or a closed `[...]` is also read as `git` and as `rm` when
+  the glob matches that name, in any letter case:
+  `/usr/bin/g?t push origin +HEAD:main` and `/bin/r[m] -rf ~` block, while
+  `/bin/l? -la` and the test command `[` match neither. A `{a,b}` list in
+  the command word is also read expanded: `{git,push} origin main` asks and
+  `{rm,-rf} ~` blocks. `alias NAME=TEXT` is recorded wherever it sits on the
+  line, and a later command word `NAME` also runs TEXT followed by its
+  arguments, read as a script: `alias p='git push origin +HEAD:main'`
+  followed by `p` blocks. Every rule reads these added commands. After a
+  command word with a matching glob, a brace list or an alias, the hook
+  trusts no directory, branch or variable for the rest of the command, so a
+  later push that relies on the current branch asks.
 - **Git subcommands that are not literal text.** When the word after `git`
   and its options holds a variable or a substitution, the push rule and the
   git hook rule read the command more than once. A variable the hook trusts
@@ -636,8 +649,16 @@ Known limits, open for a follow-up:
   the rules that read the command as text. It is not guessed when the command
   word is not literal either (`$G $P origin +HEAD:main`). `git $C -n -m x`
   passes when nothing on the line says `$C` is `commit`.
-- A glob in a command word (`/usr/bin/g?t push origin +HEAD:main`,
-  `/bin/r? -rf ~`).
+- A glob in a command word is matched against `git` and `rm` only:
+  `g? pr create ...`, `c?t ~/.ssh/id_rsa` and `b?sh -c '...'` are not read
+  as gh, cat or a shell. A glob or a brace list is not read in a `git` word
+  behind a wrapper outside the parser's list
+  (`script -q /dev/null g?t push ...`), nor in a command word whose brace
+  list holds a `/` (`{/usr/bin/git,push}`), because the parser keeps only
+  the last path segment of a command word.
+- A zsh global alias (`alias -g`), which expands outside command position, is
+  read as an ordinary alias. An alias defined in a shell startup file is not
+  seen.
 - A `<<` in the subscript of a bash array literal (`a=([1<<2]=x)`) is read
   as a heredoc only, so the lines after it are not read.
 - A command word whose text is split across a variable and a here-string

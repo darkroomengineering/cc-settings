@@ -636,6 +636,9 @@ interface ShellCtx {
   /** What a variable assigned from a substitution, or read from a here-string,
    *  may hold. An added reading only: the variable itself stays unread. */
   guesses: Map<string, string>;
+  /** Text of each `alias NAME=TEXT` on the line: a command word of that name
+   *  may run it. */
+  aliases: Map<string, string>;
 }
 
 // Variables whose value the hook does not trust anywhere on the line, because
@@ -715,6 +718,7 @@ function rootCtx(): ShellCtx {
     after: null,
     chained: new Set(),
     guesses: new Map(),
+    aliases: new Map(),
   };
 }
 
@@ -727,6 +731,7 @@ function cloneCtx(ctx: ShellCtx): ShellCtx {
     after: null,
     chained: new Set(),
     guesses: new Map(ctx.guesses),
+    aliases: new Map(ctx.aliases),
   };
 }
 
@@ -849,6 +854,66 @@ function expandCommandWord(word: string, ctx: ShellCtx): string | null {
 // each, so only the first few are added.
 const MAX_ADDED_READINGS = 16;
 
+// Commands a glob in a command word may name (`/usr/bin/g?t`, `/bin/r[m]`).
+const GLOB_COMMANDS = ["git", "rm"];
+const GLOB_BRACKET_RE = /^\[[!^]?\]?(?:\[:[a-z]+:\]|[^\]])*\]/;
+const MAX_GLOB_WORD = 256;
+
+function globCommands(word: string): string[] {
+  if (!/[?*[]/.test(word)) return [];
+  // A longer word is not matched: it may name any of them.
+  if (word.length > MAX_GLOB_WORD) return GLOB_COMMANDS;
+  const glob = word.toLowerCase().replace(/\*+/g, "*");
+  return GLOB_COMMANDS.filter((name) => globMatches(glob, name));
+}
+
+// Whether a shell glob matches all of `name`. A `[` without its `]` is a
+// literal character, so the test command `[` matches nothing here.
+function globMatches(glob: string, name: string): boolean {
+  if (glob === "") return name === "";
+  if (glob[0] === "*") {
+    return globMatches(glob.slice(1), name) || (name !== "" && globMatches(glob, name.slice(1)));
+  }
+  const ch = name[0];
+  if (ch === undefined) return false;
+  if (glob[0] === "?") return globMatches(glob.slice(1), name.slice(1));
+  const bracket = glob.match(GLOB_BRACKET_RE)?.[0];
+  if (bracket === undefined) return glob[0] === ch && globMatches(glob.slice(1), name.slice(1));
+  return inBracket(bracket, ch) && globMatches(glob.slice(bracket.length), name.slice(1));
+}
+
+function inBracket(bracket: string, ch: string): boolean {
+  // A character class (`[[:alpha:]]`) is not decoded: it may hold any character.
+  if (bracket.includes("[:")) return true;
+  const negated = /^\[[!^]/.test(bracket);
+  const set = bracket.slice(negated ? 2 : 1, -1);
+  let found = false;
+  for (let i = 0; i < set.length; i++) {
+    const from = set[i] as string;
+    const to = set[i + 1] === "-" ? set[i + 2] : undefined;
+    if (to === undefined) found ||= from === ch;
+    else {
+      found ||= from <= ch && ch <= to;
+      i += 2;
+    }
+  }
+  return found !== negated;
+}
+
+// The commands a stage may run when its command word is literal text: the word
+// as typed, the words a `{a,b}` list in it expands to (`{git,push} origin main`)
+// and, for each of those, every guarded command a glob in it matches.
+function literalForms(c: Command): Command[] {
+  const forms = [c];
+  const braced = braceExpand(c.typed);
+  if (braced === null) pendingAsks.push(UNREAD_COMMAND_ASK);
+  else if (braced.length > 1) forms.push(reparse([...braced, ...c.args], c));
+  for (const form of [...forms]) {
+    for (const name of globCommands(form.typed)) forms.push(reparse([name, ...form.args], c));
+  }
+  return forms;
+}
+
 // The commands a stage may run when its command word is not literal text. The
 // first two are always among them: the word may be git (`$GIT push`), and it
 // may be empty, which leaves the next word as the command (`$UNSET git push`).
@@ -858,7 +923,7 @@ const MAX_ADDED_READINGS = 16;
 // text pasted in (`$(echo git push origin main)`), and, when the word still
 // cannot be read, every value the line holds (`${=G}`, `${!N}`).
 function commandForms(c: Command, ctx: ShellCtx, seg: ShellSegment): Command[] {
-  if (!/[$`]/.test(c.typed)) return [c];
+  if (!/[$`]/.test(c.typed)) return literalForms(c);
   const forms = [c, reparse(c.args, c)];
   // A reading left out, or split by an IFS the hook cannot read, may be the
   // one that matters, so the command asks.
@@ -943,6 +1008,11 @@ function trackState(c: Command, ctx: ShellCtx, seg: ShellSegment): void {
     else ctx.dir = resolve(ctx.dir, target);
   } else if (c.typed === "popd") {
     ctx.dir = null;
+  } else if (c.typed === "alias") {
+    for (const t of c.args) {
+      const m = t.match(/^([^=\s]+)=(.*)$/s);
+      if (m) ctx.aliases.set(m[1] as string, m[2] as string);
+    }
   }
 }
 
@@ -1089,7 +1159,7 @@ const MAIN_PUSH_ASK =
 const UNKNOWN_PUSH_ASK =
   "git push to a branch or repository the hook cannot read (a variable, command substitution, xargs input, an earlier checkout, or config set on the command line): approve only if it does not update main or master, or the user asked for a direct push";
 const UNREAD_COMMAND_ASK =
-  "a command word or script the hook cannot read in full (more substitutions or values than it follows, or words split by an IFS it cannot read): approve only if it does not push to main or master, skip git hooks, write to another owner's repository or read a secret file";
+  "a command word or script the hook cannot read in full (more substitutions or values than it follows, a brace list it does not expand, or words split by an IFS it cannot read): approve only if it does not push to main or master, skip git hooks, write to another owner's repository or read a secret file";
 const SUBMODULE_PUSH_ASK =
   "git push --recurse-submodules=on-demand also pushes each submodule's current branch, which may be main or master: approve only if the user asked for that push";
 
@@ -2562,6 +2632,12 @@ function unwrapShellStage(
     if (script) scripts.push(script);
   }
   scripts.push(...scriptsRunBy(c, previous, seg));
+  const alias = ctx.aliases.get(c.typed);
+  if (alias !== undefined) {
+    // The shell does not expand an alias again inside its own text.
+    inner.aliases.delete(c.typed);
+    scripts.push([alias, ...c.args.map(shellQuote)].join(" "));
+  }
   if (scripts.length === 0) return;
   if (depth >= MAX_DEPTH) block("shell nesting too deep to analyze", c.word);
   for (const script of scripts) {
@@ -2605,9 +2681,10 @@ function analyzeSegment(seg: ShellSegment, ctx: ShellCtx, depth: number): void {
       unwrapShellStage(c, stages[i - 1], seg, ctx, depth);
       if (forms.length === 1) trackRepo(c, ctx);
     }
-    // What a command word that is not literal text runs is not known, so
-    // neither is the directory, the branch or any variable after it.
-    if (forms.length > 1) {
+    // What a command word that is not literal text runs is not known, and an
+    // alias runs its text in this shell, so neither is the directory, the
+    // branch or any variable after it.
+    if (forms.length > 1 || ctx.aliases.has(typed.typed)) {
       ctx.dir = null;
       ctx.repo.changed = true;
       ctx.opaque.all = true;
@@ -2738,9 +2815,10 @@ export async function main(io: HookIO = processIO): Promise<void> {
     const interesting = (text: string): boolean =>
       FAST_PATH_VERBS_RE.test(text) || SECRET_MARKER_RE.test(text);
     // A `$` or a backtick can build any of those words at run time (`$A$B`
-    // for git), so a command holding one is analyzed as well.
+    // for git), and so can a glob or a brace list (`r?`, `r{m,}`), so a command
+    // holding one is analyzed as well.
     if (
-      !/[$`]/.test(COMMAND) &&
+      !/[$`?*[{]/.test(COMMAND) &&
       !interesting(COMMAND) &&
       !interesting(plain) &&
       !interesting(shellWords(COMMAND).join(" "))

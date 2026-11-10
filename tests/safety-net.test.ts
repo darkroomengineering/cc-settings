@@ -2394,6 +2394,77 @@ describe("TS safety-net — updates of main or master", () => {
     }
   });
 
+  describe("a command word written as a glob, a brace list or an alias", () => {
+    const feature = repo("fix/x");
+    const onMain = repo("main");
+    const slashed = (p: string): string => p.replaceAll("\\", "/");
+    for (const cmd of [
+      "/usr/bin/g?t push origin +HEAD:main",
+      "/usr/bin/g[i]t push origin +HEAD:main",
+      "/usr/bin/g[[:alpha:]]t push origin +HEAD:main",
+      "/usr/bin/G?T push origin +HEAD:main",
+      "g* push origin +HEAD:main",
+      "sudo /usr/bin/g?t push origin +HEAD:main",
+      "/usr/bin/g?t commit --no-verify -m x",
+      "/usr/bin/g?t stash clear",
+      "/bin/r? -rf ~",
+      "/bin/r[m] -rf ~",
+      "/bin/[q-s]m -rf ~",
+      "/bin/r[!x] -rf ~",
+      "?? -rf ~",
+      "{git,push} origin +HEAD:main",
+      "{rm,-rf} ~",
+      "r{m,} -rf ~",
+      "{git,commit,--no-verify} -m x",
+      "{g?t,push} origin +HEAD:main",
+      "alias p='git push origin +HEAD:main'\np",
+      "alias p='git push origin +HEAD:main'; p",
+      "alias g=git\ng push origin +HEAD:main",
+      "alias nuke='rm -rf'\nnuke ~",
+      "alias c='git commit'\nc --no-verify -m x",
+      // An alias holds a script, not one command.
+      "alias p='true; git push origin +HEAD:main'\np",
+      "true && alias p='git push origin +HEAD:main'\np",
+    ]) {
+      test(`block: ${JSON.stringify(cmd)}`, () => expectBlock(cmd, feature));
+    }
+    for (const cmd of [
+      "/usr/bin/g?t push origin main",
+      "{git,push} origin main",
+      "alias p='git push origin main'\np",
+      // After an aliased command no directory, branch or variable is trusted.
+      `alias go='cd ${slashed(onMain)}'\ngo\ngit push origin HEAD`,
+      "alias ll='ls -la'\nll\ngit push",
+    ]) {
+      test(`ask: ${JSON.stringify(cmd)}`, () => expectAsk(cmd, feature));
+    }
+    for (const cmd of [
+      "/bin/l? -la",
+      "/usr/bin/g?t status",
+      "/usr/bin/g?t push origin fix/x",
+      "/bin/r? -rf dist",
+      "./scripts/*.sh push origin main",
+      "ls *.ts",
+      "[ -f x ] && echo ok",
+      "[[ -n $X ]] && echo ok",
+      "[ -f x ] && git push",
+      "echo {a,b}",
+      "{ echo hi; }",
+      "{echo,hi}",
+      "{git,status}",
+      "{git,push} origin fix/x",
+      "./scripts/{build,test}.sh",
+      "alias ll='ls -la'\nll",
+      "alias gs='git status'\ngs",
+      // The shell does not expand an alias again inside its own text.
+      "alias ls='ls -G'\nls",
+      "alias p='git push origin fix/x'\np",
+      "alias ll='ls -la'\nll\ngit push origin fix/x",
+    ]) {
+      test(`allow: ${JSON.stringify(cmd)}`, () => expectAllow(cmd, feature));
+    }
+  });
+
   describe("xargs input the hook cannot read", () => {
     const feature = repo("fix/x");
     for (const cmd of [
