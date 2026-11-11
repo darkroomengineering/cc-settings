@@ -866,7 +866,7 @@ const MAX_ADDED_READINGS = 16;
 
 // Commands a glob in a command word may name (`/usr/bin/g?t`, `/bin/r[m]`).
 const GLOB_COMMANDS = ["git", "rm"];
-const GLOB_BRACKET_RE = /^\[[!^]?\]?(?:\[:[a-z]+:\]|[^\]])*\]/;
+const GLOB_BRACKET_RE = /^\[[!^]?\]?(?:\[:[a-z]+:\]|\[=[^\]]+=\]|\[\.[^\]]+\.\]|[^\]])*\]/;
 const MAX_GLOB_WORD = 256;
 
 function globCommands(word: string): string[] {
@@ -893,8 +893,9 @@ function globMatches(glob: string, name: string): boolean {
 }
 
 function inBracket(bracket: string, ch: string): boolean {
-  // A character class (`[[:alpha:]]`) is not decoded: it may hold any character.
-  if (bracket.includes("[:")) return true;
+  // A character class (`[[:alpha:]]`), an equivalence class (`[[=g=]]`) and a
+  // collating symbol (`[[.g.]]`) are not decoded: each may hold any character.
+  if (/\[[:=.]/.test(bracket)) return true;
   const negated = /^\[[!^]/.test(bracket);
   const set = bracket.slice(negated ? 2 : 1, -1);
   let found = false;
@@ -937,6 +938,10 @@ function literalForms(c: Command): Command[] {
 // with a substitution's printed text pasted in
 // (`$(echo git push origin main)`), and, when the word still cannot be read,
 // every value the line holds (`${=G}`, `${!N}`).
+// A variable reference with or without a modifier (`${H:-}`, `${=G}`): the
+// modifier may leave the held value as it is. `${!N}` names another variable.
+const HELD_REF_RE = /\$\{[=~^]*([A-Za-z_]\w*)[^{}]*\}|\$([A-Za-z_]\w*)/g;
+
 function commandForms(c: Command, ctx: ShellCtx, seg: ShellSegment): Command[] {
   if (!/[$`]/.test(c.typed)) return literalForms(c);
   const forms = [c, reparse(c.args, c)];
@@ -950,7 +955,7 @@ function commandForms(c: Command, ctx: ShellCtx, seg: ShellSegment): Command[] {
   const texts = new Set([c.typed]);
   // Every variable filled in with what the line last held for it, trusted or
   // not, so that a command split across them is read joined (`$G$H`).
-  const joined = c.typed.replace(VAR_REF_RE, (m, braced, bare) => {
+  const joined = c.typed.replace(HELD_REF_RE, (m, braced, bare) => {
     const name = (braced ?? bare) as string;
     return ctx.guesses.get(name) ?? ctx.vars[name] ?? ctx.env[name] ?? m;
   });
@@ -1674,7 +1679,37 @@ function expandWord(
   return /[$`]/.test(out) ? null : out;
 }
 
-const BRACE_LIST_RE = /(?<!\$)\{([^{},]*,[^{}]*)\}/;
+interface BraceList {
+  at: number;
+  end: number;
+  parts: string[];
+}
+
+// The first `{a,b}` list in a word. Bash expands an outer list before the
+// lists inside it, which decides the order of the words
+// (`{{git,push},origin}` is `git push origin`).
+function braceList(word: string): BraceList | null {
+  for (let at = word.indexOf("{"); at >= 0; at = word.indexOf("{", at + 1)) {
+    if (word[at - 1] === "$") continue;
+    const parts: string[] = [];
+    let depth = 0;
+    let from = at + 1;
+    for (let i = at + 1; i < word.length; i++) {
+      const ch = word[i];
+      if (ch === "{") depth++;
+      else if (ch === "}" && depth > 0) depth--;
+      else if (ch === "," && depth === 0) {
+        parts.push(word.slice(from, i));
+        from = i + 1;
+      } else if (ch === "}") {
+        if (parts.length === 0) break;
+        return { at, end: i + 1, parts: [...parts, word.slice(from, i)] };
+      }
+    }
+  }
+  return null;
+}
+
 const MAX_BRACE_WORD = 2000;
 const MAX_BRACE_WORDS = 64;
 
@@ -1685,15 +1720,14 @@ function braceExpand(word: string): string[] | null {
   if (word.length > MAX_BRACE_WORD) return null;
   const words = [word];
   for (;;) {
-    const at = words.findIndex((w) => BRACE_LIST_RE.test(w));
+    const at = words.findIndex((w) => braceList(w) !== null);
     if (at < 0) break;
     const w = words[at] as string;
-    const m = w.match(BRACE_LIST_RE) as RegExpMatchArray;
-    const parts = (m[1] as string).split(",");
-    if (words.length + parts.length - 1 > MAX_BRACE_WORDS) return null;
-    const head = w.slice(0, m.index);
-    const tail = w.slice((m.index as number) + m[0].length);
-    words.splice(at, 1, ...parts.map((part) => `${head}${part}${tail}`));
+    const list = braceList(w) as BraceList;
+    if (words.length + list.parts.length - 1 > MAX_BRACE_WORDS) return null;
+    const head = w.slice(0, list.at);
+    const tail = w.slice(list.end);
+    words.splice(at, 1, ...list.parts.map((part) => `${head}${part}${tail}`));
   }
   return words.some((w) => /(?<!\$)\{[^{}]*\.\.[^{}]*\}/.test(w)) ? null : words;
 }
@@ -2707,6 +2741,9 @@ function unwrapShellStage(
   if (alias !== undefined) {
     // The shell does not expand an alias again inside its own text.
     inner.aliases.delete(c.typed);
+    // The script quotes each argument, which hides a flag from the rules that
+    // read text (`alias r=rm`, then `r -rf ~`).
+    checkSegmentText([alias, ...c.args].join(" "), seg.subs);
     scripts.push([alias, ...c.args.map(shellQuote)].join(" "));
   }
   if (scripts.length === 0) return;

@@ -515,7 +515,8 @@ rules it holds for; one that names none holds for the push rule:
   (`G="git push"; $G origin main`). The word with each variable filled in
   with the last value or guess the line holds for it, trusted or not, so a
   command split across them is read joined
-  (`read H <<< in; G='git push origin +HEAD:ma'; $G$H` blocks). The word
+  (`read H <<< in; G='git push origin +HEAD:ma'; $G$H` blocks); a reference
+  with a modifier (`${H:-}`, `${=G}`) is filled in the same way. The word
   with the text that a
   substitution's `echo`, `printf` or `cat` of a heredoc prints pasted in
   (`$(echo git push origin main)`); that text is a guess, since escapes,
@@ -532,14 +533,19 @@ rules it holds for; one that names none holds for the push rule:
   holds `?`, `*` or a closed `[...]` is also read as `git` and as `rm` when
   the glob matches that name, in any letter case:
   `/usr/bin/g?t push origin +HEAD:main` and `/bin/r[m] -rf ~` block, while
+  a character class, an equivalence class or a collating symbol in the
+  brackets (`[[:alpha:]]`, `[[=g=]]`, `[[.g.]]`) matches any character, and
   `/bin/l? -la` and the test command `[` match neither. A glob with no
   arguments is not read this way, because it is a `case` pattern or an array
   element far more often than a command. A `{a,b}` list in
-  the command word is also read expanded: `{git,push} origin main` asks and
-  `{rm,-rf} ~` blocks. `alias NAME=TEXT` is recorded wherever it sits on the
+  the command word is also read expanded, an outer list before the lists
+  inside it: `{git,push} origin main` asks, and `{rm,-rf} ~`,
+  `{{git,push},origin,+HEAD:main}` and `{git,push,--force,origin,fix/x}`
+  block. `alias NAME=TEXT` is recorded wherever it sits on the
   line, and a later command word `NAME` also runs TEXT followed by its
   arguments, read as a script: `alias p='git push origin +HEAD:main'`
-  followed by `p` blocks. Every rule reads these added commands. After a
+  followed by `p` blocks, and so does `alias r=rm` followed by `r -rf ~`.
+  Every rule reads these added commands. After a
   command word with a matching glob, a brace list or an alias, the hook
   trusts no directory, branch or variable for the rest of the command, so a
   later push that relies on the current branch asks.
@@ -684,12 +690,17 @@ Known limits, open for a follow-up:
   `g? pr create ...`, `c?t ~/.ssh/id_rsa` and `b?sh -c '...'` are not read
   as gh, cat or a shell. A glob or a brace list is not read in a `git` word
   behind a wrapper outside the parser's list
-  (`script -q /dev/null g?t push ...`), nor in a command word whose brace
-  list holds a `/` (`{/usr/bin/git,push}`), because the parser keeps only
-  the last path segment of a command word.
+  (`script -q /dev/null g?t push ...`), and a glob is not read in a git
+  subcommand (`git pu?h origin +HEAD:main`).
+- zsh's `=cmd` expansion of a command word (`=git push ...`, `=rm -rf ~`) is
+  not read.
 - A zsh global alias (`alias -g`), which expands outside command position, is
   read as an ordinary alias. An alias defined in a shell startup file is not
-  seen.
+  seen, nor is one defined by a command the hook does not read as `alias`
+  (`eval "alias p='...'"`, `A=alias; $A p='...'`).
+- A line that nests shells and holds several possible directories is read
+  once per reading at each level, so a crafted line can run past the hook's
+  timeout. A timeout blocks the command.
 
 Related limits sit in the permission rules rather than safety-net:
 

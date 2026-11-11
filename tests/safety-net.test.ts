@@ -2508,6 +2508,21 @@ describe("TS safety-net — updates of main or master", () => {
       // An alias holds a script, not one command.
       "alias p='true; git push origin +HEAD:main'\np",
       "true && alias p='git push origin +HEAD:main'\np",
+      // The flags an alias takes as arguments reach the rules that read text.
+      "alias r=rm\nr -rf ~",
+      "alias g=git\ng push --force origin fix/x",
+      // Bash expands the outer list first.
+      "{{git,push},origin,+HEAD:main}",
+      "{{git,push},--force,origin,fix/x}",
+      "{{rm,-rf},~}",
+      // A `/` inside a list is part of one of its words, not the command's path.
+      "{git,push,--force,origin,fix/x}",
+      "{rm,-rf,~/}",
+      "/usr/bin/{git,push,origin,+HEAD:main}",
+      "{/usr/bin/git,push} origin +HEAD:main",
+      "/usr/bin/[[=g=]]it push origin +HEAD:main",
+      "/bin/[[=r=]]m -rf ~",
+      "/bin/[[.r.]]m -rf ~",
     ]) {
       test(`block: ${JSON.stringify(cmd)}`, () => expectBlock(cmd, feature));
     }
@@ -2547,6 +2562,11 @@ describe("TS safety-net — updates of main or master", () => {
       "alias ls='ls -G'\nls",
       "alias p='git push origin fix/x'\np",
       "alias ll='ls -la'\nll\ngit push origin fix/x",
+      "alias r=rm\nr -rf dist",
+      "alias g=git\ng push origin fix/x",
+      "{{echo,a},b}",
+      "{{git,push},origin,fix/x}",
+      "/bin/[[=l=]]s -la",
     ]) {
       test(`allow: ${JSON.stringify(cmd)}`, () => expectAllow(cmd, feature));
     }
@@ -2829,6 +2849,10 @@ describe("TS safety-net — updates of main or master", () => {
       // The values a line holds for the variables of one word are joined.
       "read H <<< in; G='git push origin +HEAD:ma'; $G$H",
       "G=gi; read H <<< 't push origin +HEAD:main'; $G$H",
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
+      "G=gi; read H <<< 't push origin +HEAD:main'; $G${H:-}",
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
+      "G=gi; H='t push origin +HEAD:main'; $G${H:-x}",
       "read G <<< 'git push origin '; read H <<< +HEAD:main; $G$H",
       // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
       "G='gh pr create -R vercel/next.js --title x'; ${=G}",
@@ -2887,11 +2911,15 @@ describe("TS safety-net — updates of main or master", () => {
       Array.from({ length: n }, (_, i) => `A${i}=v${i}; `).join("");
     const empties = "$(echo) ".repeat(16);
     // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell expansion
-    const forced = "G='git push origin +HEAD:main'; ${=G}";
+    const forced = "G='git push origin +HEAD:main'; ${!N}";
     test("block: the 16th value the line holds is still read", () =>
-      expectBlock(`${values(15)}${forced}`, feature));
+      expectBlock(`N=G; ${values(14)}${forced}`, feature));
     test("ask: a 17th value the line holds is not read", () =>
-      expectAsk(`${values(16)}${forced}`, feature));
+      expectAsk(`N=G; ${values(15)}${forced}`, feature));
+    // A reference with a modifier is filled in with its own value, whatever
+    // else the line holds.
+    test("block: a reference with a modifier is read past 16 held values", () =>
+      expectBlock(`${values(16)}G='git push origin +HEAD:main'; \${=G}`, feature));
     test("ask: a 17th substitution in a command word is not read", () =>
       expectAsk(`${empties}$(echo git push origin +HEAD:main)`, feature));
     test("ask: a 17th substitution in an eval script is not read", () =>

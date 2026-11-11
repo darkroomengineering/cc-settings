@@ -789,6 +789,22 @@ const ASSIGNMENT_RE = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s;
 
 /** Reads one pipeline stage: assignments, wrappers and shell keywords in front
  *  of the command are skipped, and redirections can sit anywhere. */
+// The command word without its directory. A `/` inside a `{a,b}` list belongs
+// to one of the words the list expands to (`{git,push,origin,fix/x}`), not to
+// the path of the command.
+function commandBasename(word: string): string {
+  if (!word.includes("{")) return basename(word);
+  let depth = 0;
+  let cut = 0;
+  for (let i = 0; i < word.length; i++) {
+    const ch = word[i];
+    if (ch === "{") depth++;
+    else if (ch === "}" && depth > 0) depth--;
+    else if (ch === "/" && depth === 0) cut = i + 1;
+  }
+  return word.slice(cut);
+}
+
 export function parseShellCommand(stage: string): ParsedShellCommand {
   const words: string[] = [];
   const reads: string[] = [];
@@ -883,7 +899,7 @@ export function parseShellCommand(stage: string): ParsedShellCommand {
   }
   return {
     env,
-    word: i < words.length ? basename(words[i] as string) : "",
+    word: i < words.length ? commandBasename(words[i] as string) : "",
     args: words.slice(i + 1),
     reads,
     heredocWords,
