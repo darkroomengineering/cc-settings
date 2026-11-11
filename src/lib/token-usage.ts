@@ -175,6 +175,7 @@ export interface Report {
   /** Median requests per session. */
   requestsPerSession: number;
   byModel: Record<string, number>;
+  bySubagentModel: Record<string, { requests: number; tokens: Breakdown; cost: number }>;
   byAgent: Record<string, { spawns: number; requests: number; cost: number; coldPrefix: number }>;
   unpricedModels: string[];
 }
@@ -195,6 +196,7 @@ export function buildReport(sessions: SessionUsage[]): Report {
     coldPrefix: { main: 0, subagent: 0 },
     requestsPerSession: 0,
     byModel: {},
+    bySubagentModel: {},
     byAgent: {},
     unpricedModels: [],
   };
@@ -223,6 +225,17 @@ export function buildReport(sessions: SessionUsage[]): Report {
     let sessionRequests = main.requests.length;
     for (const sub of s.subagents) {
       tally(sub);
+      for (const request of sub.requests) {
+        const model = report.bySubagentModel[request.model] ?? {
+          requests: 0,
+          tokens: zero(),
+          cost: 0,
+        };
+        model.requests++;
+        model.tokens = add(model.tokens, request.tokens);
+        model.cost += total(costOf(request.model, request.tokens));
+        report.bySubagentModel[request.model] = model;
+      }
       sessionRequests += sub.requests.length;
       report.requests.subagent += sub.requests.length;
       const cost = threadCost(sub);

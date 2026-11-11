@@ -273,7 +273,7 @@ Custom status bar displayed in the Claude Code terminal.
 }
 ```
 
-The `statusline.ts` script displays model name, git branch, and context usage percentage.
+The `statusline.ts` script displays model name, git branch, context usage percentage, and running subagent counts by model (for example `2 fable · 1 sonnet`).
 
 ♻NN% is the session's prompt-cache hit ratio from the `prompt_cache` payload (v2.1.251+): green ≥80%, yellow ≥50%, red below; `cold` means the cached prefix has expired. Hidden until three requests have been recorded. When cold, the chip appends the diagnosed cause of the last miss from `prompt_cache.last_miss_cause` (v2.1.260), e.g. `♻42% cold ttl_expired_1h`; causes are `system_prompt_changed`, `tools_changed`, `model_changed`, `messages_rewritten`, `ttl_expired_5m`, `ttl_expired_1h`, `likely_server_side`, `unknown`.
 

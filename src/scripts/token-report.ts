@@ -241,6 +241,17 @@ async function main(): Promise<void> {
       console.log(`  ${rest.length} more types, ${usd(cost)} combined (--json lists all)`);
     }
   }
+  const subagentModels = Object.entries(r.bySubagentModel).sort(
+    (a, b) => b[1].cost - a[1].cost || a[0].localeCompare(b[0]),
+  );
+  if (subagentModels.length > 0) {
+    console.log("\nBy subagent model:");
+    for (const [model, usage] of subagentModels) {
+      console.log(
+        `  ${model.padEnd(20)} ${String(usage.requests).padStart(5)} req  ${kTok(total(usage.tokens))} tokens  ${usd(usage.cost).padStart(9)}`,
+      );
+    }
+  }
   console.log("\nBy model:");
   for (const [model, cost] of Object.entries(r.byModel).sort((a, b) => b[1] - a[1])) {
     console.log(`  ${model.padEnd(20)} ${usd(cost).padStart(9)}  ${pct(cost, all)}`);

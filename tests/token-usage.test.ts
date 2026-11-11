@@ -105,6 +105,34 @@ describe("buildReport", () => {
     expect(r.byAgent.explore?.spawns).toBe(1);
     expect(r.unpricedModels).toEqual([]);
   });
+
+  test("breaks subagent requests, tokens and cost down by model", () => {
+    const sonnet = parseTranscript(
+      [line("s1", "claude-sonnet-5", usage), line("s2", "claude-sonnet-5", usage)].join("\n"),
+    );
+    const opus = parseTranscript(line("o1", "claude-opus-5-5", usage));
+    const r = buildReport([
+      {
+        id: "a",
+        mtimeMs: 0,
+        main: { kind: "main", requests: parseTranscript(line("m1", "claude-opus-5-5", usage)) },
+        subagents: [
+          { kind: "explore", requests: sonnet },
+          { kind: "implementer", requests: opus },
+        ],
+      },
+    ]);
+    const one = opus[0]?.tokens ?? zero();
+    expect(Object.keys(r.bySubagentModel).sort()).toEqual(["claude-opus-5-5", "claude-sonnet-5"]);
+    expect(r.bySubagentModel["claude-sonnet-5"]?.requests).toBe(2);
+    expect(r.bySubagentModel["claude-sonnet-5"]?.tokens.output).toBe(one.output * 2);
+    expect(r.bySubagentModel["claude-opus-5-5"]).toEqual({
+      requests: 1,
+      tokens: one,
+      cost: Object.values(costOf("claude-opus-5-5", one)).reduce((a, b) => a + b, 0),
+    });
+    expect(JSON.parse(JSON.stringify(r)).bySubagentModel["claude-sonnet-5"].requests).toBe(2);
+  });
 });
 
 test("projectSlug matches Claude Code's directory naming", () => {
