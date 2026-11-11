@@ -137,6 +137,70 @@ convention. If a third-party tool needs a hook, wrap it in a cc-settings
 script under `src/scripts/` rather than referencing the third-party binary
 directly.
 
+## Personal overrides
+
+`~/.claude/personal-overrides.json` makes only its owner's install more
+permissive on the next `bash setup.sh`, never mid-session. Setup reads it once
+and does not create, replace, or delete this file. Its strict schema rejects
+unknown keys at every level. A missing file means no overrides; an unreadable
+or invalid file means no overrides and one warning line on stderr. Setup accepts
+only a regular file of at most 64 KiB; symlinks and other file types are rejected.
+
+Setup sorts known `safetyNet.allow` IDs and appends
+` --safety-net-allow=<id,id,...>` to the installed PreToolUse Bash dispatcher
+command. An empty list leaves the shipped command unchanged. A reinstall
+replaces the suffix with the configured list. The hook receives this argument
+through the dispatcher; it never reads the overrides file or takes this list
+from an environment variable. The installed hooks block is the trust root,
+and its existing fingerprint covers the argument. Hook auditing rejects
+malformed suffixes and unknown IDs.
+
+```json
+{
+  "safetyNet": { "allow": ["git-discard-worktree"] },
+  "permissions": { "dropAsk": [], "dropDeny": [] }
+}
+```
+
+An allowed check ID skips only that check's block or ask. Analysis continues,
+including every other check in the command. Checks without an ID cannot be
+overridden. The supported IDs are:
+
+| ID | Check it can lift |
+|---|---|
+| `process-search-kill` | Process-name killing with pkill, or kill fed by a process search. |
+| `git-discard-worktree` | Path checkout and restore checks that discard working-tree changes. |
+| `git-stash-clear` | Clearing stashed changes. Stash drop is permitted by the hook; its shipped ask rule can be dropped through `permissions.dropAsk`. |
+| `git-force-push` | Plain force-push to a destination proven to be neither main nor master. |
+| `git-push-main` | The ask for a non-forced push to main or master. |
+| `rm-repo-target` | Unrecognized or unresolved removal targets proven to be inside the current repository. |
+| `xargs-shell` | xargs invoking a shell with `-c`. |
+| `gh-pr-create-unknown-owner` | Pull-request creation when the repository owner cannot be determined. |
+
+The hard floor identifies existing checks that have no ID; it adds no blocks.
+Home/root removal checks and checks for removal outside repository and temp
+roots, force-push checks that may reach main or master, secret-file reads
+(`.env*`, SSH, AWS, GnuPG, gh config, netrc), hook/settings tampering, and internal
+errors cannot be lifted. Existing allowed removal of external build artifacts
+stays allowed. Unknown IDs and free-text reasons grant no permission.
+
+At install, `permissions.dropAsk` and `permissions.dropDeny` remove only exact
+shipped rule strings after the union with personal rules. Personal-only rules
+are preserved. Setup reports the number dropped, and the installed permission
+checker reads the resulting rules directly. Non-droppable rules cover
+home/root removal and curl-to-shell deny rules, plus any rule mentioning a
+settings or secret path, regardless of tool. Requests
+to drop these rules produce a warning and leave them in place.
+
+The Edit ask rules (Edit also governs Write) for
+`**/.claude/personal-overrides.json`, `**/.claude/settings.json` and
+`**/.claude/settings.local.json` are non-droppable. Rules mentioning
+`.claude.json`, `.env`, `.ssh`, `.aws`, `.gnupg`, `.netrc`, `.git-credentials`,
+`.npmrc`, `.docker/config.json`, `.kube/config`, or `hosts.yml` are also
+non-droppable in Read, Edit, Write, and Bash. Editing the overrides file alone
+cannot change a running session's allow list; it takes effect on the next
+`bash setup.sh`.
+
 ## The auto-update launchd job — a persistence surface outside the four layers
 
 `setup.sh` can register a macOS `launchd` job (`com.darkroom.cc-settings-autoupdate`,
@@ -711,7 +775,7 @@ Related limits sit in the permission rules rather than safety-net:
   name stays readable.
 - `dotenvx run -- env` prints every decrypted value, because the child process
   holds them, and safety-net does not block it.
-- Safety-net checks dotenvx and `.env` readers with a flat word scan, not by
+- Safety-net checks dotenvx with a flat word scan, not by
   following wrappers. It turns the command string into one list of words and
   ignores command position. Quoted strings are split again, ANSI-C and
   `$"..."` quoting and backslash-newline are decoded, every `\_` becomes a
@@ -720,16 +784,23 @@ Related limits sit in the permission rules rather than safety-net:
   version, `#ref` or `github:` spelling), a `get`, `decrypt`, `dec` or
   `keypair` word blocks, up to the `--` that follows `run`. The word right
   after that `--` is checked too, because `-l run -- get` has `run` as a flag
-  value. A later dotenvx word starts its own scan. A word naming a secret
-  `.env` file blocks when any word is a known reader (`cat`, `grep`, `sed`,
-  `paste`, `dd`, the `g`-prefixed GNU names, `source`, ...), except the
-  target of an output redirect. Wrappers and flag spellings are covered
-  because none of them is parsed. Out of scope: variable or command
-  substitution (`${IFS}`, `$(printf ...)`), brace expansion, globs, and
-  `xargs` stdin. The cost is false positives, which are safe because the user
-  can run the command with `!`: `dotenvx set get value`,
-  `dotenvx encrypt -k get`, `grep .env README.md`, `sed -i ... .env`, and a
-  commit message that contains `dotenvx get`.
+  value. A later dotenvx word starts its own scan. The cost is false
+  positives, which the user can bypass with `!`: `dotenvx set get value`,
+  `dotenvx encrypt -k get`, and a commit message that contains `dotenvx get`.
+- Safety-net keeps a flat word scan for `.env` readers: a secret `.env` word
+  blocks when any word is a known reader, including inside wrappers, variables,
+  and command strings. The inline pattern or program operand of literal `grep`,
+  `egrep`, `fgrep`, `rg`, `ag`, `ack`, and `jq` commands (and their
+  `g`-prefixed names) is exempt when the secret-shaped text is only a fragment
+  within a longer operand. `sed` and `awk` programs are not exempt, because
+  they can read a file (`r`, `e`, `getline`, `system()`). Whole secret paths stay in the scan, including
+  `grep .env README.md`, `grep -e .env README.md`, and
+  `grep -r foo . --exclude=.env`.
+  The jq filter and `--arg` string values are exempt even when they are whole
+  secret paths. File options, including jq `-f`, `--rawfile`, and `--slurpfile`,
+  remain protected. Input redirects are reads; output redirect targets are not.
+  The flat scan accepts false positives such as `git commit -m "cat .env"`
+  and `echo "do not cat .env"`, which the user can bypass with `!`.
 
 ## Project settings `env` reaches hooks
 
@@ -802,10 +873,11 @@ What the fingerprint and content manifest do **not** cover:
   worms automate against defaults — but a targeted attacker with full
   user-privilege write access is outside this threat model.
 
-## Scope: the fingerprint covers `hooks` and the plugin keys only
+## Scope: the fingerprint covers `hooks` and the plugin keys
 
 Layers 1 and 2 above (the settings fingerprint and the src content
 manifest) are precisely scoped: `hashHooks()` hashes `settings.hooks`,
+including the installed safety-net allow argument,
 `hashPluginKeys()` hashes the three plugin keys, and the content manifest verifies script *files*, not other
 `settings.json` keys. Concretely, **`mcpServers`, `permissions`, `env`, and
 every other top-level key of `settings.json` are entirely outside what those

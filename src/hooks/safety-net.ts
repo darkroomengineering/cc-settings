@@ -36,6 +36,7 @@ import {
   type ShellScan,
   type ShellSegment,
   SUBSTITUTION,
+  safetyNetAllow,
   scanShell,
   shellWords,
   splitPipes,
@@ -86,8 +87,23 @@ class BlockDecision extends Error {
   }
 }
 
-function block(reason: string, cmd = ""): never {
+let allowedChecks = new Set<string>();
+let plainRmInvocation = false;
+const pendingForceChecks = new Map<string, { reason: string; cmd: string }>();
+
+function forceCheckKey(cmd: string, args: string[]): string {
+  return JSON.stringify([cmd, args]);
+}
+
+function block(reason: string, cmd?: string): never;
+function block(reason: string, cmd: string, checkId: string | undefined): void;
+function block(reason: string, cmd = "", checkId?: string): void {
+  if (checkId !== undefined && allowedChecks.has(checkId)) return;
   throw new BlockDecision(reason, cmd);
+}
+
+function ask(reason: string, checkId?: string): void {
+  if (checkId === undefined || !allowedChecks.has(checkId)) pendingAsks.push(reason);
 }
 
 // --- Rule: rm -rf detection -----------------------------------------------
@@ -198,6 +214,35 @@ function analyzeRmPortion(rmPortion: string, cmd: string): void {
   for (const target of targets) analyzeRmTarget(target, cmd);
 }
 
+function repoRmCheckId(target: string): string | undefined {
+  if (!plainRmInvocation) return undefined;
+  if (/[$`*?[{]/.test(target) || target.startsWith("~")) return undefined;
+  const words = shellWords(target);
+  if (words.length !== 1) return undefined;
+  const cwd = safeCwd();
+  const repo = cwd === null ? null : repoLocation(cwd);
+  if (repo === null || cwd === null) return undefined;
+  const absolute = resolve(cwd, words[0] as string);
+  if (!absolute.startsWith(`${repo.top}${sep}`)) return undefined;
+  try {
+    let componentPath = isAbsolute(words[0] as string) ? sep : cwd;
+    for (const component of (words[0] as string).split(sep)) {
+      if (!component || component === ".") continue;
+      if (component === "..") componentPath = dirname(componentPath);
+      else {
+        componentPath = join(componentPath, component);
+        if (lstatSync(componentPath, { throwIfNoEntry: false })?.isSymbolicLink()) return undefined;
+      }
+    }
+    for (let path = absolute; path !== repo.top; path = dirname(path)) {
+      if (lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink()) return undefined;
+    }
+  } catch {
+    return undefined;
+  }
+  return "rm-repo-target";
+}
+
 function analyzeRmTarget(target: string, cmd: string): void {
   // ALWAYS BLOCK: dangerous root/home/cwd paths.
   if (target === "/" || target === "/*") block("rm -rf targeting root filesystem", cmd);
@@ -211,7 +256,7 @@ function analyzeRmTarget(target: string, cmd: string): void {
 
   // Shell expansion cannot be resolved safely without executing the command.
   if (/[$`\\]/.test(target) || target.startsWith("~")) {
-    block(`rm -rf with unresolved target path: ${target}`, cmd);
+    block(`rm -rf with unresolved target path: ${target}`, cmd, repoRmCheckId(target));
   }
 
   // A removed cwd leaves relative paths meaningless (nothing to delete) and
@@ -226,6 +271,36 @@ function analyzeRmTarget(target: string, cmd: string): void {
   const within = (root: string): boolean =>
     absolute.startsWith(`${resolve(pwd ?? "/", root)}${sep}`);
 
+  if (process.getuid) {
+    const uid = process.getuid();
+    for (const root of [`/private/tmp/claude-${uid}`, `/tmp/claude-${uid}`]) {
+      if (absolute !== root && !within(root) && target !== root && !target.startsWith(`${root}/`))
+        continue;
+      const parts = target.split("/").filter(Boolean);
+      if (absolute === root || parts.some((part) => part === ".." || /[*?[{()]/.test(part))) {
+        block(`rm -rf with unrecognized target path: ${target}`, cmd);
+      }
+      // An earlier part of the same command can plant a symlink after this
+      // lstat ran, so only a lone rm gets the scratchpad allowance.
+      if (!plainRmInvocation) break;
+      if (within(root)) {
+        let componentPath = root;
+        try {
+          for (const component of relative(root, absolute).split(sep)) {
+            componentPath = join(componentPath, component);
+            if (lstatSync(componentPath, { throwIfNoEntry: false })?.isSymbolicLink()) {
+              block(`rm -rf through a scratchpad symlink: ${target}`, cmd);
+            }
+          }
+        } catch {
+          block(`rm -rf with an unreadable scratchpad path: ${target}`, cmd);
+        }
+        return;
+      }
+      block(`rm -rf with unrecognized target path: ${target}`, cmd);
+    }
+  }
+
   // Normalize before checking containment so '..' cannot escape a safe prefix.
   if (within("/tmp") || within("/var/tmp")) return;
 
@@ -236,10 +311,10 @@ function analyzeRmTarget(target: string, cmd: string): void {
   // ALLOW: absolute paths under PWD.
   if (pwd !== null && within(pwd)) return;
 
-  block(`rm -rf with unrecognized target path: ${target}`, cmd);
+  block(`rm -rf with unrecognized target path: ${target}`, cmd, repoRmCheckId(target));
 }
 
-function checkRmRf(cmd: string): void {
+function checkRmRf(cmd: string, scratchpadQualifiersOnly = false): void {
   // Evaluate EVERY 'rm' occurrence in the string, not just the first — a
   // single-match `cmd.match(...)` latches onto the first invocation and lets
   // a second `rm -rf /` later in the same (unsplit) string ride along
@@ -258,6 +333,11 @@ function checkRmRf(cmd: string): void {
   // biome-ignore lint/suspicious/noAssignInExpressions: regex exec loop idiom
   while ((m = re.exec(cmd))) {
     const rmPortion = (m[2] ?? "").trim();
+    if (scratchpadQualifiersOnly) {
+      const targets = extractRmTargets(rmPortion).map((target) => resolve(target));
+      if (!targets.some((target) => /^\/(?:private\/)?tmp\/claude-\d+\/.*[()]/.test(target)))
+        continue;
+    }
     if (rmPortion) analyzeRmPortion(rmPortion, cmd);
   }
 }
@@ -350,17 +430,25 @@ function analyzeGitAfterVerb(afterVerb: string, cmd: string): void {
       if (/^-b\s/.test(subargs) || /^-B\s/.test(subargs) || /^--orphan\s/.test(subargs)) return;
       // BLOCK: git checkout -- <anything>
       if (/\s--\s|^--\s/.test(` ${subargs} `)) {
-        block("git checkout -- discards uncommitted changes", cmd);
+        block("git checkout -- discards uncommitted changes", cmd, "git-discard-worktree");
       }
       if (subargs.includes("--pathspec-from-file")) {
-        block("git checkout --pathspec-from-file discards uncommitted changes", cmd);
+        block(
+          "git checkout --pathspec-from-file discards uncommitted changes",
+          cmd,
+          "git-discard-worktree",
+        );
       }
       // BLOCK: bareword pathspec-looking targets (`git checkout .`,
       // `git checkout src/file.ts`) — same hazard as the `--` form, just
       // without the explicit separator.
       const positional = subargs.split(/\s+/).filter((t) => t && !t.startsWith("-"));
       if (positional.some((t) => looksLikePathspec(t))) {
-        block("git checkout <path> discards uncommitted changes without --", cmd);
+        block(
+          "git checkout <path> discards uncommitted changes without --",
+          cmd,
+          "git-discard-worktree",
+        );
       }
       return;
     }
@@ -368,12 +456,22 @@ function analyzeGitAfterVerb(afterVerb: string, cmd: string): void {
       const hasStaged = /(^|\s)(--staged|-S)(\s|$)/.test(` ${subargs} `);
       const hasWorktree = /(^|\s)(--worktree|-W)(\s|$)/.test(` ${subargs} `);
       if (hasStaged) {
-        if (hasWorktree) block("git restore --worktree discards working tree changes", cmd);
+        if (hasWorktree)
+          block(
+            "git restore --worktree discards working tree changes",
+            cmd,
+            "git-discard-worktree",
+          );
         return;
       }
-      if (hasWorktree) block("git restore --worktree discards working tree changes", cmd);
+      if (hasWorktree)
+        block("git restore --worktree discards working tree changes", cmd, "git-discard-worktree");
       if (subargs.trim().length > 0) {
-        block("git restore without --staged discards working tree changes", cmd);
+        block(
+          "git restore without --staged discards working tree changes",
+          cmd,
+          "git-discard-worktree",
+        );
       }
       return;
     }
@@ -396,21 +494,25 @@ function analyzeGitAfterVerb(afterVerb: string, cmd: string): void {
         return;
       }
       const padded = ` ${subargs} `;
-      if (/(^|\s)--force(\s|$)/.test(padded))
-        block(`git ${sub} --force can overwrite remote history`, cmd);
+      const forceBlock = (): void => {
+        const reason = `git ${sub} --force can overwrite remote history`;
+        block(reason, cmd, sub === "push" ? "git-force-push" : undefined);
+        const stage = splitPipes(`git ${afterVerb}`)[0] ?? "";
+        pendingForceChecks.set(forceCheckKey(cmd, parseCommand(stage).args), { reason, cmd });
+      };
+      if (/(^|\s)--force(\s|$)/.test(padded)) forceBlock();
       // Bundled short flags: `-uf`, `-fu`, etc. all include a force flag
       // even though the literal string "-f" never appears standalone.
-      if (/(^|\s)-[a-zA-Z]*f[a-zA-Z]*(\s|$)/.test(padded))
-        block(`git ${sub} --force can overwrite remote history`, cmd);
+      if (/(^|\s)-[a-zA-Z]*f[a-zA-Z]*(\s|$)/.test(padded)) forceBlock();
       return;
     }
     // `git branch -D` and `git stash drop` are reflog-recoverable, so the
     // permission layer asks instead of this hook blocking (config/30-permissions.json
-    // `ask`). `git stash clear` stays a hard block: it discards every entry.
+    // `ask`). `git stash clear` discards every entry.
     case "stash": {
       const stashAction = (subargs.split(/\s+/)[0] ?? "").trim();
       if (stashAction === "clear")
-        block("git stash clear permanently deletes all stashed changes", cmd);
+        block("git stash clear permanently deletes all stashed changes", cmd, "git-stash-clear");
       return;
     }
     default:
@@ -539,7 +641,7 @@ function checkFindXargs(cmd: string): void {
   if (/xargs\s+(.*\s)?rm\s+.*-[a-zA-Z]*r/i.test(cmd))
     block("xargs rm -r is a bulk destructive operation", cmd);
   if (/xargs\s+(.*\s)?(bash|sh)\s+-c/i.test(cmd))
-    block("xargs with shell -c enables arbitrary command execution", cmd);
+    block("xargs with shell -c enables arbitrary command execution", cmd, "xargs-shell");
 }
 
 // --- Rule: process kills by search ----------------------------------------
@@ -575,7 +677,14 @@ function checkProcessKill(segment: string, subs: string[]): void {
   const stages = splitPipes(segment);
   for (let i = 0; i < stages.length; i++) {
     const { word, args } = stageCommand(stages[i] ?? "");
-    if (word === "pkill" || word === "killall") {
+    if (word === "pkill") {
+      block(
+        `${word} matches by name and can hit the browser; kill the PID you started`,
+        segment,
+        "process-search-kill",
+      );
+    }
+    if (word === "killall") {
       block(`${word} matches by name and can hit the browser; kill the PID you started`, segment);
     }
     if (word === "fuser" && /(^|\s)-[a-zA-Z]*k/.test(` ${args}`)) {
@@ -586,6 +695,7 @@ function checkProcessKill(segment: string, subs: string[]): void {
         block(
           "kill fed by a process search can hit the browser; use lsof -sTCP:LISTEN or the PID you started",
           segment,
+          "process-search-kill",
         );
       }
     }
@@ -595,6 +705,7 @@ function checkProcessKill(segment: string, subs: string[]): void {
           block(
             "kill fed by a process search can hit the browser; use lsof -sTCP:LISTEN or the PID you started",
             segment,
+            "process-search-kill",
           );
         }
       }
@@ -1864,7 +1975,8 @@ function checkRefUpdate(
     const value = r === null ? undefined : config()?.get(`remote.${r}.mirror`)?.at(-1);
     return value !== undefined && !/^(?:false|no|off|0)$/i.test(value);
   };
-  let toMain = u.everyBranch || (u.refspecs === null && mirrored());
+  const mirrorForced = args.includes("--mirror") || mirrored();
+  let toMain = u.everyBranch || mirrorForced;
   let forcedSpec = false;
   // A refspec without a destination goes where the remote's `push` lines map
   // it, so check every configured destination too.
@@ -1909,9 +2021,20 @@ function checkRefUpdate(
     if (spec.startsWith("+")) forcedSpec = true;
   }
 
-  if (toMain && (u.forced || forcedSpec)) {
+  if (toMain && (u.forced || forcedSpec || (mirrorForced && allowedChecks.has("git-push-main")))) {
     block(`git ${u.verb} forces an update of main or master, which rewrites shared history`, cmd);
   }
+  // The generic force check can yield only after this contextual reading
+  // proves every destination is outside main and master.
+  const plainForce = args.some((arg) => arg === "--force" || /^-[a-zA-Z]*f[a-zA-Z]*$/.test(arg));
+  const lease = args.some((arg) => arg.includes("--force-with-lease"));
+  if (allowedChecks.has("git-force-push") && plainForce && !lease && (unknown || u.submodules)) {
+    block(
+      `git ${u.verb} --force has an unresolved destination and may overwrite main or master`,
+      cmd,
+    );
+  }
+  if (!toMain && !unknown && !u.submodules) pendingForceChecks.delete(forceCheckKey(cmd, c.args));
   if (u.submodules) pendingAsks.push(SUBMODULE_PUSH_ASK);
   if (!toMain && !unknown) return;
   if (
@@ -1920,18 +2043,21 @@ function checkRefUpdate(
     isLocalRemote(target(), config())
   )
     return;
-  pendingAsks.push(toMain ? MAIN_PUSH_ASK : UNKNOWN_PUSH_ASK);
+  ask(
+    toMain ? MAIN_PUSH_ASK : UNKNOWN_PUSH_ASK,
+    toMain && !unknown && !u.forced && !forcedSpec && !mirrorForced ? "git-push-main" : undefined,
+  );
 }
 
 // --- Rule: secret file content readers -------------------------------------
 //
 // Printing, copying, or uploading a credential file puts its contents into the
 // transcript or onto the network. Blocked: readers/copiers/uploaders whose
-// input is a secret path (plus the flat word scan below for .env and dotenvx).
+// input is a secret path.
 // Not blocked: commands that only name the path
 // (`ssh -i ~/.ssh/id_ed25519`, `chmod 600`, `ls`), writes into it
 // (`cp .env.example .env`, `echo X >> .env`), and public keys (`*.pub`). `sed -i` on
-// a .env file is blocked by the flat word scan below, like any other reader.
+// a .env file is blocked like any other reader.
 // Accepted residual: paths built at runtime (`$(echo ~)/.ssh`), interpreter
 // one-liners (`python -c 'print(open(".env").read())'`), and recursive greps
 // over a directory that happens to contain one.
@@ -1992,6 +2118,7 @@ const SECRET_READERS = new Set([
   "awk",
   "gawk",
   "sed",
+  "jq",
   "strings",
   "xxd",
   "od",
@@ -2010,7 +2137,13 @@ const SECRET_READERS = new Set([
   "gcut",
   "gdiff",
   "ggrep",
+  "gegrep",
+  "gfgrep",
+  "grg",
+  "gag",
+  "gack",
   "gsed",
+  "gjq",
   "god",
   "gbase64",
   "gpaste",
@@ -2020,6 +2153,102 @@ const SECRET_READERS = new Set([
 ]);
 // The first positional of these is the pattern, not a file (unless -e/-f is used).
 const PATTERN_FIRST = new Set(["grep", "egrep", "fgrep", "rg", "ag", "ack"]);
+
+function hasUnquotedReaderExpansion(token: string): boolean {
+  return /[{*?[]/.test(token.replace(/\\[\s\S]|"(?:\\[\s\S]|[^"\\])*"|'[^']*'/g, ""));
+}
+
+function inlineReaderOperands(reader: string, args: string[], rawArgs = args): Set<number> {
+  const word = reader.replace(/^g(?=(?:grep|egrep|fgrep|rg|ag|ack|sed|awk|jq)$)/, "");
+  const pattern = PATTERN_FIRST.has(word);
+  const program = pattern || word === "sed" || word === "awk" || word === "jq";
+  const inline = new Set<number>();
+  if (!program) return inline;
+  const operands: number[] = [];
+  let explicitProgram = false;
+  let optionsEnded = false;
+  let positionalValues = -1;
+  const exempt = (i: number, value: string): void => {
+    if (hasUnquotedReaderExpansion(rawArgs[i] ?? value)) return;
+    if (word === "jq" || /[|\\]/.test(value) || !isSecretPath(value)) inline.add(i);
+  };
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i] as string;
+    if (!optionsEnded && arg === "--") {
+      optionsEnded = true;
+      continue;
+    }
+    if (!optionsEnded && arg.startsWith("--")) {
+      const [flag, attached] = arg.split(/=(.*)/s);
+      if (word === "jq" && flag === "--run-tests") return new Set();
+      if (word === "jq" && (arg === "--args" || arg === "--jsonargs")) {
+        if (positionalValues === -1) positionalValues = i;
+        continue;
+      }
+      if (word === "jq" && /^(?:--arg|--argjson|--rawfile|--slurpfile)$/.test(flag ?? "")) {
+        const count = attached === undefined ? 2 : 1;
+        if (flag === "--arg" || flag === "--argjson") {
+          for (let j = i + 1; j <= i + count; j++) exempt(j, args[j] ?? "");
+        }
+        i += count;
+        continue;
+      }
+      if (
+        program &&
+        /^(?:--regexp|--expression|--source|--file|--from-file|--exec)$/.test(flag ?? "")
+      ) {
+        explicitProgram = true;
+        const value = attached ?? args[++i];
+        if (/^(?:--regexp|--expression|--source)$/.test(flag ?? "") && value !== undefined)
+          exempt(i, value);
+        continue;
+      }
+      if (
+        (pattern && /^(?:--exclude-from|--ignore-file)$/.test(flag ?? "")) ||
+        (word === "awk" && flag === "--include")
+      ) {
+        if (attached === undefined) i++;
+        continue;
+      }
+      if (
+        /^--(?:exclude|include|exclude-dir|label|field-separator|assign|lines|bytes|max-count|after-context|before-context|context)$/.test(
+          flag ?? "",
+        )
+      ) {
+        if (attached === undefined) i++;
+        continue;
+      }
+      return new Set();
+    }
+    if (!optionsEnded && arg.startsWith("-") && arg !== "-") {
+      for (let j = 1; j < arg.length; j++) {
+        const flag = arg[j] as string;
+        const expression = program && word !== "jq" && flag === "e";
+        const programFile = (program && flag === "f") || (word === "awk" && flag === "E");
+        const includeFile = word === "awk" && flag === "i";
+        const valueFlag =
+          (pattern && "ABCm".includes(flag)) ||
+          (word === "awk" && "Fv".includes(flag)) ||
+          (/^(?:g?head|g?tail)$/.test(word) && "nc".includes(flag));
+        if (expression || programFile || includeFile || valueFlag) {
+          const value = arg.slice(j + 1) || args[++i];
+          if (expression || programFile) explicitProgram = true;
+          if (expression && value !== undefined) exempt(i, value);
+          break;
+        }
+        if (word === "sed" && flag === "i") break;
+      }
+      continue;
+    }
+    operands.push(i);
+  }
+  const first = operands[0];
+  if (!explicitProgram && first !== undefined) exempt(first, args[first] as string);
+  if (word === "jq" && positionalValues !== -1)
+    for (const i of operands.slice(explicitProgram ? 0 : 1))
+      if (i > positionalValues) exempt(i, args[i] as string);
+  return inline;
+}
 const COPY_VALUE_FLAGS: Record<string, string[]> = {
   cp: ["-t", "--target-directory", "-S", "--suffix"],
   scp: ["-i", "-P", "-o", "-F", "-J", "-l", "-c", "-S"],
@@ -2060,7 +2289,7 @@ function positionals(args: string[], valueFlags: string[] = []): string[] {
 //    and a later dotenvx word starts its own scan);
 //  - a word naming a secret .env file blocks when any word is a known reader.
 // Accepted false positives (the user can run the command with `!`): `dotenvx set get v`,
-// `grep .env README.md`, `git commit -m "dotenvx get"`, `sed -i s/a/b/ .env`.
+// `git commit -m "dotenvx get"`.
 const DOTENVX_PRINTERS = new Set(["get", "decrypt", "dec", "keypair"]);
 // The bin, its script, or the package, with an optional version: `dotenvx`,
 // `node_modules/.bin/dotenvx`, `.../@dotenvx/dotenvx/src/cli/dotenvx.js`, `@dotenvx/dotenvx@1`,
@@ -2069,6 +2298,64 @@ const DOTENVX_TOKEN_RE =
   /(?:^|[\\/:])(?:@dotenvx[\\/])?dotenvx(?:[@#][^\\/]*)?(?:\.(?:[cm]?js|cmd|exe|ps1|git))?$/i;
 // Output redirections write the file named after them; they do not read it.
 const OUTPUT_REDIRECT_RE = /\d*>>?[|&]?\s*[^\s;|&()<>]+/g;
+
+function maskInlineReaderOperands(cmd: string): string {
+  // Keep unfamiliar shell syntax in the conservative flat scan.
+  if (/<<|`|\$\(|\balias\s/.test(cmd) || FUNCTION_DEF_RE.test(cmd) || scanShell(cmd).unterminated)
+    return cmd;
+  const tokens = [
+    ...cmd.matchAll(
+      /(?:\$'(?:\\[\s\S]|[^'\\])*'|\\[\s\S]|"(?:\\[\s\S]|[^"\\])*"|'[^']*'|[^\s;&|()<>"'\\])+|\d*(?:&>>?|>>?&|>\||[<>]+)|[;&|()\n]/g,
+    ),
+  ];
+  const blank = new Set<number>();
+  let stage: number[] = [];
+  const maskStage = (): void => {
+    const first = stage[0];
+    if (first === undefined) return;
+    const literal = tokens[first]?.[0] ?? "";
+    // sed and awk stay in the scan: their programs read files (`r`, `e`, getline, system()).
+    if (!/^(?:[\w./-]+\/)?g?(?:grep|egrep|fgrep|rg|ag|ack|jq)$/i.test(literal)) return;
+    const args = stage.slice(1);
+    const rawArgs = args.map((i) => tokens[i]?.[0] ?? "");
+    const values = rawArgs.map((arg) => shellWords(arg)[0] ?? "");
+    for (const i of inlineReaderOperands(basename(literal).toLowerCase(), values, rawArgs)) {
+      const at = args[i];
+      if (at !== undefined) blank.add(at);
+    }
+  };
+  let comment = false;
+  let redirect = false;
+  for (const [i, token] of tokens.entries()) {
+    const raw = token[0];
+    if (raw === "\n") comment = false;
+    if (comment) continue;
+    if (raw.startsWith("#")) {
+      comment = true;
+    } else if (/^[;&|()\n]$/.test(raw)) {
+      maskStage();
+      stage = [];
+      redirect = false;
+    } else if (/^\d*(?:&>>?|>>?&|>\||[<>]+)$/.test(raw)) {
+      redirect = true;
+    } else if (redirect) {
+      redirect = false;
+    } else {
+      stage.push(i);
+    }
+  }
+  maskStage();
+  let masked = cmd;
+  for (const i of [...blank].sort((a, b) => b - a)) {
+    const token = tokens[i];
+    if (token)
+      masked =
+        masked.slice(0, token.index) +
+        " ".repeat(token[0].length) +
+        masked.slice(token.index + token[0].length);
+  }
+  return masked;
+}
 
 // Three views of the string: quotes and backslashes as word breaks (so quoted strings are
 // split again); quotes removed (so `dot"env"x` and `g$'et'` are one word); and the shell's
@@ -2122,7 +2409,9 @@ function checkFlatWords(cmd: string): void {
       }
     }
   }
-  for (const words of flatWordLists(cmd.replace(OUTPUT_REDIRECT_RE, " "))) {
+  for (const words of flatWordLists(
+    maskInlineReaderOperands(cmd).replace(OUTPUT_REDIRECT_RE, " "),
+  )) {
     const reader = words.find((w) => SECRET_READERS.has(basename(w).toLowerCase()));
     const file = words.find(isSecretEnvWord);
     if (reader && file) block(`${basename(reader)} would expose the contents of ${file}`, cmd);
@@ -2140,16 +2429,11 @@ function checkSecretReaders(c: ParsedShellCommand, ctx: ShellCtx, cmd: string): 
   for (const path of c.reads) if (secret(path)) deny(path);
 
   if (SECRET_READERS.has(word)) {
-    // sed -i rewrites the file in place; it does not print it.
-    if (word === "sed" && args.some((t) => /^-[a-zA-Z]*i|^--in-place/.test(t))) return;
-    let files = positionals(args);
-    if (
-      PATTERN_FIRST.has(word) &&
-      !args.some((t) => /^-[a-zA-Z]*[ef]|^--(?:regexp|file)/.test(t))
-    ) {
-      files = files.slice(1);
+    const inline = inlineReaderOperands(word, args);
+    for (const [i, arg] of args.entries()) {
+      const path = arg.match(/^(?:--[^=]+=|-[a-zA-Z]*[efEi])(.+)$/)?.[1] ?? arg;
+      if (!inline.has(i) && secret(path)) deny(path);
     }
-    for (const path of files) if (secret(path)) deny(path);
     return;
   }
 
@@ -2514,7 +2798,14 @@ function checkGhWrites(c: ParsedShellCommand, ctx: ShellCtx, cmd: string): void 
     block(
       `gh ${what}: cannot tell which repository owner it targets; pass -R darkroomengineering/<repo>`,
       cmd,
+      group === "pr" &&
+        sub === "create" &&
+        !c.args.some((arg) => /^-R|^--repo(?:=|$)/.test(arg)) &&
+        ![c.env.GH_REPO, ctx.env.GH_REPO, process.env.GH_REPO].some(Boolean)
+        ? "gh-pr-create-unknown-owner"
+        : undefined,
     );
+    return;
   }
   const outside = owners.filter((o) => o.toLowerCase() !== GH_ORG);
   if (outside.length > 0) pendingOwnerChecks.push({ owners: outside, what, cmd });
@@ -2630,6 +2921,8 @@ function checkInterpreterOneliners(cmd: string, depth: number): void {
 //     or URL does not trigger them.
 
 function analyzeFullString(cmd: string): void {
+  // The shell scanner splits parentheses, including zsh path qualifiers.
+  checkRmRf(cmd, true);
   checkAiAttribution(cmd);
   checkFindXargs(cmd);
   unwrapAndAnalyze(cmd, 0);
@@ -2920,15 +3213,17 @@ function failClosed(err: unknown): never {
   process.exit(1);
 }
 
-export async function main(io: HookIO = processIO): Promise<void> {
+export async function main(io: HookIO = processIO, allow?: string): Promise<void> {
   try {
     const { command } = await io.toolInput<{ command: unknown }>();
     const COMMAND = typeof command === "string" ? command : "";
     if (!COMMAND) return;
+    allowedChecks = new Set(safetyNetAllow(allow));
     if (process.env.CC_SAFETY_TEST_CRASH) throw new Error("induced crash");
     // Quotes and backslashes can split a name (`".e""nv"`, `.\env`), so the
     // fast path also looks at the text with them removed.
     const plain = COMMAND.replace(/\\\r?\n/g, "").replace(/["'\\]/g, "");
+    plainRmInvocation = /^rm(?:\s|$)/.test(COMMAND.trim()) && !/[;&|\r\n$`()<>]/.test(COMMAND);
     const interesting = (text: string): boolean =>
       FAST_PATH_VERBS_RE.test(text) || SECRET_MARKER_RE.test(text);
     // A `$` or a backtick can build any of those words at run time (`$A$B`
@@ -2946,9 +3241,11 @@ export async function main(io: HookIO = processIO): Promise<void> {
     const { cwd } = await io.hookInput<{ cwd: unknown }>();
     baseDir = typeof cwd === "string" && cwd ? cwd : null;
     pendingAsks.length = 0;
+    pendingForceChecks.clear();
     branchCache.clear();
     configCache.clear();
     splitCommands(COMMAND);
+    for (const { reason, cmd } of pendingForceChecks.values()) block(reason, cmd);
     resolvePendingOwnerChecks();
     // Asks wait until every check has run, so any block in the command wins.
     if (pendingAsks.length > 0) {
@@ -2965,4 +3262,9 @@ export async function main(io: HookIO = processIO): Promise<void> {
 
 // A direct run turns any non-block error into the fail-closed exit; the dispatcher
 // turns the same throw into a block decision.
-if (import.meta.main) await main().catch(failClosed);
+if (import.meta.main) {
+  const allow = process.argv[2]?.startsWith("--safety-net-allow=")
+    ? process.argv[2].slice("--safety-net-allow=".length)
+    : undefined;
+  await main(processIO, allow).catch(failClosed);
+}

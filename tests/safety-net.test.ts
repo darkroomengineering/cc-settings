@@ -6,7 +6,7 @@
 
 import { afterAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseShellCommand, type ShellScan, scanShell } from "../src/lib/hook-command.ts";
@@ -147,6 +147,58 @@ describe("TS safety-net — rm -rf safe → ALLOW", () => {
   ] as const) {
     test(name, () => expectAllow(cmd));
   }
+});
+
+describe("TS safety-net — session scratchpad cleanup", () => {
+  if (!process.getuid) return;
+  const uid = process.getuid();
+  for (const root of [`/private/tmp/claude-${uid}`, `/tmp/claude-${uid}`]) {
+    test(`allows a scratchpad descendant of ${root}`, () =>
+      expectAllow(`rm -rf ${root}/project/session/scratchpad/output`));
+    test(`blocks a scratchpad rm chained after a symlink is planted below ${root}`, () =>
+      expectBlock(
+        `ln -s ~ /private/tmp/claude-${uid}/h9 && rm -rf /private/tmp/claude-${uid}/h9/Documents`,
+      ));
+    for (const suffix of [
+      "",
+      "/",
+      "/project/../other",
+      "/project/../../outside",
+      "/**/..",
+      "/$SESSION/output",
+      "/x(:h:h:h)",
+    ]) {
+      test(`blocks an unresolved or non-descendant target ${root}${suffix}`, () =>
+        expectBlock(`rm -rf ${root}${suffix}`));
+    }
+    // /private exists only on macOS; elsewhere the fixture cannot be created.
+    test.skipIf(root.startsWith("/private") && process.platform !== "darwin")(
+      `blocks scratchpad symlink components below ${root}`,
+      async () => {
+        mkdirSync(root, { recursive: true });
+        const fixture = mkdtempSync(join(root, "cc-safety-symlink-"));
+        try {
+          const link = join(fixture, "outside");
+          symlinkSync(GITCONFIG_DIR, link);
+          await expectBlock(`rm -rf ${link}`);
+          await expectBlock(`rm -rf ${link}/missing/victim`);
+        } finally {
+          rmSync(fixture, { recursive: true, force: true });
+        }
+      },
+    );
+    test(`blocks qualifiers on a scratchpad path containing spaces below ${root}`, () =>
+      expectBlock(`rm -rf '${root}/foo bar'(:h:h:h)`));
+  }
+  test("does not grant the private temp allowance to another uid", () =>
+    expectBlock(`rm -rf /private/tmp/claude-${uid + 1}/project/session/scratchpad/output`));
+  for (const root of [`/tmp/./claude-${uid}`, `/tmp//claude-${uid}`]) {
+    test(`blocks the normalized session root ${root}`, () => expectBlock(`rm -rf ${root}`));
+    test(`blocks qualifiers below the normalized session root ${root}`, () =>
+      expectBlock(`rm -rf ${root}/x(:h:h:h)`));
+  }
+  test("blocks qualifiers below a private temp root with repeated separators", () =>
+    expectBlock(`rm -rf /private/tmp//claude-${uid}/x(:h:h:h)`));
 });
 
 describe("TS safety-net — git destructive → BLOCK", () => {
@@ -529,6 +581,117 @@ describe("TS safety-net — decision protocol", () => {
 });
 
 // --- Secret content readers ------------------------------------------------
+
+describe("TS safety-net — reader programs and patterns are not file operands", () => {
+  for (const [name, cmd] of [
+    ["recursive grep source pattern", "grep -rn 'process\\.env\\.' src"],
+    ["ripgrep source text", 'rg "process.env" src'],
+    ["jq env field", "jq '.env' package.json"],
+    ["grep source pattern", "grep -n 'process\\.env\\.\\|allowlist' src/hooks/safety-net.ts"],
+    ["ripgrep source pattern", "rg 'process\\.env\\.' src | head -5"],
+    ["grep escaped env pattern", 'grep -n "\\.env" .gitignore'],
+    [
+      "jq filter before grep",
+      "jq -c '{model, env_keys: (.env // {} | keys)}' settings.json | grep model",
+    ],
+    [
+      "pipeline reader arguments stay with their command",
+      "env | grep -iE 'ANTHROPIC|CLAUDE_CODE' | head -c 300 file.json",
+    ],
+    ["explicit grep fragment", "grep -e 'process\\.env\\.\\|allowlist' README.md"],
+    ["attached grep fragment", "grep -eprocess\\.env README.md"],
+    ["env-local pattern fragment", "grep '.env.local|allowlist' README.md"],
+    ["jq filter fragment", "jq -c '{a: (.env // {})}' settings.json"],
+    ["jq raw filter fragment", "jq -r .env.FOO package.json"],
+    ["GNU-prefixed jq filter", "gjq .env.FOO x"],
+    ["whole jq filter", "jq -c '.env' settings.json"],
+    ["whole jq string argument", "jq --arg name .env '.[$name]' settings.json"],
+    ["whole jq positional string argument", "jq --args '.' .env"],
+    ["jq string fragment", "jq --arg name 'prefix .env suffix' '.[$name]' settings.json"],
+    ["jq positional string fragment", "jq --args '.' 'prefix .env suffix'"],
+    ["jq positional JSON arguments", "jq --jsonargs '.' '\".env\"'"],
+    ["sed program", "sed -n '/.env/p' README.md"],
+    ["explicit sed program", "sed -n -e '/.env/p' README.md"],
+    ["awk program", "awk '/.env/ {print}' README.md"],
+    ["explicit awk program", "awk -e '/.env/ {print}' README.md"],
+    [
+      "secret-shaped pattern is not input to a later reader",
+      "grep -e 'process\\.env' README.md | head -c 300",
+    ],
+  ] as const) {
+    test(name, () => expectAllow(cmd));
+  }
+});
+
+describe("TS safety-net — reader file operands remain protected", () => {
+  for (const [name, cmd] of [
+    ["grep empty brace operand", "grep {KEY,.env,}"],
+    ["grep nonempty brace operand", "grep {KEY,.env,x}"],
+    ["ripgrep empty brace operand", "rg {KEY,.env,}"],
+    ["grep env-local brace operand", "grep -h {KEY,.env.production,} src"],
+    ["grep explicit brace pattern", "grep -e {KEY,.env,} README.md"],
+    ["ripgrep second brace pattern", "rg -e KEY -e {x,.env,}"],
+    ["clobber redirect keeps operand roles", "cat >| grep {x,.env,}"],
+    ["fd redirect keeps operand roles", "cat x >& grep {a,.env,b}"],
+    ["combined redirect keeps operand roles", "cat x &> grep {a,.env,b}"],
+    ["combined append redirect keeps operand roles", "cat &>> jq '.env'"],
+    ["fd append redirect keeps operand roles", "cat >>& jq '.env'"],
+    ["jq file before args flag", "jq . .env --args"],
+    ["jq file before jsonargs flag", "jq . .env.local --jsonargs"],
+    ["grep abbreviated long option", "grep --regex=KEY 'x|/../.env'"],
+    ["unknown option invalidates an earlier exemption", "grep -e 'x|/../.env' --regex=KEY"],
+    ["jq glob filter cannot mask a file", "jq .env* package.json"],
+    ["explicit whole grep pattern", "grep -e '.env' README.md"],
+    ["attached whole grep pattern", "grep -e.env README.md"],
+    ["variable before reader", 'F=.env; cat "$F"'],
+    ["xargs pipeline input", "echo .env | xargs cat"],
+    ["xargs here string", "xargs cat <<< .env"],
+    ["ssh command string", "ssh host 'cat .env'"],
+    ["bunx inline program", "bunx tsx -e 'cat .env'"],
+    ["sed program that runs a reader", "sed '1e cat .env' README.md"],
+    ["sed program that reads a file", "sed 'r .env' README.md"],
+    ["awk program that runs a reader", "awk 'BEGIN{system(\"cat .env\")}'"],
+    ["awk program that reads a file", "awk 'BEGIN{while((getline l < \".env\")>0) print l}'"],
+    ["flat scan across pipeline", "printf '%s' .env | cat"],
+    ["commit message mentioning reader", 'git commit -m "cat .env"'],
+    ["echo mentioning reader", 'echo "do not cat .env"'],
+    ["same exempt filter and real file", "jq '.env' x; cat .env"],
+    ["function overrides jq filter semantics", 'jq() { cat "$1"; }; jq .env'],
+    ["alias overrides jq filter semantics", "alias jq='ssh host cat'; jq .env"],
+    ["jq raw filter before secret file", "jq .env.FOO .env"],
+    ["whole env-local pattern", "grep '.env.local' README.md"],
+    ["whole ssh pattern", "grep '~/.ssh/config' README.md"],
+    ["attached exclusion value", "grep -r foo . --exclude=.env"],
+    ["separate exclusion value", "grep -r foo . --exclude .env"],
+    ["long whole regexp value", "grep --regexp=.env README.md"],
+    ["grep file after pattern", "grep FOO .env"],
+    ["cat file", "cat .env"],
+    ["jq file after filter", "jq . .env"],
+    ["GNU-prefixed jq file", "gjq foo .env"],
+    ["grep pattern file", "grep -f .env x"],
+    ["grep attached pattern file", "grep -f.env x"],
+    ["head file", "head .env.local"],
+    ["sed program file", "sed -f .env x"],
+    ["awk program file", "awk -f .env x"],
+    ["jq program file", "jq -f .env x"],
+    ["jq tests file", "jq --run-tests .env"],
+    ["jq raw file", "jq --rawfile value .env '.' settings.json"],
+    ["jq slurp file", "jq --slurpfile value .env '.' settings.json"],
+    ["gawk exec program file", "gawk -E .env x"],
+    ["gawk long exec program file", "gawk --exec=.env x"],
+    ["gawk include program file", "gawk -i .env 'BEGIN{}'"],
+    ["diff from file", "diff --from-file=.env ordinary.txt"],
+    ["sort files list", "sort --files0-from=.env"],
+    ["grep exclusion file", "grep --exclude-from .env FOO x"],
+    ["ripgrep ignore file", "rg --ignore-file .env FOO x"],
+    ["npx short command string", "npx -c 'cat .env'"],
+    ["npx long command string", "npx --call 'cat .env'"],
+    ["grep real file after explicit pattern", "grep -e FOO .env"],
+    ["secret input redirect after a safe program", "grep -e FOO < .env"],
+  ] as const) {
+    test(name, () => expectBlock(cmd));
+  }
+});
 
 describe("TS safety-net — secret file readers → BLOCK", () => {
   for (const [name, cmd] of [

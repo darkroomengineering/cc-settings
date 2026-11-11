@@ -1,0 +1,39 @@
+{
+  "$id": "https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/personal-overrides.schema.json",
+  "title": "cc-settings personal overrides",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "safetyNet": {
+      "type": "object",
+      "properties": {
+        "allow": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "permissions": {
+      "type": "object",
+      "properties": {
+        "dropAsk": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dropDeny": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

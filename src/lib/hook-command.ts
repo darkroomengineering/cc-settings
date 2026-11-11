@@ -11,6 +11,32 @@
 import { basename } from "node:path";
 import { HooksBlock } from "../schemas/hooks.ts";
 
+export const SAFETY_NET_ALLOW_IDS = new Set([
+  "process-search-kill",
+  "git-discard-worktree",
+  "git-stash-clear",
+  "git-force-push",
+  "git-push-main",
+  "rm-repo-target",
+  "xargs-shell",
+  "gh-pr-create-unknown-owner",
+]);
+
+export function safetyNetAllow(value: string | undefined): string[] {
+  if (!value || /^[a-z-]+(,[a-z-]+)*$/.exec(value)?.[0] !== value) return [];
+  return value.split(",").filter((id) => SAFETY_NET_ALLOW_IDS.has(id));
+}
+
+export function validSafetyNetSuffix(command: string): boolean {
+  if (!command.includes("--safety-net-allow")) return true;
+  if (/[\r\n\u2028\u2029]/.test(command)) return false;
+  const match =
+    /\/hooks\/dispatch\.ts"?[ \t]+PreToolUse[ \t]+--safety-net-allow=([a-z-]+(?:,[a-z-]+)*)$/.exec(
+      command,
+    );
+  return Boolean(match?.[1]?.split(",").every((id) => SAFETY_NET_ALLOW_IDS.has(id)));
+}
+
 // `bun [--no-env-file] "$HOME/.claude/src/<dir>/<name>.ts"` — accept quoted and unquoted
 // `$HOME` and `${HOME}` forms. Allow an optional trailing arg list (some
 // hooks invoke a script with positional args, e.g. `handoff.ts create`),
@@ -60,7 +86,9 @@ export interface ParsedHookCommand {
 
 /** Parse a hook command string against the managed pattern. */
 export function parseHookCommand(command: string): ParsedHookCommand {
-  const m = command.match(MANAGED_HOOK_CMD);
+  const m = validSafetyNetSuffix(command)
+    ? command.replace(/[ \t]+--safety-net-allow=[a-z,-]+$/, "").match(MANAGED_HOOK_CMD)
+    : null;
   const relPath = m?.groups?.rel;
   if (!relPath) {
     return { raw: command, managed: false, dir: null, relPath: null, usesConfig: false };
@@ -71,7 +99,7 @@ export function parseHookCommand(command: string): ParsedHookCommand {
 
 /** Shorthand predicate — equivalent to parseHookCommand(command).managed */
 export function isManagedHookCommand(command: string): boolean {
-  return MANAGED_HOOK_CMD.test(command);
+  return parseHookCommand(command).managed;
 }
 
 // ---------------------------------------------------------------------------

@@ -53,7 +53,7 @@ export interface Handler {
   timeoutS?: number;
   /** Label for a block when this handler fails: `[<label>] internal error, failing closed: …`. */
   failClosed?: string;
-  load(): Promise<{ main(io: HookIO): Promise<void> }>;
+  load(safetyNetAllow?: string): Promise<{ main(io: HookIO): Promise<void> }>;
 }
 
 /** Handlers per event in the order the config ran them. */
@@ -72,7 +72,10 @@ export const HANDLERS: Record<DispatchEvent, Handler[]> = {
       matcher: "Bash",
       timeoutS: 5,
       failClosed: "Safety Net",
-      load: () => import("./safety-net.ts"),
+      load: async (allow) => {
+        const { main } = await import("./safety-net.ts");
+        return { main: (io) => main(io, allow) };
+      },
     },
     // freeze-guard runs before pre-edit-validate so a slow validation cannot
     // spend the shared entry budget and skip the freeze boundary check.
@@ -199,6 +202,7 @@ export async function runHandlers(
   raw: string,
   handlers: readonly Handler[],
   entryTimeout: number | undefined = entryTimeoutS(handlers),
+  safetyNetAllow?: string,
 ): Promise<DispatchResult> {
   const startedAt = Date.now();
   const deadlineAt =
@@ -219,7 +223,9 @@ export async function runHandlers(
         result.errors.push(`[dispatch] ${handler.name}: skipped, no time left`);
         continue;
       }
-      const { main } = await handler.load();
+      const { main } = await handler.load(
+        handler.name === "safety-net" ? safetyNetAllow : undefined,
+      );
       await within(main(io), limitMs);
       result.context.push(...io.contexts);
       result.asks.push(...io.asks);
@@ -284,7 +290,10 @@ async function main(): Promise<void> {
   if (!isDispatchEvent(event)) {
     throw new Error(`usage: dispatch.ts ${Object.keys(HANDLERS).join("|")}`);
   }
-  const result = await runHandlers(await Bun.stdin.text(), HANDLERS[event]);
+  const allow = process.argv[3]?.startsWith("--safety-net-allow=")
+    ? process.argv[3].slice("--safety-net-allow=".length)
+    : undefined;
+  const result = await runHandlers(await Bun.stdin.text(), HANDLERS[event], undefined, allow);
   for (const line of result.errors) writeSync(2, `${line}\n`);
   const { stdout, exit } = respond(event, result);
   if (stdout) writeSync(1, stdout);

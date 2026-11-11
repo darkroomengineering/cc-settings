@@ -470,6 +470,15 @@ Every handler still runs as its own script (`bun src/hooks/<name>.ts < payload.j
 
 ### PreToolUse (Bash matcher)
 
+Personal safety-net overrides take effect on the next `bash setup.sh`, never
+mid-session. Setup reads `~/.claude/personal-overrides.json` once and bakes its
+sorted, known `safetyNet.allow` IDs into the Bash dispatcher's
+`--safety-net-allow=<id,id,...>` argument in `~/.claude/settings.json`. The hook
+never reads the overrides file or accepts an allow list from the environment.
+The hooks fingerprint covers the installed argument; hook auditing flags
+malformed arguments and unknown IDs. An empty list leaves the shipped command
+unchanged, and reinstalling replaces the configured suffix.
+
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `safety-net.ts` | Blocks destructive shell commands (rm -rf /, force push, etc.), content reads of secret files (`~/.ssh`, `~/.aws`, `.env`, ...), git hook skips (`--no-verify`, `HUSKY=0`, `-c core.hooksPath`), and `gh` writes outside `darkroomengineering` and the user's own account. An update of `main` or `master` returns `permissionDecision: "ask"`, so the user approves it in the permission prompt; a block elsewhere in the command wins. Updates are `git push` (an explicit refspec, including `heads/main` and wildcards such as `refs/*`, `--all`, `--mirror`, or a bare push, `origin` or `HEAD` whose target, read from the current branch and the push settings in git config, is main or master), `git subtree push`, `git send-pack`, and `gh api` writes to the branch (its ref, `branches/main/...`, a merge into it, a contents commit to it; any of repeated fields, and `-X=`/`-f=` spellings). It also asks when it cannot read where a push goes: a variable not assigned earlier on the line, a command substitution, `xargs` input, a checkout or switch it cannot read, or an earlier `git worktree` or `git clone`, a repository it cannot read (`git -C`/`env -C`/`cd` to an unreadable or not-yet-existing directory, `--git-dir`, `--work-tree`, `GIT_DIR`, `GIT_WORK_TREE`), or push routing set by `-c`, `--config-env` or `GIT_CONFIG_*` on any push; and for `--recurse-submodules=on-demand`. A forced update of main or master (`--force`, `--force-with-lease`, a `+` refspec, `gh api` with `force=true`) blocks. A push to a remote on the local disk (a path or `file://` URL) is not checked, unless git config could not be read or the command line or environment sets a URL rewrite. The rule reads HEAD from disk (asking git, with a 1 s limit, for a reftable or bare repository, `GIT_DIR` in the hook's environment, or a `.git` or HEAD that is not a small regular file) and makes at most one git config call per directory, only for a push. SECURITY.md lists the known limits. Deletes are not checked: GitHub org rulesets already block deleting and force-pushing main on org repos. An unexpected internal error exits 1 and blocks when it runs alone; the dispatcher blocks with the same reason | No |

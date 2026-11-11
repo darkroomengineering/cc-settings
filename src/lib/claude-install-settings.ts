@@ -7,6 +7,7 @@ import { Settings } from "../schemas/settings.ts";
 import { type EngineDescriptor, ensureEngineInstalled } from "./code-intel-engine.ts";
 import { debug, info, progressArrow, progressOk, warn, withProgress } from "./colors.ts";
 import { composeSettings } from "./compose-settings.ts";
+import { safetyNetAllow } from "./hook-command.ts";
 import { writeFingerprint as writeHooksFingerprint } from "./hooks-fingerprint.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import { applyLightProfile, type Profile, stripManagedSettings } from "./light-profile.ts";
@@ -18,6 +19,7 @@ import {
   removeManagedMcpServers,
 } from "./mcp.ts";
 import { ensureSystemPackage, getInstallHint } from "./packages.ts";
+import { readPersonalOverrides } from "./personal-overrides.ts";
 import { ensurePinnedTool, TLDR_CODE_TOOL } from "./pinned-tools.ts";
 import { CLAUDE_DIR, hasCommand } from "./platform.ts";
 import { isInteractive, promptSecret } from "./prompts.ts";
@@ -128,13 +130,19 @@ export async function installSettings(
   // A legacy merged snapshot cannot establish ownership. Missing/corrupt
   // provenance degrades to registry-only prune and plain user-wins.
   const baselineSettings = priorSettingsBaseline?.team_settings;
+  const personalOverrides = readPersonalOverrides(CLAUDE_DIR);
   const accounting = await mergeSettings(
     userSettingsPath,
     settingsForMerge as Record<string, unknown>,
     userSettingsPath,
-    { interactive, sourceDir: source, baselineSettings },
+    { interactive, sourceDir: source, baselineSettings, personalOverrides },
   );
-  if (accounting) printMergeAccounting(accounting, { interactive });
+  if (accounting) printMergeAccounting(accounting, { interactive, personalOverrides });
+  // Named on every install so a planted personal-overrides.json cannot take effect unseen.
+  const lifted = safetyNetAllow(personalOverrides.safetyNet?.allow?.join(","));
+  if (lifted.length > 0) {
+    warn(`personal-overrides.json lifts these safety-net checks: ${lifted.join(", ")}`);
+  }
   if (prunedInertMcp.length > 0) {
     progressArrow(
       `Removed ${prunedInertMcp.length} inert mcpServers entr${prunedInertMcp.length === 1 ? "y" : "ies"} from settings.json (Claude Code reads ~/.claude.json)`,

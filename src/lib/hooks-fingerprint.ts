@@ -215,9 +215,10 @@ export async function writeFingerprint(
   // Count command hooks via the shared iterCommandHooks walk (fail-open:
   // never throws on malformed input). This replaces the hand-rolled walk.
   const hooksCount = [...iterCommandHooks(settings)].length;
+  const hash = hashHooks(settings);
 
   const record: FingerprintRecord = {
-    hash: hashHooks(settings),
+    hash,
     installedAt: new Date().toISOString(),
     hooksCount,
     pluginsHash: hashPluginKeys(settings),

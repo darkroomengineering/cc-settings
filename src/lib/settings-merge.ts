@@ -16,9 +16,16 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import type { PersonalOverrides } from "../schemas/personal-overrides.ts";
 import { Settings } from "../schemas/settings.ts";
 import { debug, info, success } from "./colors.ts";
-import { isManagedHookCommand, MANAGED_BUN_PREFIX, parseHookCommand } from "./hook-command.ts";
+import {
+  isManagedHookCommand,
+  iterCommandHooks,
+  MANAGED_BUN_PREFIX,
+  parseHookCommand,
+  SAFETY_NET_ALLOW_IDS,
+} from "./hook-command.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import {
   asRecord,
@@ -42,6 +49,7 @@ type UnknownRecord = Record<string, unknown>;
  * additive merges stay automatic.
  */
 export interface MergeOptions {
+  personalOverrides?: PersonalOverrides;
   interactive?: boolean;
   /** Absolute path to the source tree being installed (cc-settings' own repo
    *  root — the same `source`/`args.sourceDir` setup.ts threads everywhere
@@ -62,6 +70,7 @@ export interface MergeOptions {
 }
 
 export interface MergeAccounting {
+  permissionsDropped?: number;
   permissionsAdded: number;
   permissionsDeclined: number;
   permissionsAdoptedScalars: number;
@@ -338,8 +347,57 @@ export async function resolveScalarConflict(
 
 // --- Strategies ----------------------------------------------------------
 
+// Protect trust roots and secret paths regardless of tool or path spelling.
+const NON_DROPPABLE_PERMISSION_PATH_RE =
+  /\b(?:settings(?:\.local)?\.json|personal-overrides\.json|hosts\.yml)\b|\.claude\.json\b|\.(?:env(?:rc)?|ssh|aws|gnupg|netrc|git-credentials|npmrc)\b|\.(?:docker[\\/]config\.json|kube[\\/]config|config[\\/]gh)\b|\.(?:zshrc|zshenv|zprofile|bashrc|bash_profile|profile|pem)\b|\.mcp\.json\b|\.claude-plugin\b|\.claude[\\/]src\b|\bCLAUDE\.md\b|\bclaude (?:mcp|plugin)\b/i;
+
+const NON_DROPPABLE_DENY_RULES = new Set([
+  "Bash(rm -rf /)",
+  "Bash(rm -rf /*)",
+  "Bash(rm -rf ~)",
+  "Bash(rm -rf ~/*)",
+  "Bash(rm -rf $HOME:*)",
+  "Bash(rm -rf $HOME/*)",
+  "Bash(rm -fr /:*)",
+  "Bash(rm -fr /*)",
+  "Bash(rm -fr ~:*)",
+  "Bash(rm -fr ~/*)",
+  "Bash(rm -Rf /:*)",
+  "Bash(rm -Rf ~:*)",
+  "Bash(curl * | bash)",
+  "Bash(curl * | sh)",
+]);
+
+function dropPermissionRules(
+  rules: string[] | undefined,
+  shipped: string[] | undefined,
+  requested: string[] | undefined,
+  protectedRules: ReadonlySet<string>,
+  ctx: StrategyContext,
+): string[] | undefined {
+  if (!rules || !requested?.length) return rules;
+  const drops = new Set(
+    requested.filter((rule) => {
+      if (NON_DROPPABLE_PERMISSION_PATH_RE.test(rule) || protectedRules.has(rule)) {
+        console.error(
+          `⚠ cc-settings: ignoring a personal override for non-droppable permission rule ${JSON.stringify(rule)}.`,
+        );
+        return false;
+      }
+      return shipped?.includes(rule);
+    }),
+  );
+  const kept = rules.filter((rule) => !drops.has(rule));
+  for (const rule of rules) {
+    if (drops.has(rule)) info(`Personal overrides dropped permission rule ${JSON.stringify(rule)}`);
+  }
+  ctx.accounting.permissionsDropped =
+    (ctx.accounting.permissionsDropped ?? 0) + rules.length - kept.length;
+  return kept;
+}
+
 // permissions: deep object with array unions (allow/deny/ask/additionalDirectories)
-// + scalar fields (defaultMode/autoMode). deny is always additive (never prompts).
+// + scalar fields (defaultMode/autoMode). Deny unions never prompt; personal drops follow.
 export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
   if (team === undefined && user === undefined) return { keep: false };
   const t = asRecord(team);
@@ -381,8 +439,22 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
 
   const merged: UnknownRecord = { ...t, ...u };
   if (allow.merged !== undefined) merged.allow = allow.merged;
-  if (deny.merged !== undefined) merged.deny = deny.merged;
-  if (ask.merged !== undefined) merged.ask = ask.merged;
+  if (deny.merged !== undefined)
+    merged.deny = dropPermissionRules(
+      deny.merged,
+      stringArrayField(t, "deny"),
+      opts.personalOverrides?.permissions?.dropDeny,
+      NON_DROPPABLE_DENY_RULES,
+      ctx,
+    );
+  if (ask.merged !== undefined)
+    merged.ask = dropPermissionRules(
+      ask.merged,
+      stringArrayField(t, "ask"),
+      opts.personalOverrides?.permissions?.dropAsk,
+      new Set(),
+      ctx,
+    );
   if (dirs.merged !== undefined) merged.additionalDirectories = dirs.merged;
 
   // Scalar conflicts within permissions (defaultMode, autoMode).
@@ -628,7 +700,13 @@ export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
       // same hook, so they are superseded too.
       const cmds = commandsOf(cleaned);
       const teamHas = (c: string): boolean =>
-        teamCommands.has(c) || teamCommands.has(withManagedPrefix(c));
+        [...teamCommands].some((teamCommand) =>
+          [c, withManagedPrefix(c)].some(
+            (candidate) =>
+              teamCommand.replace(/[ \t]+--safety-net-allow=[a-z,-]+$/, "") ===
+              candidate.replace(/[ \t]+--safety-net-allow=[a-z,-]+$/, ""),
+          ),
+        );
       if (cmds.length > 0 && cmds.every((c) => isManagedCommand(c) && teamHas(c))) {
         ctx.accounting.hooksSuperseded++;
         continue;
@@ -939,7 +1017,8 @@ export const STRATEGIES: Record<string, Strategy> = {
  *     user's customized sub-keys win. Arrays stay user-wins-whole.
  *   - `permissions.{allow,deny,ask,additionalDirectories}` are unioned so the
  *     team baseline (guardrails, common tool access) survives while user
- *     additions are preserved.
+ *     additions are preserved. Personal overrides then drop eligible shipped
+ *     ask/deny rules by exact match.
  *   - `hooks` is per-event union of groups, with deprecation prune for
  *     user-only groups pointing at removed cc-settings scripts.
  *   - `extraKnownMarketplaces` entries cc-settings ships are team-wins; other
@@ -959,13 +1038,32 @@ export async function mergeSettings(
   outputPath: string,
   opts: MergeOptions = {},
 ): Promise<MergeAccounting | null> {
-  const userRaw = (await readJsonOrNull(existingPath)) as UnknownRecord | null;
+  teamSettings = structuredClone(teamSettings);
+  const allow = [
+    ...new Set(
+      (opts.personalOverrides?.safetyNet?.allow ?? []).filter((id) => SAFETY_NET_ALLOW_IDS.has(id)),
+    ),
+  ]
+    .sort()
+    .join(",");
+  for (const entry of iterCommandHooks(teamSettings)) {
+    if (entry.event !== "PreToolUse" || !/\/hooks\/dispatch\.ts"? PreToolUse$/.test(entry.command))
+      continue;
+    const hooks = asRecord(teamSettings.hooks);
+    const groups = hooks.PreToolUse as { matcher?: string; hooks: { command?: string }[] }[];
+    const group = groups[entry.groupIndex];
+    const hook = group?.hooks[entry.hookIndex];
+    if (group?.matcher === "Bash" && hook && allow)
+      hook.command = `${entry.command} --safety-net-allow=${allow}`;
+  }
+  const existing = (await readJsonOrNull(existingPath)) as UnknownRecord | null;
 
   // No existing file → write team as-is (atomic).
-  if (!userRaw) {
+  if (!existing && !opts.personalOverrides?.permissions) {
     await atomicWriteJson(outputPath, teamSettings);
     return null;
   }
+  const userRaw = existing ?? {};
 
   // Validate userRaw against the Settings schema. On failure we log a debug
   // message and proceed with the raw object — forward-compat safety: a new
@@ -1023,6 +1121,9 @@ export async function mergeSettings(
  *  mergeSettings returns. Separated from mergeSettings so the orchestrator
  *  stays side-effect free (§3.4). */
 export function printMergeAccounting(a: MergeAccounting, opts: MergeOptions = {}): void {
+  if (opts.personalOverrides?.permissions) {
+    info(`Personal overrides dropped ${a.permissionsDropped ?? 0} permission rule(s)`);
+  }
   const bits: string[] = [];
   if (a.permissionsAdded > 0) bits.push(`${a.permissionsAdded} permission rule(s)`);
   if (a.hooksAdded > 0) bits.push(`${a.hooksAdded} hook group(s)`);
