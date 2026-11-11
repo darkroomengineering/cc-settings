@@ -42,6 +42,7 @@ import {
   parseHookCommand,
   parseHooksBlock,
   SHELL_SEGMENT_SEP_RE,
+  validSafetyNetSuffix,
 } from "./hook-command.ts";
 import { hashFileOrNull, readSrcManifest } from "./hooks-fingerprint.ts";
 import { readJsonOrNull } from "./json-io.ts";
@@ -491,6 +492,9 @@ export function classifyHookCommand(
   cmd: string,
   integrity?: SrcIntegrity | null,
 ): { severity: HookSeverity; reasons: string[] } {
+  if (!validSafetyNetSuffix(cmd)) {
+    return { severity: "suspicious", reasons: ["invalid or unknown safety-net allow list"] };
+  }
   // Malware signatures are checked FIRST and unconditionally - a hit always
   // wins, even when the command would otherwise match the shipped pattern and
   // verify against the manifest. Defense in depth: MANAGED_HOOK_CMD already

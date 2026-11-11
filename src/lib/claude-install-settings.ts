@@ -7,6 +7,7 @@ import { Settings } from "../schemas/settings.ts";
 import { type EngineDescriptor, ensureEngineInstalled } from "./code-intel-engine.ts";
 import { debug, info, progressArrow, progressOk, warn, withProgress } from "./colors.ts";
 import { composeSettings } from "./compose-settings.ts";
+import { safetyNetAllow } from "./hook-command.ts";
 import { writeFingerprint as writeHooksFingerprint } from "./hooks-fingerprint.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import { applyLightProfile, type Profile, stripManagedSettings } from "./light-profile.ts";
@@ -137,6 +138,11 @@ export async function installSettings(
     { interactive, sourceDir: source, baselineSettings, personalOverrides },
   );
   if (accounting) printMergeAccounting(accounting, { interactive, personalOverrides });
+  // Named on every install so a planted personal-overrides.json cannot take effect unseen.
+  const lifted = safetyNetAllow(personalOverrides.safetyNet?.allow?.join(","));
+  if (lifted.length > 0) {
+    warn(`personal-overrides.json lifts these safety-net checks: ${lifted.join(", ")}`);
+  }
   if (prunedInertMcp.length > 0) {
     progressArrow(
       `Removed ${prunedInertMcp.length} inert mcpServers entr${prunedInertMcp.length === 1 ? "y" : "ies"} from settings.json (Claude Code reads ~/.claude.json)`,

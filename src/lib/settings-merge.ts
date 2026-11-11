@@ -19,7 +19,13 @@ import { join } from "node:path";
 import type { PersonalOverrides } from "../schemas/personal-overrides.ts";
 import { Settings } from "../schemas/settings.ts";
 import { debug, info, success } from "./colors.ts";
-import { isManagedHookCommand, MANAGED_BUN_PREFIX, parseHookCommand } from "./hook-command.ts";
+import {
+  isManagedHookCommand,
+  iterCommandHooks,
+  MANAGED_BUN_PREFIX,
+  parseHookCommand,
+  SAFETY_NET_ALLOW_IDS,
+} from "./hook-command.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import {
   asRecord,
@@ -341,21 +347,15 @@ export async function resolveScalarConflict(
 
 // --- Strategies ----------------------------------------------------------
 
-// Edit rules govern Write too. Dropping any of these would let a session grant itself the rest.
-const NON_DROPPABLE_ASK_RULES = new Set([
-  "Edit(**/.claude/personal-overrides.json)",
-  "Edit(**/.claude/settings.json)",
-  "Edit(**/.claude/settings.local.json)",
-]);
+// Protect trust roots and secret paths regardless of tool or path spelling.
+const NON_DROPPABLE_PERMISSION_PATH_RE =
+  /\b(?:settings(?:\.local)?\.json|personal-overrides\.json|hosts\.yml)\b|\.claude\.json\b|\.(?:env(?:rc)?|ssh|aws|gnupg|netrc|git-credentials|npmrc)\b|\.(?:docker[\\/]config\.json|kube[\\/]config|config[\\/]gh)\b/i;
 
 const NON_DROPPABLE_DENY_RULES = new Set([
   "Bash(rm -rf /)",
   "Bash(rm -rf /*)",
   "Bash(rm -rf ~)",
   "Bash(rm -rf ~/*)",
-  "Bash(rm -rf ~/.ssh)",
-  "Bash(rm -rf ~/.gnupg)",
-  "Bash(rm -rf ~/.aws)",
   "Bash(rm -rf $HOME:*)",
   "Bash(rm -rf $HOME/*)",
   "Bash(rm -fr /:*)",
@@ -364,43 +364,6 @@ const NON_DROPPABLE_DENY_RULES = new Set([
   "Bash(rm -fr ~/*)",
   "Bash(rm -Rf /:*)",
   "Bash(rm -Rf ~:*)",
-  "Read(~/.ssh/*)",
-  "Read(~/.aws/*)",
-  "Read(~/.gnupg/*)",
-  "Read(~/.config/gh/*)",
-  "Read(~/.netrc)",
-  "Read(.env)",
-  "Read(**/.env)",
-  "Read(**/.env.local)",
-  "Read(**/.env.*.local)",
-  "Read(**/.env.development)",
-  "Read(**/.env.production)",
-  "Read(**/.env.staging)",
-  "Read(**/.env.test)",
-  "Read(**/.env.keys)",
-  "Read(**/.envrc)",
-  "Bash(cat ~/.ssh/*)",
-  "Bash(cat ~/.aws/*)",
-  "Bash(cat ~/.gnupg/*)",
-  "Bash(cp ~/.ssh/*)",
-  "Bash(cp ~/.aws/*)",
-  "Bash(cp ~/.gnupg/*)",
-  "Bash(mv ~/.ssh/*)",
-  "Bash(mv ~/.aws/*)",
-  "Bash(mv ~/.gnupg/*)",
-  "Edit(~/.ssh/*)",
-  "Edit(~/.aws/*)",
-  "Edit(~/.gnupg/*)",
-  "Bash(cat ~/.netrc)",
-  "Bash(cat ~/.config/gh/*)",
-  "Bash(head ~/.netrc)",
-  "Bash(head ~/.config/gh/*)",
-  "Bash(tail ~/.netrc)",
-  "Bash(tail ~/.config/gh/*)",
-  "Bash(cp ~/.netrc:*)",
-  "Bash(cp ~/.config/gh/*)",
-  "Bash(mv ~/.netrc:*)",
-  "Bash(mv ~/.config/gh/*)",
   "Bash(curl * | bash)",
   "Bash(curl * | sh)",
 ]);
@@ -415,7 +378,7 @@ function dropPermissionRules(
   if (!rules || !requested?.length) return rules;
   const drops = new Set(
     requested.filter((rule) => {
-      if (protectedRules.has(rule)) {
+      if (NON_DROPPABLE_PERMISSION_PATH_RE.test(rule) || protectedRules.has(rule)) {
         console.error(
           `⚠ cc-settings: ignoring a personal override for non-droppable permission rule ${JSON.stringify(rule)}.`,
         );
@@ -486,7 +449,7 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
       ask.merged,
       stringArrayField(t, "ask"),
       opts.personalOverrides?.permissions?.dropAsk,
-      NON_DROPPABLE_ASK_RULES,
+      new Set(),
       ctx,
     );
   if (dirs.merged !== undefined) merged.additionalDirectories = dirs.merged;
@@ -734,7 +697,13 @@ export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
       // same hook, so they are superseded too.
       const cmds = commandsOf(cleaned);
       const teamHas = (c: string): boolean =>
-        teamCommands.has(c) || teamCommands.has(withManagedPrefix(c));
+        [...teamCommands].some((teamCommand) =>
+          [c, withManagedPrefix(c)].some(
+            (candidate) =>
+              teamCommand.replace(/ --safety-net-allow=[a-z,-]+$/, "") ===
+              candidate.replace(/ --safety-net-allow=[a-z,-]+$/, ""),
+          ),
+        );
       if (cmds.length > 0 && cmds.every((c) => isManagedCommand(c) && teamHas(c))) {
         ctx.accounting.hooksSuperseded++;
         continue;
@@ -1066,6 +1035,24 @@ export async function mergeSettings(
   outputPath: string,
   opts: MergeOptions = {},
 ): Promise<MergeAccounting | null> {
+  teamSettings = structuredClone(teamSettings);
+  const allow = [
+    ...new Set(
+      (opts.personalOverrides?.safetyNet?.allow ?? []).filter((id) => SAFETY_NET_ALLOW_IDS.has(id)),
+    ),
+  ]
+    .sort()
+    .join(",");
+  for (const entry of iterCommandHooks(teamSettings)) {
+    if (entry.event !== "PreToolUse" || !/\/hooks\/dispatch\.ts"? PreToolUse$/.test(entry.command))
+      continue;
+    const hooks = asRecord(teamSettings.hooks);
+    const groups = hooks.PreToolUse as { matcher?: string; hooks: { command?: string }[] }[];
+    const group = groups[entry.groupIndex];
+    const hook = group?.hooks[entry.hookIndex];
+    if (group?.matcher === "Bash" && hook && allow)
+      hook.command = `${entry.command} --safety-net-allow=${allow}`;
+  }
   const existing = (await readJsonOrNull(existingPath)) as UnknownRecord | null;
 
   // No existing file → write team as-is (atomic).

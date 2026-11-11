@@ -140,10 +140,20 @@ directly.
 ## Personal overrides
 
 `~/.claude/personal-overrides.json` makes only its owner's install more
-permissive. The hooks use their shared config-directory helper to locate it.
-Setup does not create, replace, or delete this file. Its strict schema rejects
+permissive on the next `bash setup.sh`, never mid-session. Setup reads it once
+and does not create, replace, or delete this file. Its strict schema rejects
 unknown keys at every level. A missing file means no overrides; an unreadable
-or invalid file means no overrides and one warning line on stderr.
+or invalid file means no overrides and one warning line on stderr. Setup accepts
+only a regular file of at most 64 KiB; symlinks and other file types are rejected.
+
+Setup sorts known `safetyNet.allow` IDs and appends
+` --safety-net-allow=<id,id,...>` to the installed PreToolUse Bash dispatcher
+command. An empty list leaves the shipped command unchanged. A reinstall
+replaces the suffix with the configured list. The hook receives this argument
+through the dispatcher; it never reads the overrides file or takes this list
+from an environment variable. The installed hooks block is the trust root,
+and its existing fingerprint covers the argument. Hook auditing rejects
+malformed suffixes and unknown IDs.
 
 ```json
 {
@@ -177,22 +187,19 @@ stays allowed. Unknown IDs and free-text reasons grant no permission.
 At install, `permissions.dropAsk` and `permissions.dropDeny` remove only exact
 shipped rule strings after the union with personal rules. Personal-only rules
 are preserved. Setup reports the number dropped, and the installed permission
-checker reads the resulting rules directly. The fixed non-droppable set covers
-home/root removal, secret reads and edits, and curl-to-shell deny rules. Requests
+checker reads the resulting rules directly. Non-droppable rules cover
+home/root removal and curl-to-shell deny rules, plus any rule mentioning a
+settings or secret path, regardless of tool. Requests
 to drop these rules produce a warning and leave them in place.
 
 The Edit ask rules (Edit also governs Write) for
 `**/.claude/personal-overrides.json`, `**/.claude/settings.json` and
-`**/.claude/settings.local.json` are non-droppable. Safety-net blocks Bash writes, copies, moves, and redirects into
-the overrides path without an overridable ID. As with settings protection,
-arbitrary programs can write files; this is command analysis, not a filesystem
-sandbox.
-
-The SessionStart fingerprint covers the file's raw content through the existing
-hooks hash field. Missing or empty content preserves the hooks-only hash and
-record format. Nonempty content is hashed with the hooks hash and a domain
-separator; any content change produces the settings-fingerprint warning until
-setup refreshes it. Setup reads the overrides file without modifying it.
+`**/.claude/settings.local.json` are non-droppable. Rules mentioning
+`.claude.json`, `.env`, `.ssh`, `.aws`, `.gnupg`, `.netrc`, `.git-credentials`,
+`.npmrc`, `.docker/config.json`, `.kube/config`, or `hosts.yml` are also
+non-droppable in Read, Edit, Write, and Bash. Editing the overrides file alone
+cannot change a running session's allow list; it takes effect on the next
+`bash setup.sh`.
 
 ## The auto-update launchd job — a persistence surface outside the four layers
 
@@ -866,11 +873,11 @@ What the fingerprint and content manifest do **not** cover:
   worms automate against defaults — but a targeted attacker with full
   user-privilege write access is outside this threat model.
 
-## Scope: the fingerprint covers `hooks`, personal overrides, and the plugin keys
+## Scope: the fingerprint covers `hooks` and the plugin keys
 
 Layers 1 and 2 above (the settings fingerprint and the src content
 manifest) are precisely scoped: `hashHooks()` hashes `settings.hooks`,
-the install-time hooks hash also incorporates personal-overrides file content,
+including the installed safety-net allow argument,
 `hashPluginKeys()` hashes the three plugin keys, and the content manifest verifies script *files*, not other
 `settings.json` keys. Concretely, **`mcpServers`, `permissions`, `env`, and
 every other top-level key of `settings.json` are entirely outside what those

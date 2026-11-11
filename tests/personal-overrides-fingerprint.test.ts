@@ -1,70 +1,103 @@
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import hooks from "../config/40-hooks.json";
+import { classifyHookCommand } from "../src/lib/audit-hooks.ts";
+import { MANAGED_BUN_PREFIX, parseHookCommand } from "../src/lib/hook-command.ts";
 import {
   hashHooks,
   verifyAgainstSettings,
   writeFingerprint,
-  writeSrcManifest,
 } from "../src/lib/hooks-fingerprint.ts";
+import { readPersonalOverrides } from "../src/lib/personal-overrides.ts";
+import { commandIsDeprecated, mergeSettings } from "../src/lib/settings-merge.ts";
 
-test("personal overrides content is fingerprinted without changing the record format", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "overrides-fingerprint-"));
+test("setup bakes known sorted overrides into fingerprinted hooks and replaces them on reinstall", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "overrides-install-"));
   try {
-    const settings = { hooks: {} };
-    const settingsPath = join(dir, "settings.json");
+    const path = join(dir, "settings.json");
     const overridesPath = join(dir, "personal-overrides.json");
-    await writeFile(settingsPath, JSON.stringify(settings));
-    const absent = await writeFingerprint(settings, dir);
-    expect(absent.hash).toBe(hashHooks(settings));
-    expect((await verifyAgainstSettings(settingsPath, dir)).status).toBe("match");
-    await writeFile(overridesPath, "");
-    expect((await verifyAgainstSettings(settingsPath, dir)).status).toBe("match");
-    await writeFile(overridesPath, "{}");
-    expect((await verifyAgainstSettings(settingsPath, dir)).status).toBe("mismatch");
-    const present = await writeFingerprint(settings, dir);
-    expect(Object.keys(present)).toEqual(Object.keys(absent));
-    expect(present.hash).not.toBe(absent.hash);
-    expect((await verifyAgainstSettings(settingsPath, dir)).status).toBe("match");
-    await writeFile(overridesPath, "{ }");
-    expect((await verifyAgainstSettings(settingsPath, dir)).status).toBe("mismatch");
-    expect(await readFile(overridesPath, "utf8")).toBe("{ }");
+    const base = `${MANAGED_BUN_PREFIX}"$HOME/.claude/src/hooks/dispatch.ts" PreToolUse`;
+    const commands = async () => {
+      const settings = JSON.parse(await readFile(path, "utf8"));
+      return settings.hooks.PreToolUse.filter(
+        (g: { matcher: string }) => g.matcher === "Bash",
+      ).flatMap((g: { hooks: { command: string }[] }) => g.hooks.map((h) => h.command));
+    };
+    await mergeSettings(path, hooks, path);
+    expect(await commands()).toEqual([base]);
+    await writeFile(
+      overridesPath,
+      JSON.stringify({
+        safetyNet: {
+          allow: [
+            "git-stash-clear",
+            "made-up",
+            "git-discard-worktree",
+            "git-stash-clear",
+            "git-push-main,git-force-push",
+          ],
+        },
+      }),
+    );
+    await mergeSettings(path, hooks, path, { personalOverrides: readPersonalOverrides(dir) });
+    expect(await commands()).toEqual([
+      `${base} --safety-net-allow=git-discard-worktree,git-stash-clear`,
+    ]);
+    const settings = JSON.parse(await readFile(path, "utf8"));
+    const record = await writeFingerprint(settings, dir);
+    expect(record.hash).toBe(hashHooks(settings));
+    await writeFile(overridesPath, JSON.stringify({ safetyNet: { allow: ["git-push-main"] } }));
+    expect((await verifyAgainstSettings(path, dir)).status).toBe("match");
+    await mergeSettings(path, hooks, path, { personalOverrides: readPersonalOverrides(dir) });
+    expect(await commands()).toEqual([`${base} --safety-net-allow=git-push-main`]);
+    expect((await verifyAgainstSettings(path, dir)).status).toBe("mismatch");
+    await mergeSettings(path, hooks, path, { personalOverrides: { safetyNet: { allow: [] } } });
+    expect(await commands()).toEqual([base]);
     await rm(overridesPath);
-    expect((await verifyAgainstSettings(settingsPath, dir)).status).toBe("mismatch");
+    await writeFile(overridesPath, "invalid");
+    await writeFingerprint(JSON.parse(await readFile(path, "utf8")), dir);
+    expect((await verifyAgainstSettings(path, dir)).status).toBe("match");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });
 
-test("SessionStart warns when personal overrides content changes", async () => {
-  const home = await mkdtemp(join(tmpdir(), "overrides-session-"));
-  const dir = join(home, ".claude");
-  try {
-    await mkdir(dir);
-    const settings = { hooks: {} };
-    await writeFile(join(dir, "settings.json"), JSON.stringify(settings));
-    await writeSrcManifest(join(dir, "src"), dir, []);
-    await writeFingerprint(settings, dir);
-    await writeFile(join(dir, "personal-overrides.json"), "{}");
-    const proc = Bun.spawn(["bun", join(import.meta.dir, "../src/hooks/verify-hooks.ts")], {
-      env: { ...process.env, HOME: home, USERPROFILE: home, NO_COLOR: "1" },
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const [stdout, stderr, code] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ]);
-    expect(code).toBe(0);
-    expect(stderr).toBe("");
-    expect(stdout).toContain("settings fingerprint mismatch");
-    expect(stdout).toContain("personal-overrides.json");
-    await rm(join(dir, "personal-overrides.json"));
-    await mkdir(join(dir, "personal-overrides.json"));
-    expect((await verifyAgainstSettings(join(dir, "settings.json"), dir)).status).toBe("mismatch");
-  } finally {
-    await rm(home, { recursive: true, force: true });
+test("hook classification validates allow suffixes without deprecating the dispatcher", () => {
+  const base = `${MANAGED_BUN_PREFIX}"$HOME/.claude/src/hooks/dispatch.ts" PreToolUse`;
+  const integrity = {
+    files: new Map([
+      ["hooks/dispatch.ts", true],
+      ["bunfig.toml", true],
+    ]),
+    fileExists: () => true,
+  };
+  for (const suffix of [
+    "",
+    " --safety-net-allow=git-push-main",
+    " --safety-net-allow=git-push-main,git-stash-clear",
+  ]) {
+    expect(parseHookCommand(base + suffix).managed).toBe(true);
+    expect(commandIsDeprecated(base + suffix)).toBe(false);
+    expect(classifyHookCommand(base + suffix).severity).not.toBe("suspicious");
+    expect(classifyHookCommand(base + suffix, integrity)).toEqual(
+      classifyHookCommand(base, integrity),
+    );
+    expect(classifyHookCommand(base + suffix, integrity).severity).toBe("trusted");
+  }
+  for (const suffix of [
+    "=",
+    "=made-up",
+    "=git-push-main,made-up",
+    "=git-push-main,",
+    "=git-push-main\n",
+    "=Git-push-main",
+    "=git-push-main --safety-net-allow=git-stash-clear",
+    " git-push-main",
+  ]) {
+    const command = `${base} --safety-net-allow${suffix}`;
+    expect(parseHookCommand(command).managed).toBe(false);
+    expect(classifyHookCommand(command).severity).toBe("suspicious");
   }
 });

@@ -20,27 +20,24 @@ afterAll(() => rmSync(fixture, { recursive: true, force: true }));
 async function decision(command: string, allow?: string[], cwd = repo): Promise<string> {
   const home = join(fixture, `home-${nextHome++}`);
   mkdirSync(join(home, ".claude"), { recursive: true });
-  if (allow !== undefined) {
-    writeFileSync(
-      join(home, ".claude/personal-overrides.json"),
-      JSON.stringify({ safetyNet: { allow } }),
-    );
-  }
-  const child = Bun.spawn([process.execPath, hook], {
-    cwd,
-    env: {
-      ...process.env,
-      HOME: home,
-      USERPROFILE: home,
-      CC_SAFETY_GH_LOGIN: "",
-      GH_REPO: "",
-      GIT_CONFIG_NOSYSTEM: "1",
-      GIT_CONFIG_GLOBAL: join(home, "gitconfig"),
+  const child = Bun.spawn(
+    [process.execPath, hook, ...(allow ? [`--safety-net-allow=${allow.join(",")}`] : [])],
+    {
+      cwd,
+      env: {
+        ...process.env,
+        HOME: home,
+        USERPROFILE: home,
+        CC_SAFETY_GH_LOGIN: "",
+        GH_REPO: "",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: join(home, "gitconfig"),
+      },
+      stdin: new Blob([JSON.stringify({ tool_name: "Bash", tool_input: { command }, cwd })]),
+      stdout: "pipe",
+      stderr: "pipe",
     },
-    stdin: new Blob([JSON.stringify({ tool_name: "Bash", tool_input: { command }, cwd })]),
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  );
   const stdout = await new Response(child.stdout).text();
   await new Response(child.stderr).text();
   const code = await child.exited;
@@ -50,6 +47,53 @@ async function decision(command: string, allow?: string[], cwd = repo): Promise<
 }
 
 describe("personal safety-net overrides", () => {
+  test("a malformed CLI list cannot grant a valid preceding ID", async () => {
+    expect(
+      await decision("git checkout -- src/file.ts", ["git-discard-worktree", "git-push-main\n"]),
+    ).toBe("block");
+  });
+  test("runtime ignores the overrides file and environment but dispatch accepts its argument", async () => {
+    const home = join(fixture, "runtime-home");
+    mkdirSync(join(home, ".claude"), { recursive: true });
+    writeFileSync(
+      join(home, ".claude/personal-overrides.json"),
+      JSON.stringify({ safetyNet: { allow: ["git-discard-worktree"] } }),
+    );
+    for (const [args, expected] of [
+      [[hook], 2],
+      [[resolve(import.meta.dir, "../src/hooks/dispatch.ts"), "PreToolUse"], 2],
+      [
+        [
+          resolve(import.meta.dir, "../src/hooks/dispatch.ts"),
+          "PreToolUse",
+          "--safety-net-allow=git-discard-worktree",
+        ],
+        0,
+      ],
+    ] as const) {
+      const child = Bun.spawn([process.execPath, ...args], {
+        cwd: repo,
+        env: {
+          ...process.env,
+          HOME: home,
+          USERPROFILE: home,
+          SAFETY_NET_ALLOW: "git-discard-worktree",
+          CC_SAFETY_NET_ALLOW: "git-discard-worktree",
+        },
+        stdin: new Blob([
+          JSON.stringify({
+            tool_name: "Bash",
+            tool_input: { command: "git checkout -- src/file.ts" },
+            cwd: repo,
+          }),
+        ]),
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
+      expect(await child.exited).toBe(expected);
+    }
+  });
   for (const [id, command, baseline] of [
     ["process-search-kill", "pkill -f server", "block"],
     ["process-search-kill", "kill $(pgrep server)", "block"],
@@ -198,34 +242,6 @@ describe("personal safety-net overrides", () => {
   test("allowed external build artifacts stay allowed", async () => {
     expect(await decision("rm -rf /some/external/dist", ["rm-repo-target"])).toBe("allow");
   });
-  for (const command of [
-    "echo '{}' > ~/.claude/personal-overrides.json",
-    "printf '{}' >> ~/.claude/personal-overrides.json",
-    "cp source.json ~/.claude/personal-overrides.json",
-    "mv source.json ~/.claude/personal-overrides.json",
-    "tee ~/.claude/personal-overrides.json",
-    "sed -i 's/x/y/' ~/.claude/personal-overrides.json",
-    "touch ~/.claude/personal-overrides.json",
-    "cd ~/.claude && echo '{}' > personal-overrides.json",
-    "cp source.json ~/.claude/./personal-overrides.json",
-    "echo '{}' > $HOME/.claude/personal-overrides.json",
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell home variable
-    "echo '{}' > ${HOME}/.claude/personal-overrides.json",
-    "cp -t ~/.claude personal-overrides.json",
-    "cp -t$HOME/.claude /tmp/personal-overrides.json",
-    "cp -vt ~/.claude /tmp/personal-overrides.json",
-    "mv --target-directory=$HOME/.claude /tmp/personal-overrides.json",
-    "rsync -t /tmp/source.json ~/.claude/personal-overrides.json",
-    "mv -t ~/.claude personal-overrides.json",
-    "install -t ~/.claude personal-overrides.json",
-    "cp --target-directory=~/.claude personal-overrides.json",
-  ]) {
-    test(`self-protection: ${command}`, async () => {
-      expect(await decision(command, ["personal-overrides-write", "git-discard-worktree"])).toBe(
-        "block",
-      );
-    });
-  }
   test("reading the overrides file is allowed", async () => {
     expect(await decision("cat ~/.claude/personal-overrides.json")).toBe("allow");
   });

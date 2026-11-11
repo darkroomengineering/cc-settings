@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import shipped from "../config/30-permissions.json";
@@ -75,6 +75,42 @@ describe("personal overrides file", () => {
     }
   });
 
+  for (const kind of ["symlink", "FIFO", "oversize"] as const) {
+    test(`a ${kind} fails closed with one warning`, async () => {
+      const dir = await fixture();
+      const path = join(dir, "personal-overrides.json");
+      if (kind === "symlink") {
+        const target = join(dir, "target.json");
+        await writeFile(target, '{"safetyNet":{"allow":["git-stash-clear"]}}');
+        await symlink(target, path);
+      } else if (kind === "FIFO") {
+        const process = Bun.spawn(["mkfifo", path], { stdout: "pipe", stderr: "pipe" });
+        expect(await process.exited).toBe(0);
+      } else {
+        await writeFile(path, `${" ".repeat(64 * 1024)}{}`);
+      }
+      const warning = spyOn(console, "error").mockImplementation(() => {});
+      try {
+        expect(readPersonalOverrides(dir)).toEqual({});
+        expect(warning).toHaveBeenCalledTimes(1);
+      } finally {
+        warning.mockRestore();
+      }
+    });
+  }
+
+  test("a regular file of exactly 64 KiB is accepted", async () => {
+    const dir = await fixture();
+    await writeFile(join(dir, "personal-overrides.json"), `${" ".repeat(64 * 1024 - 2)}{}`);
+    const warning = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(readPersonalOverrides(dir)).toEqual({});
+      expect(warning).not.toHaveBeenCalled();
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
   test("all schema levels reject unknown keys", () => {
     expect(PersonalOverridesSchema.safeParse({ permissions: {}, extra: true }).success).toBe(false);
     expect(PersonalOverridesSchema.safeParse({ safetyNet: { extra: true } }).success).toBe(false);
@@ -83,6 +119,56 @@ describe("personal overrides file", () => {
 });
 
 describe("personal permission overrides", () => {
+  for (const rule of [
+    "Edit(~/.claude/settings.json)",
+    "Bash(cp * ~/.claude/settings.json*)",
+    "Read(~/.npmrc)",
+    ...["Read", "Edit", "Write", "Bash"].flatMap((tool) =>
+      [
+        "settings.json",
+        "settings.local.json",
+        ".claude.json",
+        "personal-overrides.json",
+        ".env",
+        ".env.production",
+        ".ssh/*",
+        ".aws/*",
+        ".gnupg/*",
+        ".netrc",
+        ".git-credentials",
+        ".npmrc",
+        ".docker/config.json",
+        ".kube/config",
+        ".config/gh/hosts.yml",
+      ].map((path) => `${tool}(~/project/${path})`),
+    ),
+    "Edit(~/.CLAUDE/SETTINGS.JSON)",
+  ]) {
+    test(`sensitive rule cannot be dropped from ask or deny: ${rule}`, async () => {
+      const dir = await fixture();
+      const path = join(dir, "settings.json");
+      const warning = spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const result = await mergeSettings(
+          path,
+          { permissions: { ask: [rule], deny: [rule] } },
+          path,
+          { personalOverrides: { permissions: { dropAsk: [rule], dropDeny: [rule] } } },
+        );
+        const merged = JSON.parse(await readFile(path, "utf8"));
+        expect(merged.permissions.ask).toEqual([rule]);
+        expect(merged.permissions.deny).toEqual([rule]);
+        expect(result?.permissionsDropped).toBe(0);
+        expect(warning).toHaveBeenCalledTimes(2);
+        expect(warning.mock.calls.every(([line]) => String(line).includes("non-droppable"))).toBe(
+          true,
+        );
+      } finally {
+        warning.mockRestore();
+      }
+    });
+  }
+
   test("drop exact shipped ask/deny rules on the first and second merge", async () => {
     const dir = await fixture();
     const path = join(dir, "settings.json");

@@ -174,7 +174,6 @@ async function checkHooksFingerprint(modules: TrustedModules): Promise<void> {
   console.log(RULE);
   if (verify.changed.includes("hooks")) {
     console.log("   settings.json hooks have changed since install.");
-    console.log("   This fingerprint also covers personal-overrides.json; inspect that file too.");
   }
   if (verify.changed.includes("plugins")) {
     console.log(

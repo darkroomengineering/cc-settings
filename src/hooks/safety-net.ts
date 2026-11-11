@@ -30,19 +30,18 @@ import { appendFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import {
-  OP,
   type ParsedShellCommand,
   PROCESS_SUBSTITUTION_RE,
   parseShellCommand,
   type ShellScan,
   type ShellSegment,
   SUBSTITUTION,
+  safetyNetAllow,
   scanShell,
   shellWords,
   splitPipes,
 } from "../lib/hook-command.ts";
 import { type HookIO, processIO } from "../lib/hook-runtime.ts";
-import { readPersonalOverrides } from "../lib/personal-overrides.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
 import { redactSecrets } from "../lib/redact.ts";
 
@@ -3064,73 +3063,6 @@ function checkSegmentText(text: string, subs: string[]): void {
   checkProcessKill(text, subs);
 }
 
-function checkPersonalOverridesWrite(
-  c: ParsedShellCommand,
-  ctx: ShellCtx,
-  seg: ShellSegment,
-): void {
-  const pathOf = (raw: string): string | null => {
-    const homeExpanded = raw.replace(/^\$(?:HOME|\{HOME\})(?=\/|$)/, homedir());
-    const expanded = expandWord(homeExpanded, ctx, seg, () => branchIn(ctx.dir, ctx));
-    if (expanded === null) return null;
-    const path =
-      expanded === "~" || expanded.startsWith("~/") ? join(homedir(), expanded.slice(1)) : expanded;
-    if (!isAbsolute(path) && ctx.dir === null) return null;
-    return resolve(ctx.dir ?? "/", path);
-  };
-  const protectedPath = (raw: string): boolean => {
-    const path = pathOf(raw);
-    return (
-      path !== null &&
-      (path === claudePath("personal-overrides.json") ||
-        /(?:^|\/)\.claude\/personal-overrides\.json$/.test(path))
-    );
-  };
-  const blockWrite = (): never =>
-    block("writing personal-overrides.json can grant the agent its own permissions", seg.clean);
-  const words = shellWords(seg.clean);
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i] as string;
-    if (
-      word.startsWith(OP) &&
-      /^(?:\d+|&)?(?:>>?|<>)/.test(word.slice(OP.length)) &&
-      protectedPath(words[i + 1] ?? "")
-    )
-      blockWrite();
-  }
-  const copy = ["cp", "mv", "install", "rsync"].includes(c.word);
-  const operands = positionals(c.args);
-  if (copy) {
-    // Every operand and every target-directory value is a possible destination:
-    // which one the tool writes to depends on per-tool flag grammar
-    // (`-tDIR`, `-vt DIR`, rsync's `-t` taking no value).
-    const destinations = [...operands];
-    c.args.forEach((arg, i) => {
-      const long = /^--target-directory(?:=(.*))?$/s.exec(arg);
-      const short = long ? null : /^-[a-zA-Z]*t(.*)$/s.exec(arg);
-      const value = (long ?? short)?.[1] || (long || short ? c.args[i + 1] : undefined);
-      if (value !== undefined) destinations.push(value);
-    });
-    for (const destination of destinations) {
-      if (protectedPath(destination)) blockWrite();
-      if (operands.some((source) => protectedPath(join(destination, basename(source)))))
-        blockWrite();
-    }
-  } else if (["tee", "touch", "truncate"].includes(c.word)) {
-    if (operands.some(protectedPath)) blockWrite();
-  } else if (
-    (c.word === "sed" || c.word === "perl") &&
-    c.args.some((arg) => /^-[a-zA-Z]*i/.test(arg) || arg.startsWith("--in-place"))
-  ) {
-    if (operands.some(protectedPath)) blockWrite();
-  } else if (
-    c.word === "dd" &&
-    c.args.some((arg) => arg.startsWith("of=") && protectedPath(arg.slice(3)))
-  ) {
-    blockWrite();
-  }
-}
-
 function analyzeSegment(seg: ShellSegment, ctx: ShellCtx, depth: number): void {
   const text = seg.clean;
   checkSegmentText(text, seg.subs);
@@ -3144,7 +3076,6 @@ function analyzeSegment(seg: ShellSegment, ctx: ShellCtx, depth: number): void {
       // this command when its words were filled in or split out of a string.
       if (c !== typed || c.resplit) checkSegmentText([c.word, ...c.args].join(" "), seg.subs);
       for (const at of dirs) {
-        checkPersonalOverridesWrite(c, at, seg);
         checkSecretReaders(c, at, text);
         checkGhWrites(c, at, text);
         checkGitHookSkips(c, at, seg, text);
@@ -3271,7 +3202,7 @@ function analyzeCommand(cmd: string, depth: number, ctx: ShellCtx = rootCtx()): 
 const FAST_PATH_VERBS_RE =
   /\b(rm|git|gh|push|find|xargs|kill|pkill|killall|fuser|bash|sh|zsh|python|python3|node|ruby|perl)\b/i;
 const SECRET_MARKER_RE =
-  /\.(?:ssh|aws|gnupg|netrc|git-credentials|npmrc|kube)\b|\.docker\/config|hosts\.yml|\.env(?:rc|\b)|dotenvx|personal-overrides\.json/i;
+  /\.(?:ssh|aws|gnupg|netrc|git-credentials|npmrc|kube)\b|\.docker\/config|hosts\.yml|\.env(?:rc|\b)|dotenvx/i;
 
 function failClosed(err: unknown): never {
   const detail = err instanceof Error ? err.message : String(err);
@@ -3279,12 +3210,12 @@ function failClosed(err: unknown): never {
   process.exit(1);
 }
 
-export async function main(io: HookIO = processIO): Promise<void> {
+export async function main(io: HookIO = processIO, allow?: string): Promise<void> {
   try {
     const { command } = await io.toolInput<{ command: unknown }>();
     const COMMAND = typeof command === "string" ? command : "";
     if (!COMMAND) return;
-    allowedChecks = new Set(readPersonalOverrides().safetyNet?.allow ?? []);
+    allowedChecks = new Set(safetyNetAllow(allow));
     if (process.env.CC_SAFETY_TEST_CRASH) throw new Error("induced crash");
     // Quotes and backslashes can split a name (`".e""nv"`, `.\env`), so the
     // fast path also looks at the text with them removed.
@@ -3328,4 +3259,9 @@ export async function main(io: HookIO = processIO): Promise<void> {
 
 // A direct run turns any non-block error into the fail-closed exit; the dispatcher
 // turns the same throw into a block decision.
-if (import.meta.main) await main().catch(failClosed);
+if (import.meta.main) {
+  const allow = process.argv[2]?.startsWith("--safety-net-allow=")
+    ? process.argv[2].slice("--safety-net-allow=".length)
+    : undefined;
+  await main(processIO, allow).catch(failClosed);
+}
