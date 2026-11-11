@@ -460,9 +460,11 @@ strictest decision stands. A reading can add an ask or a block and never
 removes one. Shifts, wrappers and the letter case of wrapper names come from
 the scanner and parser that safety-net shares with config-guard, linear-gate,
 test-protect and visual-proof, so those points hold for all five hooks. The
-next two hold for every safety-net rule, the rest for the push rule:
+first two points hold for every safety-net rule. Each later point names the
+rules it holds for; one that names none holds for the push rule:
 
-- **Shifts.** A `<<` inside `(( ))`, `$[ ]`, `${ }` or after `name[` may shift
+- **Shifts.** A `<<` inside `(( ))`, `$[ ]`, `${ }`, an array literal
+  (`a=([1<<2]=x)`) or after `name[` may shift
   bits or open a heredoc (`cat x[ <<EOF` is a heredoc). The scanner reads such
   a command both ways: with every such `<<` as a heredoc, and with every one
   as a shift, where the lines after it are commands. safety-net and
@@ -478,7 +480,12 @@ next two hold for every safety-net rule, the rest for the push rule:
   includes env's flag clusters (`env -vS 'git push origin main'`,
   `env -iC DIR`, `env -vu NAME`), `env -P`, `env --unset`, `timeout --signal`
   and `--kill-after`, and `sudo --chdir DIR` or `--chdir=DIR`. Wrapper names
-  match in any letter case (`SUDO git ...`).
+  match in any letter case (`SUDO git ...`). safety-net's rules that read
+  the command as text (`rm -rf`, destructive git, process kills) also read
+  the words `env -S` splits out of its string, joined by spaces:
+  `env -S 'git push --force origin fix/x'` and `env -S 'rm -rf ~'` block.
+  The join drops the quoting inside the string, so an argument there that
+  names a guarded command is reported.
 - **Letter case.** safety-net matches command words in any letter case, on
   every platform: `GIT`, `Rm` and `/USR/BIN/GIT` are read as git and rm.
   macOS and Windows resolve those spellings to the same program. On a
@@ -488,13 +495,29 @@ next two hold for every safety-net rule, the rest for the push rule:
   Shell builtins are the exception, because the shell matches them exactly:
   `CD` and `EXPORT` do not change the directory or the environment the hook
   tracks.
+- **Directories.** The hook follows `cd`, `pushd` and `popd`, and the rules
+  that depend on the directory use it: the push rule, the owner a `gh` write
+  falls back to, and relative secret paths. A `cd` behind `||` may not have
+  run, and one behind `&&` ran only if the rest of its `&&` chain does. Past
+  that point the command is read once for each directory the shell may be
+  in: `false && cd /feature; git push origin HEAD` asks from a checkout of
+  main, while `true && cd /feature && git push origin HEAD` is read in
+  `/feature` only. Up to eight such directories are followed; with more, the
+  directory is unknown. A `git checkout` read under more than one directory
+  leaves the branches it set unknown.
 - **Command words that are not literal text.** A command word that holds a
-  variable or a substitution is always read two ways. The push rule reads it
-  as git (`$GIT push origin main`); no other rule does. Every rule reads it
+  variable or a substitution is always read two ways. The push rule and the
+  git hook rule read it as git (`$GIT push origin main`,
+  `$G commit --no-verify`); no other rule does. Every rule reads it
   as nothing, which leaves the next word as the command
-  (`$UNSET git push origin main`). Three more readings are added to those.
+  (`$UNSET git push origin main`). Four more readings are added to those.
   The word with the line's plain assignments filled in and split into words
-  (`G="git push"; $G origin main`). The word with the text that a
+  (`G="git push"; $G origin main`). The word with each variable filled in
+  with the last value or guess the line holds for it, trusted or not, so a
+  command split across them is read joined
+  (`read H <<< in; G='git push origin +HEAD:ma'; $G$H` blocks); a reference
+  with a modifier (`${H:-}`, `${=G}`) is filled in the same way. The word
+  with the text that a
   substitution's `echo`, `printf` or `cat` of a heredoc prints pasted in
   (`$(echo git push origin main)`); that text is a guess, since escapes,
   formats and globs can change it. And, when the word still cannot be read
@@ -506,12 +529,52 @@ next two hold for every safety-net rule, the rest for the push rule:
   are more, the command asks. After such a command word the hook trusts no
   directory, branch or variable for the rest of the command, because the
   word may have run `cd`, `git checkout` or `export`.
+- **Globs, brace lists and aliases in a command word.** A command word that
+  holds `?`, `*` or a closed `[...]` is also read as `git` and as `rm` when
+  the glob matches that name, in any letter case:
+  `/usr/bin/g?t push origin +HEAD:main` and `/bin/r[m] -rf ~` block, while
+  a character class, an equivalence class or a collating symbol in the
+  brackets (`[[:alpha:]]`, `[[=g=]]`, `[[.g.]]`) matches any character, and
+  `/bin/l? -la` and the test command `[` match neither. A glob with no
+  arguments is not read this way, because it is a `case` pattern or an array
+  element far more often than a command. A `{a,b}` list in
+  the command word is also read expanded, an outer list before the lists
+  inside it: `{git,push} origin main` asks, and `{rm,-rf} ~`,
+  `{{git,push},origin,+HEAD:main}` and `{git,push,--force,origin,fix/x}`
+  block. `alias NAME=TEXT` is recorded wherever it sits on the
+  line, and a later command word `NAME` also runs TEXT followed by its
+  arguments, read as a script: `alias p='git push origin +HEAD:main'`
+  followed by `p` blocks, and so does `alias r=rm` followed by `r -rf ~`.
+  Every rule reads these added commands. After a
+  command word with a matching glob, a brace list or an alias, the hook
+  trusts no directory, branch or variable for the rest of the command, so a
+  later push that relies on the current branch asks.
+- **Git subcommands that are not literal text.** When the word after `git`
+  and its options holds a variable or a substitution, the push rule and the
+  git hook rule read the command more than once. A variable the hook trusts
+  is filled in (`P=push; git $P origin main`). Any other word is read as
+  nothing, which leaves the next word as the subcommand
+  (`git $UNSET push origin main`); as `push`
+  (`git $(cat verb.txt) origin +HEAD:main` blocks); and as each guess the
+  line holds, a substitution's printed text included
+  (`git $(echo commit) -n -m x` blocks). Read as `push`, a command without a
+  refspec is a push of the current branch, so `git $SUB` and
+  `git $(echo status)` ask from a checkout of main. `--no-verify`,
+  `-c core.hooksPath` and a hook-skip variable block under the `push`
+  reading; commit's `-n` blocks only when the word reads as `commit`.
 - **Git behind another command.** A `git` word among the arguments of a
   command outside the wrapper list is read as a push that runs where the
   outer command runs: `script -q /dev/null git push origin main` asks.
   `echo` and `printf` are exempt. The first eight such words are read; a
   command with more asks, and one that names git more than 256 times blocks,
-  because it is not read to the end.
+  because it is not read to the end. The command
+  `git submodule foreach` runs is also read as a script of its own, by every
+  rule, whether it is typed as words or as one quoted string
+  (`git submodule foreach 'git push origin +HEAD:main'` blocks). That script
+  runs in each submodule, whose branch the hook does not read, so a push in
+  it that relies on the current branch asks:
+  `git submodule foreach git push --force-with-lease` asks from a
+  superproject on a feature branch.
 - **Variables.** A value is used only when a plain assignment or `export` set
   it and nothing else on the line can change it. The hook stops trusting a
   name, anywhere on the line, once `+=`, an array assignment, `read`,
@@ -596,9 +659,13 @@ Known limits, open for a follow-up:
   their blocks into false positives on text that only mentions it. If such a
   wrapper also changes the directory git runs in, the push is read with the
   shell's directory, since each wrapper has its own option grammar.
-- A `cd` after `&&` or `||` is tracked as if it ran. After
-  `false && cd /other; git push`, the hook reads the branch of `/other`,
-  while git pushes from the directory the shell is still in.
+- A `cd` inside an `if`, loop or `case` block, or inside a function body, is
+  tracked as if it ran. After `if false; then cd /other; fi; git push`, the
+  hook reads the branch of `/other`, while git pushes from the directory the
+  shell is still in. A `cd` that fails, because its directory does not exist,
+  is tracked as if it succeeded. A `&&` chain that ends in a `( )` group is
+  not seen to end: after `false && cd /other && (true); git push`, the hook
+  reads `/other` only.
 - Variable tracking is a list of known setters, not an interpreter. A name
   set by a builtin outside that list (`wait -p NAME`, zsh's `integer` and
   `vared`) keeps its earlier value.
@@ -611,23 +678,29 @@ Known limits, open for a follow-up:
   named under "Shifts" (`declare a[1<<2]=x` on one line, `cat x[ <<EOF` with
   a quote in its body on the next) is read correctly by neither of the two
   readings, so lines after it can stay unread.
-- `git submodule foreach git push ...` is read against the superproject:
-  its branch, its remotes, its git config. Each submodule pushes its own
-  branch, so `git submodule foreach git push --force-with-lease` passes from
-  a superproject on a feature branch even when a submodule is on main. With
-  the command in one quoted string
-  (`git submodule foreach 'git push origin main'`) it is not read at all.
-- A git subcommand that is not literal text
-  (`git $(echo push) origin +HEAD:main`). The "may be git" reading of a
-  command word belongs to the push rule only, so `$G commit --no-verify` is
-  not read by the git hook rule.
-- A glob in a command word (`/usr/bin/g?t push origin +HEAD:main`,
-  `/bin/r? -rf ~`).
-- A `<<` in the subscript of a bash array literal (`a=([1<<2]=x)`) is read
-  as a heredoc only, so the lines after it are not read.
-- A command word whose text is split across a variable and a here-string
-  (`G=gi; read H <<< 't push origin +HEAD:main'; $G$H`). The values a line
-  holds are tried one at a time, not joined.
+- A forced push without a refspec inside `git submodule foreach` asks and
+  cannot block, even when a submodule is on main: the hook does not read each
+  submodule's branch, remotes or git config.
+- A git subcommand that is not literal text is read by the push rule and the
+  git hook rule only: `git $P --force origin fix/x` and `git $S clear` pass
+  the rules that read the command as text. It is not guessed when the command
+  word is not literal either (`$G $P origin +HEAD:main`). `git $C -n -m x`
+  passes when nothing on the line says `$C` is `commit`.
+- A glob in a command word is matched against `git` and `rm` only:
+  `g? pr create ...`, `c?t ~/.ssh/id_rsa` and `b?sh -c '...'` are not read
+  as gh, cat or a shell. A glob or a brace list is not read in a `git` word
+  behind a wrapper outside the parser's list
+  (`script -q /dev/null g?t push ...`), and a glob is not read in a git
+  subcommand (`git pu?h origin +HEAD:main`).
+- zsh's `=cmd` expansion of a command word (`=git push ...`, `=rm -rf ~`) is
+  not read.
+- A zsh global alias (`alias -g`), which expands outside command position, is
+  read as an ordinary alias. An alias defined in a shell startup file is not
+  seen, nor is one defined by a command the hook does not read as `alias`
+  (`eval "alias p='...'"`, `A=alias; $A p='...'`).
+- A line that nests shells and holds several possible directories is read
+  once per reading at each level, so a crafted line can run past the hook's
+  timeout. A timeout blocks the command.
 
 Related limits sit in the permission rules rather than safety-net:
 
