@@ -2978,6 +2978,8 @@ describe("install E2E — uninstall ownership", () => {
             "src/lib/git-transport.ts",
             "src/scripts/git-transport.ts",
             "src/lib/process-tree.ts",
+            "src/lib/personal-overrides.ts",
+            "src/schemas/personal-overrides.ts",
             "skills/case-study/SKILL.md",
             "skills/case-study/examples/clips-template.txt",
             "skills/case-study/examples/design-template.json",

@@ -72,6 +72,22 @@ export function hashHooks(settings: unknown): string {
   return hasher.digest("hex");
 }
 
+// Empty content keeps records compatible with installs without personal overrides.
+async function hashHooksAndOverrides(settings: unknown, dir: string): Promise<string | null> {
+  const hooksHash = hashHooks(settings);
+  let content: Buffer;
+  try {
+    content = await readFile(join(dir, "personal-overrides.json"));
+  } catch (error) {
+    return error instanceof Error && "code" in error && error.code === "ENOENT" ? hooksHash : null;
+  }
+  if (content.length === 0) return hooksHash;
+  const hasher = new CryptoHasher("sha256");
+  hasher.update(`${hooksHash}\0personal-overrides\0`);
+  hasher.update(content);
+  return hasher.digest("hex");
+}
+
 /** Top-level settings keys that decide which plugin code Claude Code loads. */
 export const PLUGIN_KEYS = ["enabledPlugins", "extraKnownMarketplaces", "pluginConfigs"] as const;
 
@@ -215,9 +231,11 @@ export async function writeFingerprint(
   // Count command hooks via the shared iterCommandHooks walk (fail-open:
   // never throws on malformed input). This replaces the hand-rolled walk.
   const hooksCount = [...iterCommandHooks(settings)].length;
+  const hash = await hashHooksAndOverrides(settings, dir);
+  if (hash === null) throw new Error("Cannot fingerprint unreadable personal-overrides.json");
 
   const record: FingerprintRecord = {
-    hash: hashHooks(settings),
+    hash,
     installedAt: new Date().toISOString(),
     hooksCount,
     pluginsHash: hashPluginKeys(settings),
@@ -292,7 +310,7 @@ export async function verifyAgainstSettings(
       pluginDiff: [],
     };
   }
-  const actual = hashHooks(parsed);
+  const actual = await hashHooksAndOverrides(parsed, dir);
   const changed: Array<"hooks" | "plugins"> = [];
   if (actual !== record.hash) changed.push("hooks");
   let pluginHashStripped = false;

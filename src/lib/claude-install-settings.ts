@@ -18,6 +18,7 @@ import {
   removeManagedMcpServers,
 } from "./mcp.ts";
 import { ensureSystemPackage, getInstallHint } from "./packages.ts";
+import { readPersonalOverrides } from "./personal-overrides.ts";
 import { ensurePinnedTool, TLDR_CODE_TOOL } from "./pinned-tools.ts";
 import { CLAUDE_DIR, hasCommand } from "./platform.ts";
 import { isInteractive, promptSecret } from "./prompts.ts";
@@ -128,13 +129,14 @@ export async function installSettings(
   // A legacy merged snapshot cannot establish ownership. Missing/corrupt
   // provenance degrades to registry-only prune and plain user-wins.
   const baselineSettings = priorSettingsBaseline?.team_settings;
+  const personalOverrides = readPersonalOverrides(CLAUDE_DIR);
   const accounting = await mergeSettings(
     userSettingsPath,
     settingsForMerge as Record<string, unknown>,
     userSettingsPath,
-    { interactive, sourceDir: source, baselineSettings },
+    { interactive, sourceDir: source, baselineSettings, personalOverrides },
   );
-  if (accounting) printMergeAccounting(accounting, { interactive });
+  if (accounting) printMergeAccounting(accounting, { interactive, personalOverrides });
   if (prunedInertMcp.length > 0) {
     progressArrow(
       `Removed ${prunedInertMcp.length} inert mcpServers entr${prunedInertMcp.length === 1 ? "y" : "ies"} from settings.json (Claude Code reads ~/.claude.json)`,

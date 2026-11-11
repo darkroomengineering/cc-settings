@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 46;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 47;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -577,13 +577,15 @@ const ADDED_IN_V44 = [
 ];
 // Version 45: the process-tree kill and bounded pipe reads both model bridges import.
 const ADDED_IN_V45 = ["src/lib/process-tree.ts"];
+const ADDED_IN_V47 = ["src/lib/personal-overrides.ts", "src/schemas/personal-overrides.ts"];
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) =>
     !ADDED_IN_V17.includes(path) &&
     !ADDED_IN_V20.includes(path) &&
     !ADDED_SOURCES_IN_V37.includes(path) &&
     !ADDED_IN_V40.includes(path) &&
-    !ADDED_IN_V45.includes(path),
+    !ADDED_IN_V45.includes(path) &&
+    !ADDED_IN_V47.includes(path),
 ).flatMap((path) => [path, ...(REJOINING_AFTER.get(path) ?? [])]);
 const historicalManifest = {
   full: [
@@ -954,9 +956,14 @@ const REMOVED_IN_V46 = [
   "skills/refactor/SKILL.md",
   "skills/zero-tech-debt/SKILL.md",
 ];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v46 = {
   full: v45.full.filter(notAddedAfter(REMOVED_IN_V46)),
   light: v45.light,
+};
+MANIFESTS.set(46, v46);
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v46.full, ...ADDED_IN_V47],
+  light: [...v46.light, ...ADDED_IN_V47],
 });
 
 const GENERATED_MANAGED_FILES = new Set([

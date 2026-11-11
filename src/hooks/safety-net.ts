@@ -30,6 +30,7 @@ import { appendFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import {
+  OP,
   type ParsedShellCommand,
   PROCESS_SUBSTITUTION_RE,
   parseShellCommand,
@@ -41,6 +42,7 @@ import {
   splitPipes,
 } from "../lib/hook-command.ts";
 import { type HookIO, processIO } from "../lib/hook-runtime.ts";
+import { readPersonalOverrides } from "../lib/personal-overrides.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
 import { redactSecrets } from "../lib/redact.ts";
 
@@ -86,8 +88,22 @@ class BlockDecision extends Error {
   }
 }
 
-function block(reason: string, cmd = ""): never {
+let allowedChecks = new Set<string>();
+const pendingForceChecks = new Map<string, { reason: string; cmd: string }>();
+
+function forceCheckKey(cmd: string, args: string[]): string {
+  return JSON.stringify([cmd, args]);
+}
+
+function block(reason: string, cmd?: string): never;
+function block(reason: string, cmd: string, checkId: string | undefined): void;
+function block(reason: string, cmd = "", checkId?: string): void {
+  if (checkId !== undefined && allowedChecks.has(checkId)) return;
   throw new BlockDecision(reason, cmd);
+}
+
+function ask(reason: string, checkId?: string): void {
+  if (checkId === undefined || !allowedChecks.has(checkId)) pendingAsks.push(reason);
 }
 
 // --- Rule: rm -rf detection -----------------------------------------------
@@ -198,6 +214,34 @@ function analyzeRmPortion(rmPortion: string, cmd: string): void {
   for (const target of targets) analyzeRmTarget(target, cmd);
 }
 
+function repoRmCheckId(target: string): string | undefined {
+  if (/[$`*?[{]/.test(target) || target.startsWith("~")) return undefined;
+  const words = shellWords(target);
+  if (words.length !== 1) return undefined;
+  const cwd = safeCwd();
+  const repo = cwd === null ? null : repoLocation(cwd);
+  if (repo === null || cwd === null) return undefined;
+  const absolute = resolve(cwd, words[0] as string);
+  if (!absolute.startsWith(`${repo.top}${sep}`)) return undefined;
+  try {
+    let componentPath = isAbsolute(words[0] as string) ? sep : cwd;
+    for (const component of (words[0] as string).split(sep)) {
+      if (!component || component === ".") continue;
+      if (component === "..") componentPath = dirname(componentPath);
+      else {
+        componentPath = join(componentPath, component);
+        if (lstatSync(componentPath, { throwIfNoEntry: false })?.isSymbolicLink()) return undefined;
+      }
+    }
+    for (let path = absolute; path !== repo.top; path = dirname(path)) {
+      if (lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink()) return undefined;
+    }
+  } catch {
+    return undefined;
+  }
+  return "rm-repo-target";
+}
+
 function analyzeRmTarget(target: string, cmd: string): void {
   // ALWAYS BLOCK: dangerous root/home/cwd paths.
   if (target === "/" || target === "/*") block("rm -rf targeting root filesystem", cmd);
@@ -211,7 +255,7 @@ function analyzeRmTarget(target: string, cmd: string): void {
 
   // Shell expansion cannot be resolved safely without executing the command.
   if (/[$`\\]/.test(target) || target.startsWith("~")) {
-    block(`rm -rf with unresolved target path: ${target}`, cmd);
+    block(`rm -rf with unresolved target path: ${target}`, cmd, repoRmCheckId(target));
   }
 
   // A removed cwd leaves relative paths meaningless (nothing to delete) and
@@ -250,7 +294,7 @@ function analyzeRmTarget(target: string, cmd: string): void {
   // ALLOW: absolute paths under PWD.
   if (pwd !== null && within(pwd)) return;
 
-  block(`rm -rf with unrecognized target path: ${target}`, cmd);
+  block(`rm -rf with unrecognized target path: ${target}`, cmd, repoRmCheckId(target));
 }
 
 function checkRmRf(cmd: string): void {
@@ -364,17 +408,25 @@ function analyzeGitAfterVerb(afterVerb: string, cmd: string): void {
       if (/^-b\s/.test(subargs) || /^-B\s/.test(subargs) || /^--orphan\s/.test(subargs)) return;
       // BLOCK: git checkout -- <anything>
       if (/\s--\s|^--\s/.test(` ${subargs} `)) {
-        block("git checkout -- discards uncommitted changes", cmd);
+        block("git checkout -- discards uncommitted changes", cmd, "git-discard-worktree");
       }
       if (subargs.includes("--pathspec-from-file")) {
-        block("git checkout --pathspec-from-file discards uncommitted changes", cmd);
+        block(
+          "git checkout --pathspec-from-file discards uncommitted changes",
+          cmd,
+          "git-discard-worktree",
+        );
       }
       // BLOCK: bareword pathspec-looking targets (`git checkout .`,
       // `git checkout src/file.ts`) — same hazard as the `--` form, just
       // without the explicit separator.
       const positional = subargs.split(/\s+/).filter((t) => t && !t.startsWith("-"));
       if (positional.some((t) => looksLikePathspec(t))) {
-        block("git checkout <path> discards uncommitted changes without --", cmd);
+        block(
+          "git checkout <path> discards uncommitted changes without --",
+          cmd,
+          "git-discard-worktree",
+        );
       }
       return;
     }
@@ -382,12 +434,22 @@ function analyzeGitAfterVerb(afterVerb: string, cmd: string): void {
       const hasStaged = /(^|\s)(--staged|-S)(\s|$)/.test(` ${subargs} `);
       const hasWorktree = /(^|\s)(--worktree|-W)(\s|$)/.test(` ${subargs} `);
       if (hasStaged) {
-        if (hasWorktree) block("git restore --worktree discards working tree changes", cmd);
+        if (hasWorktree)
+          block(
+            "git restore --worktree discards working tree changes",
+            cmd,
+            "git-discard-worktree",
+          );
         return;
       }
-      if (hasWorktree) block("git restore --worktree discards working tree changes", cmd);
+      if (hasWorktree)
+        block("git restore --worktree discards working tree changes", cmd, "git-discard-worktree");
       if (subargs.trim().length > 0) {
-        block("git restore without --staged discards working tree changes", cmd);
+        block(
+          "git restore without --staged discards working tree changes",
+          cmd,
+          "git-discard-worktree",
+        );
       }
       return;
     }
@@ -410,21 +472,25 @@ function analyzeGitAfterVerb(afterVerb: string, cmd: string): void {
         return;
       }
       const padded = ` ${subargs} `;
-      if (/(^|\s)--force(\s|$)/.test(padded))
-        block(`git ${sub} --force can overwrite remote history`, cmd);
+      const forceBlock = (): void => {
+        const reason = `git ${sub} --force can overwrite remote history`;
+        block(reason, cmd, sub === "push" ? "git-force-push" : undefined);
+        const stage = splitPipes(`git ${afterVerb}`)[0] ?? "";
+        pendingForceChecks.set(forceCheckKey(cmd, parseCommand(stage).args), { reason, cmd });
+      };
+      if (/(^|\s)--force(\s|$)/.test(padded)) forceBlock();
       // Bundled short flags: `-uf`, `-fu`, etc. all include a force flag
       // even though the literal string "-f" never appears standalone.
-      if (/(^|\s)-[a-zA-Z]*f[a-zA-Z]*(\s|$)/.test(padded))
-        block(`git ${sub} --force can overwrite remote history`, cmd);
+      if (/(^|\s)-[a-zA-Z]*f[a-zA-Z]*(\s|$)/.test(padded)) forceBlock();
       return;
     }
     // `git branch -D` and `git stash drop` are reflog-recoverable, so the
     // permission layer asks instead of this hook blocking (config/30-permissions.json
-    // `ask`). `git stash clear` stays a hard block: it discards every entry.
+    // `ask`). `git stash clear` discards every entry.
     case "stash": {
       const stashAction = (subargs.split(/\s+/)[0] ?? "").trim();
       if (stashAction === "clear")
-        block("git stash clear permanently deletes all stashed changes", cmd);
+        block("git stash clear permanently deletes all stashed changes", cmd, "git-stash-clear");
       return;
     }
     default:
@@ -553,7 +619,7 @@ function checkFindXargs(cmd: string): void {
   if (/xargs\s+(.*\s)?rm\s+.*-[a-zA-Z]*r/i.test(cmd))
     block("xargs rm -r is a bulk destructive operation", cmd);
   if (/xargs\s+(.*\s)?(bash|sh)\s+-c/i.test(cmd))
-    block("xargs with shell -c enables arbitrary command execution", cmd);
+    block("xargs with shell -c enables arbitrary command execution", cmd, "xargs-shell");
 }
 
 // --- Rule: process kills by search ----------------------------------------
@@ -589,7 +655,14 @@ function checkProcessKill(segment: string, subs: string[]): void {
   const stages = splitPipes(segment);
   for (let i = 0; i < stages.length; i++) {
     const { word, args } = stageCommand(stages[i] ?? "");
-    if (word === "pkill" || word === "killall") {
+    if (word === "pkill") {
+      block(
+        `${word} matches by name and can hit the browser; kill the PID you started`,
+        segment,
+        "process-search-kill",
+      );
+    }
+    if (word === "killall") {
       block(`${word} matches by name and can hit the browser; kill the PID you started`, segment);
     }
     if (word === "fuser" && /(^|\s)-[a-zA-Z]*k/.test(` ${args}`)) {
@@ -600,6 +673,7 @@ function checkProcessKill(segment: string, subs: string[]): void {
         block(
           "kill fed by a process search can hit the browser; use lsof -sTCP:LISTEN or the PID you started",
           segment,
+          "process-search-kill",
         );
       }
     }
@@ -609,6 +683,7 @@ function checkProcessKill(segment: string, subs: string[]): void {
           block(
             "kill fed by a process search can hit the browser; use lsof -sTCP:LISTEN or the PID you started",
             segment,
+            "process-search-kill",
           );
         }
       }
@@ -1926,6 +2001,17 @@ function checkRefUpdate(
   if (toMain && (u.forced || forcedSpec)) {
     block(`git ${u.verb} forces an update of main or master, which rewrites shared history`, cmd);
   }
+  // The generic force check can yield only after this contextual reading
+  // proves every destination is outside main and master.
+  const plainForce = args.some((arg) => arg === "--force" || /^-[a-zA-Z]*f[a-zA-Z]*$/.test(arg));
+  const lease = args.some((arg) => arg.includes("--force-with-lease"));
+  if (allowedChecks.has("git-force-push") && plainForce && !lease && (unknown || u.submodules)) {
+    block(
+      `git ${u.verb} --force has an unresolved destination and may overwrite main or master`,
+      cmd,
+    );
+  }
+  if (!toMain && !unknown && !u.submodules) pendingForceChecks.delete(forceCheckKey(cmd, c.args));
   if (u.submodules) pendingAsks.push(SUBMODULE_PUSH_ASK);
   if (!toMain && !unknown) return;
   if (
@@ -1934,7 +2020,10 @@ function checkRefUpdate(
     isLocalRemote(target(), config())
   )
     return;
-  pendingAsks.push(toMain ? MAIN_PUSH_ASK : UNKNOWN_PUSH_ASK);
+  ask(
+    toMain ? MAIN_PUSH_ASK : UNKNOWN_PUSH_ASK,
+    toMain && !unknown && !u.forced && !forcedSpec ? "git-push-main" : undefined,
+  );
 }
 
 // --- Rule: secret file content readers -------------------------------------
@@ -2679,7 +2768,9 @@ function checkGhWrites(c: ParsedShellCommand, ctx: ShellCtx, cmd: string): void 
     block(
       `gh ${what}: cannot tell which repository owner it targets; pass -R darkroomengineering/<repo>`,
       cmd,
+      group === "pr" && sub === "create" ? "gh-pr-create-unknown-owner" : undefined,
     );
+    return;
   }
   const outside = owners.filter((o) => o.toLowerCase() !== GH_ORG);
   if (outside.length > 0) pendingOwnerChecks.push({ owners: outside, what, cmd });
@@ -2938,6 +3029,79 @@ function checkSegmentText(text: string, subs: string[]): void {
   checkProcessKill(text, subs);
 }
 
+function checkPersonalOverridesWrite(
+  c: ParsedShellCommand,
+  ctx: ShellCtx,
+  seg: ShellSegment,
+): void {
+  const pathOf = (raw: string): string | null => {
+    const homeExpanded = raw.replace(/^\$(?:HOME|\{HOME\})(?=\/|$)/, homedir());
+    const expanded = expandWord(homeExpanded, ctx, seg, () => branchIn(ctx.dir, ctx));
+    if (expanded === null) return null;
+    const path =
+      expanded === "~" || expanded.startsWith("~/") ? join(homedir(), expanded.slice(1)) : expanded;
+    if (!isAbsolute(path) && ctx.dir === null) return null;
+    return resolve(ctx.dir ?? "/", path);
+  };
+  const protectedPath = (raw: string): boolean => {
+    const path = pathOf(raw);
+    return (
+      path !== null &&
+      (path === claudePath("personal-overrides.json") ||
+        /(?:^|\/)\.claude\/personal-overrides\.json$/.test(path))
+    );
+  };
+  const blockWrite = (): never =>
+    block("writing personal-overrides.json can grant the agent its own permissions", seg.clean);
+  const words = shellWords(seg.clean);
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i] as string;
+    if (
+      word.startsWith(OP) &&
+      /^(?:\d+|&)?(?:>>?|<>)/.test(word.slice(OP.length)) &&
+      protectedPath(words[i + 1] ?? "")
+    )
+      blockWrite();
+  }
+  const copy = ["cp", "mv", "install", "rsync"].includes(c.word);
+  const operands = positionals(
+    c.args,
+    copy ? [...(COPY_VALUE_FLAGS[c.word] ?? []), "-t", "--target-directory"] : [],
+  );
+  if (copy) {
+    const target =
+      c.args
+        .find((arg) => arg.startsWith("--target-directory="))
+        ?.slice("--target-directory=".length) ??
+      c.args[c.args.findIndex((arg) => arg === "-t" || arg === "--target-directory") + 1];
+    const targetDirectory =
+      target !== undefined &&
+      c.args.some((arg) => arg === "-t" || arg.startsWith("--target-directory"));
+    const destination = targetDirectory ? target : operands.at(-1);
+    if (destination !== undefined) {
+      if (protectedPath(destination)) blockWrite();
+      if (
+        (targetDirectory ? operands : operands.slice(0, -1)).some((source) =>
+          protectedPath(join(destination, basename(source))),
+        )
+      )
+        blockWrite();
+    }
+  } else if (["tee", "touch", "truncate"].includes(c.word)) {
+    if (operands.some(protectedPath)) blockWrite();
+  } else if (
+    (c.word === "sed" || c.word === "perl") &&
+    c.args.some((arg) => /^-[a-zA-Z]*i/.test(arg) || arg.startsWith("--in-place"))
+  ) {
+    if (operands.some(protectedPath)) blockWrite();
+  } else if (
+    c.word === "dd" &&
+    c.args.some((arg) => arg.startsWith("of=") && protectedPath(arg.slice(3)))
+  ) {
+    blockWrite();
+  }
+}
+
 function analyzeSegment(seg: ShellSegment, ctx: ShellCtx, depth: number): void {
   const text = seg.clean;
   checkSegmentText(text, seg.subs);
@@ -2951,6 +3115,7 @@ function analyzeSegment(seg: ShellSegment, ctx: ShellCtx, depth: number): void {
       // this command when its words were filled in or split out of a string.
       if (c !== typed || c.resplit) checkSegmentText([c.word, ...c.args].join(" "), seg.subs);
       for (const at of dirs) {
+        checkPersonalOverridesWrite(c, at, seg);
         checkSecretReaders(c, at, text);
         checkGhWrites(c, at, text);
         checkGitHookSkips(c, at, seg, text);
@@ -3077,7 +3242,7 @@ function analyzeCommand(cmd: string, depth: number, ctx: ShellCtx = rootCtx()): 
 const FAST_PATH_VERBS_RE =
   /\b(rm|git|gh|push|find|xargs|kill|pkill|killall|fuser|bash|sh|zsh|python|python3|node|ruby|perl)\b/i;
 const SECRET_MARKER_RE =
-  /\.(?:ssh|aws|gnupg|netrc|git-credentials|npmrc|kube)\b|\.docker\/config|hosts\.yml|\.env(?:rc|\b)|dotenvx/i;
+  /\.(?:ssh|aws|gnupg|netrc|git-credentials|npmrc|kube)\b|\.docker\/config|hosts\.yml|\.env(?:rc|\b)|dotenvx|personal-overrides\.json/i;
 
 function failClosed(err: unknown): never {
   const detail = err instanceof Error ? err.message : String(err);
@@ -3090,6 +3255,7 @@ export async function main(io: HookIO = processIO): Promise<void> {
     const { command } = await io.toolInput<{ command: unknown }>();
     const COMMAND = typeof command === "string" ? command : "";
     if (!COMMAND) return;
+    allowedChecks = new Set(readPersonalOverrides().safetyNet?.allow ?? []);
     if (process.env.CC_SAFETY_TEST_CRASH) throw new Error("induced crash");
     // Quotes and backslashes can split a name (`".e""nv"`, `.\env`), so the
     // fast path also looks at the text with them removed.
@@ -3111,9 +3277,11 @@ export async function main(io: HookIO = processIO): Promise<void> {
     const { cwd } = await io.hookInput<{ cwd: unknown }>();
     baseDir = typeof cwd === "string" && cwd ? cwd : null;
     pendingAsks.length = 0;
+    pendingForceChecks.clear();
     branchCache.clear();
     configCache.clear();
     splitCommands(COMMAND);
+    for (const { reason, cmd } of pendingForceChecks.values()) block(reason, cmd);
     resolvePendingOwnerChecks();
     // Asks wait until every check has run, so any block in the command wins.
     if (pendingAsks.length > 0) {

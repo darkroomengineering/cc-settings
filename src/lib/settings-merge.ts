@@ -16,6 +16,7 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import type { PersonalOverrides } from "../schemas/personal-overrides.ts";
 import { Settings } from "../schemas/settings.ts";
 import { debug, info, success } from "./colors.ts";
 import { isManagedHookCommand, MANAGED_BUN_PREFIX, parseHookCommand } from "./hook-command.ts";
@@ -42,6 +43,7 @@ type UnknownRecord = Record<string, unknown>;
  * additive merges stay automatic.
  */
 export interface MergeOptions {
+  personalOverrides?: PersonalOverrides;
   interactive?: boolean;
   /** Absolute path to the source tree being installed (cc-settings' own repo
    *  root — the same `source`/`args.sourceDir` setup.ts threads everywhere
@@ -62,6 +64,7 @@ export interface MergeOptions {
 }
 
 export interface MergeAccounting {
+  permissionsDropped?: number;
   permissionsAdded: number;
   permissionsDeclined: number;
   permissionsAdoptedScalars: number;
@@ -338,8 +341,97 @@ export async function resolveScalarConflict(
 
 // --- Strategies ----------------------------------------------------------
 
+// Edit rules govern Write too. Dropping any of these would let a session grant itself the rest.
+const NON_DROPPABLE_ASK_RULES = new Set([
+  "Edit(**/.claude/personal-overrides.json)",
+  "Edit(**/.claude/settings.json)",
+  "Edit(**/.claude/settings.local.json)",
+]);
+
+const NON_DROPPABLE_DENY_RULES = new Set([
+  "Bash(rm -rf /)",
+  "Bash(rm -rf /*)",
+  "Bash(rm -rf ~)",
+  "Bash(rm -rf ~/*)",
+  "Bash(rm -rf ~/.ssh)",
+  "Bash(rm -rf ~/.gnupg)",
+  "Bash(rm -rf ~/.aws)",
+  "Bash(rm -rf $HOME:*)",
+  "Bash(rm -rf $HOME/*)",
+  "Bash(rm -fr /:*)",
+  "Bash(rm -fr /*)",
+  "Bash(rm -fr ~:*)",
+  "Bash(rm -fr ~/*)",
+  "Bash(rm -Rf /:*)",
+  "Bash(rm -Rf ~:*)",
+  "Read(~/.ssh/*)",
+  "Read(~/.aws/*)",
+  "Read(~/.gnupg/*)",
+  "Read(~/.config/gh/*)",
+  "Read(~/.netrc)",
+  "Read(.env)",
+  "Read(**/.env)",
+  "Read(**/.env.local)",
+  "Read(**/.env.*.local)",
+  "Read(**/.env.development)",
+  "Read(**/.env.production)",
+  "Read(**/.env.staging)",
+  "Read(**/.env.test)",
+  "Read(**/.env.keys)",
+  "Read(**/.envrc)",
+  "Bash(cat ~/.ssh/*)",
+  "Bash(cat ~/.aws/*)",
+  "Bash(cat ~/.gnupg/*)",
+  "Bash(cp ~/.ssh/*)",
+  "Bash(cp ~/.aws/*)",
+  "Bash(cp ~/.gnupg/*)",
+  "Bash(mv ~/.ssh/*)",
+  "Bash(mv ~/.aws/*)",
+  "Bash(mv ~/.gnupg/*)",
+  "Edit(~/.ssh/*)",
+  "Edit(~/.aws/*)",
+  "Edit(~/.gnupg/*)",
+  "Bash(cat ~/.netrc)",
+  "Bash(cat ~/.config/gh/*)",
+  "Bash(head ~/.netrc)",
+  "Bash(head ~/.config/gh/*)",
+  "Bash(tail ~/.netrc)",
+  "Bash(tail ~/.config/gh/*)",
+  "Bash(cp ~/.netrc:*)",
+  "Bash(cp ~/.config/gh/*)",
+  "Bash(mv ~/.netrc:*)",
+  "Bash(mv ~/.config/gh/*)",
+  "Bash(curl * | bash)",
+  "Bash(curl * | sh)",
+]);
+
+function dropPermissionRules(
+  rules: string[] | undefined,
+  shipped: string[] | undefined,
+  requested: string[] | undefined,
+  protectedRules: ReadonlySet<string>,
+  ctx: StrategyContext,
+): string[] | undefined {
+  if (!rules || !requested?.length) return rules;
+  const drops = new Set(
+    requested.filter((rule) => {
+      if (protectedRules.has(rule)) {
+        console.error(
+          `⚠ cc-settings: ignoring a personal override for non-droppable permission rule ${JSON.stringify(rule)}.`,
+        );
+        return false;
+      }
+      return shipped?.includes(rule);
+    }),
+  );
+  const kept = rules.filter((rule) => !drops.has(rule));
+  ctx.accounting.permissionsDropped =
+    (ctx.accounting.permissionsDropped ?? 0) + rules.length - kept.length;
+  return kept;
+}
+
 // permissions: deep object with array unions (allow/deny/ask/additionalDirectories)
-// + scalar fields (defaultMode/autoMode). deny is always additive (never prompts).
+// + scalar fields (defaultMode/autoMode). Deny unions never prompt; personal drops follow.
 export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
   if (team === undefined && user === undefined) return { keep: false };
   const t = asRecord(team);
@@ -381,8 +473,22 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
 
   const merged: UnknownRecord = { ...t, ...u };
   if (allow.merged !== undefined) merged.allow = allow.merged;
-  if (deny.merged !== undefined) merged.deny = deny.merged;
-  if (ask.merged !== undefined) merged.ask = ask.merged;
+  if (deny.merged !== undefined)
+    merged.deny = dropPermissionRules(
+      deny.merged,
+      stringArrayField(t, "deny"),
+      opts.personalOverrides?.permissions?.dropDeny,
+      NON_DROPPABLE_DENY_RULES,
+      ctx,
+    );
+  if (ask.merged !== undefined)
+    merged.ask = dropPermissionRules(
+      ask.merged,
+      stringArrayField(t, "ask"),
+      opts.personalOverrides?.permissions?.dropAsk,
+      NON_DROPPABLE_ASK_RULES,
+      ctx,
+    );
   if (dirs.merged !== undefined) merged.additionalDirectories = dirs.merged;
 
   // Scalar conflicts within permissions (defaultMode, autoMode).
@@ -939,7 +1045,8 @@ export const STRATEGIES: Record<string, Strategy> = {
  *     user's customized sub-keys win. Arrays stay user-wins-whole.
  *   - `permissions.{allow,deny,ask,additionalDirectories}` are unioned so the
  *     team baseline (guardrails, common tool access) survives while user
- *     additions are preserved.
+ *     additions are preserved. Personal overrides then drop eligible shipped
+ *     ask/deny rules by exact match.
  *   - `hooks` is per-event union of groups, with deprecation prune for
  *     user-only groups pointing at removed cc-settings scripts.
  *   - `extraKnownMarketplaces` entries cc-settings ships are team-wins; other
@@ -959,13 +1066,14 @@ export async function mergeSettings(
   outputPath: string,
   opts: MergeOptions = {},
 ): Promise<MergeAccounting | null> {
-  const userRaw = (await readJsonOrNull(existingPath)) as UnknownRecord | null;
+  const existing = (await readJsonOrNull(existingPath)) as UnknownRecord | null;
 
   // No existing file → write team as-is (atomic).
-  if (!userRaw) {
+  if (!existing && !opts.personalOverrides?.permissions) {
     await atomicWriteJson(outputPath, teamSettings);
     return null;
   }
+  const userRaw = existing ?? {};
 
   // Validate userRaw against the Settings schema. On failure we log a debug
   // message and proceed with the raw object — forward-compat safety: a new
@@ -1023,6 +1131,9 @@ export async function mergeSettings(
  *  mergeSettings returns. Separated from mergeSettings so the orchestrator
  *  stays side-effect free (§3.4). */
 export function printMergeAccounting(a: MergeAccounting, opts: MergeOptions = {}): void {
+  if (opts.personalOverrides?.permissions) {
+    info(`Personal overrides dropped ${a.permissionsDropped ?? 0} permission rule(s)`);
+  }
   const bits: string[] = [];
   if (a.permissionsAdded > 0) bits.push(`${a.permissionsAdded} permission rule(s)`);
   if (a.hooksAdded > 0) bits.push(`${a.hooksAdded} hook group(s)`);

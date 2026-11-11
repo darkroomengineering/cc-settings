@@ -137,6 +137,63 @@ convention. If a third-party tool needs a hook, wrap it in a cc-settings
 script under `src/scripts/` rather than referencing the third-party binary
 directly.
 
+## Personal overrides
+
+`~/.claude/personal-overrides.json` makes only its owner's install more
+permissive. The hooks use their shared config-directory helper to locate it.
+Setup does not create, replace, or delete this file. Its strict schema rejects
+unknown keys at every level. A missing file means no overrides; an unreadable
+or invalid file means no overrides and one warning line on stderr.
+
+```json
+{
+  "safetyNet": { "allow": ["git-discard-worktree"] },
+  "permissions": { "dropAsk": [], "dropDeny": [] }
+}
+```
+
+An allowed check ID skips only that check's block or ask. Analysis continues,
+including every other check in the command. Checks without an ID cannot be
+overridden. The supported IDs are:
+
+| ID | Check it can lift |
+|---|---|
+| `process-search-kill` | Process-name killing with pkill, or kill fed by a process search. |
+| `git-discard-worktree` | Path checkout and restore checks that discard working-tree changes. |
+| `git-stash-clear` | Clearing stashed changes. Stash drop is permitted by the hook; its shipped ask rule can be dropped through `permissions.dropAsk`. |
+| `git-force-push` | Plain force-push to a destination proven to be neither main nor master. |
+| `git-push-main` | The ask for a non-forced push to main or master. |
+| `rm-repo-target` | Unrecognized or unresolved removal targets proven to be inside the current repository. |
+| `xargs-shell` | xargs invoking a shell with `-c`. |
+| `gh-pr-create-unknown-owner` | Pull-request creation when the repository owner cannot be determined. |
+
+The hard floor identifies existing checks that have no ID; it adds no blocks.
+Home/root removal checks and checks for removal outside repository and temp
+roots, force-push checks that may reach main or master, secret-file reads
+(`.env*`, SSH, AWS, GnuPG, gh config, netrc), hook/settings tampering, and internal
+errors cannot be lifted. Existing allowed removal of external build artifacts
+stays allowed. Unknown IDs and free-text reasons grant no permission.
+
+At install, `permissions.dropAsk` and `permissions.dropDeny` remove only exact
+shipped rule strings after the union with personal rules. Personal-only rules
+are preserved. Setup reports the number dropped, and the installed permission
+checker reads the resulting rules directly. The fixed non-droppable set covers
+home/root removal, secret reads and edits, and curl-to-shell deny rules. Requests
+to drop these rules produce a warning and leave them in place.
+
+The Edit ask rules (Edit also governs Write) for
+`**/.claude/personal-overrides.json`, `**/.claude/settings.json` and
+`**/.claude/settings.local.json` are non-droppable. Safety-net blocks Bash writes, copies, moves, and redirects into
+the overrides path without an overridable ID. As with settings protection,
+arbitrary programs can write files; this is command analysis, not a filesystem
+sandbox.
+
+The SessionStart fingerprint covers the file's raw content through the existing
+hooks hash field. Missing or empty content preserves the hooks-only hash and
+record format. Nonempty content is hashed with the hooks hash and a domain
+separator; any content change produces the settings-fingerprint warning until
+setup refreshes it. Setup reads the overrides file without modifying it.
+
 ## The auto-update launchd job — a persistence surface outside the four layers
 
 `setup.sh` can register a macOS `launchd` job (`com.darkroom.cc-settings-autoupdate`,
@@ -809,10 +866,11 @@ What the fingerprint and content manifest do **not** cover:
   worms automate against defaults — but a targeted attacker with full
   user-privilege write access is outside this threat model.
 
-## Scope: the fingerprint covers `hooks` and the plugin keys only
+## Scope: the fingerprint covers `hooks`, personal overrides, and the plugin keys
 
 Layers 1 and 2 above (the settings fingerprint and the src content
 manifest) are precisely scoped: `hashHooks()` hashes `settings.hooks`,
+the install-time hooks hash also incorporates personal-overrides file content,
 `hashPluginKeys()` hashes the three plugin keys, and the content manifest verifies script *files*, not other
 `settings.json` keys. Concretely, **`mcpServers`, `permissions`, `env`, and
 every other top-level key of `settings.json` are entirely outside what those

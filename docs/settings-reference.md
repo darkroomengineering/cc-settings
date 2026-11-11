@@ -1417,8 +1417,9 @@ Running `setup.sh` against an existing `~/.claude/settings.json` performs a **fi
 | Field | Policy |
 |-------|--------|
 | Top-level scalars (`model`, `theme`, …) and `statusLine` | **Personal changes win.** Values still equal to the previous recorded team contribution follow updated team defaults. Team fills undeclared keys; `statusLine` is compared as a whole block. |
-| `permissions.allow` / `permissions.ask` / `permissions.additionalDirectories` | **Union.** Team entries always present; your additions are preserved. Order: team-original-order, then your extras. |
-| `permissions.deny` | **Union (always additive).** Team denies re-appear even if you deleted them locally — they're safety guardrails. |
+| `permissions.allow` / `permissions.additionalDirectories` | **Union.** Team entries are present; your additions are preserved. Order: team-original-order, then your extras. |
+| `permissions.ask` | **Union, then personal drops.** Exact shipped rules listed in `~/.claude/personal-overrides.json` under `permissions.dropAsk` are removed. The Edit ask rules for the overrides file, `settings.json` and `settings.local.json` are non-droppable. Personal-only rules survive. |
+| `permissions.deny` | **Union, then personal drops.** Exact shipped rules listed under `permissions.dropDeny` are removed except the fixed non-droppable home/root removal, secret read/edit, and curl-to-shell rules. Protected drops warn; setup reports the number of rules dropped. |
 | `permissions.defaultMode` / `permissions.autoMode` | **Personal changes win; unchanged recorded team defaults advance.** |
 | `hooks` | **Per-event union of groups.** Team's hooks (the ones that power cc-settings) run alongside any hooks you've added. Dedupe by structural equality. |
 | `env` | **Personal changes win.** Unchanged recorded team values advance, and unchanged team keys retired from the current config are pruned. User-only entries survive. Explicit deprecated-key migrations still apply. |

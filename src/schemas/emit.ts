@@ -13,6 +13,7 @@ import { z } from "zod";
 import { AgentFrontmatter } from "./agent.ts";
 import { ClaudeJson } from "./claude-json.ts";
 import { KnowledgeFrontmatter } from "./knowledge.ts";
+import { PersonalOverridesSchema } from "./personal-overrides.ts";
 import { ProfileFrontmatter } from "./profile.ts";
 import { Settings } from "./settings.ts";
 import { SkillFrontmatter } from "./skill.ts";
@@ -29,6 +30,12 @@ const SCHEMA_BASE =
   "https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas";
 
 export const targets: Target[] = [
+  {
+    file: "personal-overrides.schema.json",
+    schema: PersonalOverridesSchema,
+    id: `${SCHEMA_BASE}/personal-overrides.schema.json`,
+    title: "cc-settings personal overrides",
+  },
   {
     file: "settings.schema.json",
     schema: Settings,
