@@ -4,16 +4,78 @@
 // session-model.ts mirrors that module's schema+refresh+IO split exactly.
 
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   readSessionModel,
   refreshSessionModelMap,
+  runningSubagentModels,
   SESSION_MODEL_MAP_CAP,
 } from "../src/lib/session-model.ts";
 
 const STATUSLINE = resolve(import.meta.dir, "../src/hooks/statusline.ts");
+
+describe("running subagent models", () => {
+  test("counts fresh unfinished transcripts and renders the exact statusline segment", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-subagent-models-"));
+    try {
+      const transcript = join(home, "session.jsonl");
+      const dir = join(home, "session", "subagents");
+      await mkdir(dir, { recursive: true });
+      const now = Date.now();
+      async function agent(id: string, meta: unknown, model?: string, old = false) {
+        await writeFile(join(dir, `agent-${id}.meta.json`), JSON.stringify(meta));
+        const path = join(dir, `agent-${id}.jsonl`);
+        await writeFile(
+          path,
+          model
+            ? `${JSON.stringify({ type: "assistant", message: { model: "claude-haiku-4-5" } })}\n${JSON.stringify({ type: "assistant", message: { model } })}\n`
+            : "",
+        );
+        if (old) await utimes(path, new Date(now - 31 * 60_000), new Date(now - 31 * 60_000));
+      }
+      await agent("a", { model: null }, "claude-fable-5-2");
+      await agent("b", { model: "sonnet", finished: null }, "claude-fable-5-2");
+      await agent("c", { model: "sonnet" });
+      await agent("done", { model: "fable", finished: true }, "claude-fable-5-2");
+      await agent("old", { model: "fable" }, "claude-fable-5-2", true);
+      await agent("unknown", {});
+      await agent("corrupt", { model: "fable" });
+      await writeFile(join(dir, "agent-corrupt.meta.json"), "{bad");
+      expect(await runningSubagentModels(transcript, now)).toBe("2 fable · 1 sonnet");
+      const proc = Bun.spawn(["bun", STATUSLINE], {
+        env: { ...process.env, HOME: home, USERPROFILE: home, NO_COLOR: "1" },
+        stdin: "pipe",
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      proc.stdin.write(
+        JSON.stringify({ model: { display_name: "Main" }, transcript_path: transcript }),
+      );
+      proc.stdin.end();
+      expect((await new Response(proc.stdout).text()).trim()).toBe("Main | 2 fable · 1 sonnet");
+      expect(await proc.exited).toBe(0);
+      await agent("inherited", { model: null, pickedEffortModel: "claude-opus-5-5" });
+      expect(await runningSubagentModels(transcript, now)).toBe("2 fable · 1 opus · 1 sonnet");
+      await rm(join(dir, "agent-inherited.meta.json"));
+      await agent("custom", { model: "custom-model" });
+      expect(await runningSubagentModels(transcript, now)).toBe(
+        "2 fable · 1 custom-model · 1 sonnet",
+      );
+      await writeFile(join(dir, "agent-custom.jsonl"), "{bad");
+      expect(await runningSubagentModels(transcript, now)).toBe(
+        "2 fable · 1 custom-model · 1 sonnet",
+      );
+      await rm(join(dir, "agent-custom.jsonl"));
+      expect(await runningSubagentModels(transcript, now)).toBe("2 fable · 1 sonnet");
+      expect(await runningSubagentModels(join(home, "missing.jsonl"))).toBe("");
+      expect(await runningSubagentModels()).toBe("");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("refreshSessionModelMap", () => {
   test("records a new session with the given model", () => {

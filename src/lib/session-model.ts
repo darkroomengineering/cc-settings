@@ -10,8 +10,86 @@
 // write only happens when the entry is new or the model actually changed —
 // never on every render.
 
+import { open, readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
 import { readValidatedState } from "./hook-runtime.ts";
+
+const SubagentMetaSchema = z.object({
+  finished: z.boolean().nullable().optional(),
+  model: z.string().nullable().optional(),
+  // The session model the subagent inherits when `model` is unset.
+  pickedEffortModel: z.string().nullable().optional(),
+});
+const AssistantModelSchema = z.object({
+  type: z.string(),
+  message: z.object({ model: z.string().nullable().optional() }).optional(),
+});
+
+export async function runningSubagentModels(
+  transcriptPath?: string,
+  now = Date.now(),
+): Promise<string> {
+  if (!transcriptPath) return "";
+  try {
+    const dir = `${transcriptPath.replace(/\.jsonl$/, "")}/subagents`;
+    const names = await readdir(dir);
+    const models = await Promise.all(
+      names
+        .filter((name) => /^agent-.+\.meta\.json$/.test(name))
+        .map(async (name) => {
+          try {
+            const meta = SubagentMetaSchema.parse(
+              JSON.parse(await readFile(join(dir, name), "utf8")),
+            );
+            if (meta.finished === true) return null;
+            const file = await open(join(dir, name.replace(/\.meta\.json$/, ".jsonl")), "r");
+            try {
+              const info = await file.stat();
+              // SHORTCUT: infer liveness from mtime.
+              // ceiling: a subagent blocked on one tool call for longer than 30 minutes drops out of the count.
+              // upgrade: when Claude Code writes a completion field for a killed subagent, read that field.
+              if (now - info.mtimeMs >= 30 * 60 * 1000) return null;
+              const start = Math.max(0, info.size - 64 * 1024);
+              const buffer = Buffer.alloc(Math.min(info.size, 64 * 1024));
+              const { bytesRead } = await file.read(buffer, 0, buffer.length, start);
+              const lines = buffer.subarray(0, bytesRead).toString("utf8").split("\n");
+              if (start > 0) lines.shift();
+              const fallback = meta.model || meta.pickedEffortModel;
+              let model = fallback;
+              for (const line of lines.reverse()) {
+                if (!line.trim()) continue;
+                // The last line can be half-written while the subagent runs.
+                let record: z.infer<typeof AssistantModelSchema>;
+                try {
+                  record = AssistantModelSchema.parse(JSON.parse(line));
+                } catch {
+                  continue;
+                }
+                if (record.type === "assistant") {
+                  model = record.message?.model || fallback;
+                  break;
+                }
+              }
+              return model ? model.replace(/^claude-(.+?)-\d.*$/, "$1") : null;
+            } finally {
+              await file.close();
+            }
+          } catch {
+            return null;
+          }
+        }),
+    );
+    const counts = new Map<string, number>();
+    for (const model of models) if (model) counts.set(model, (counts.get(model) ?? 0) + 1);
+    return [...counts]
+      .sort(([a, ac], [b, bc]) => bc - ac || a.localeCompare(b))
+      .map(([name, count]) => `${count} ${name}`)
+      .join(" · ");
+  } catch {
+    return "";
+  }
+}
 
 export const SESSION_MODEL_STATE = "session-models.json";
 

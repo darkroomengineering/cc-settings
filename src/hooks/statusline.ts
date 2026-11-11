@@ -46,6 +46,7 @@ import {
 import { ageMs, formatAge, maxUnreviewed, parseReviewQueueState } from "../lib/review-queue.ts";
 import {
   refreshSessionModelMap,
+  runningSubagentModels,
   SESSION_MODEL_STATE,
   SessionModelMapSchema,
 } from "../lib/session-model.ts";
@@ -68,6 +69,7 @@ const VersionDriftSchema = z.object({
 
 type Payload = {
   session_id?: string;
+  transcript_path?: string;
   model?: { display_name?: string };
   workspace?: { current_dir?: string };
   context_window?: {
@@ -271,6 +273,8 @@ async function main(): Promise<void> {
   }
   if (dirName) parts.push(dirName);
   if (gitStatus) parts.push(gitStatus);
+  const subagentModels = await runningSubagentModels(input.transcript_path);
+  if (subagentModels) parts.push(`${palette.dim}${subagentModels}${palette.reset}`);
 
   if (used !== undefined) {
     const usedInt = Math.round(used);
