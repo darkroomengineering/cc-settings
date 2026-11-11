@@ -711,7 +711,7 @@ Related limits sit in the permission rules rather than safety-net:
   name stays readable.
 - `dotenvx run -- env` prints every decrypted value, because the child process
   holds them, and safety-net does not block it.
-- Safety-net checks dotenvx and `.env` readers with a flat word scan, not by
+- Safety-net checks dotenvx with a flat word scan, not by
   following wrappers. It turns the command string into one list of words and
   ignores command position. Quoted strings are split again, ANSI-C and
   `$"..."` quoting and backslash-newline are decoded, every `\_` becomes a
@@ -720,16 +720,23 @@ Related limits sit in the permission rules rather than safety-net:
   version, `#ref` or `github:` spelling), a `get`, `decrypt`, `dec` or
   `keypair` word blocks, up to the `--` that follows `run`. The word right
   after that `--` is checked too, because `-l run -- get` has `run` as a flag
-  value. A later dotenvx word starts its own scan. A word naming a secret
-  `.env` file blocks when any word is a known reader (`cat`, `grep`, `sed`,
-  `paste`, `dd`, the `g`-prefixed GNU names, `source`, ...), except the
-  target of an output redirect. Wrappers and flag spellings are covered
-  because none of them is parsed. Out of scope: variable or command
-  substitution (`${IFS}`, `$(printf ...)`), brace expansion, globs, and
-  `xargs` stdin. The cost is false positives, which are safe because the user
-  can run the command with `!`: `dotenvx set get value`,
-  `dotenvx encrypt -k get`, `grep .env README.md`, `sed -i ... .env`, and a
-  commit message that contains `dotenvx get`.
+  value. A later dotenvx word starts its own scan. The cost is false
+  positives, which the user can bypass with `!`: `dotenvx set get value`,
+  `dotenvx encrypt -k get`, and a commit message that contains `dotenvx get`.
+- Safety-net keeps a flat word scan for `.env` readers: a secret `.env` word
+  blocks when any word is a known reader, including inside wrappers, variables,
+  and command strings. The inline pattern or program operand of literal `grep`,
+  `egrep`, `fgrep`, `rg`, `ag`, `ack`, and `jq` commands (and their
+  `g`-prefixed names) is exempt when the secret-shaped text is only a fragment
+  within a longer operand. `sed` and `awk` programs are not exempt, because
+  they can read a file (`r`, `e`, `getline`, `system()`). Whole secret paths stay in the scan, including
+  `grep .env README.md`, `grep -e .env README.md`, and
+  `grep -r foo . --exclude=.env`.
+  The jq filter and `--arg` string values are exempt even when they are whole
+  secret paths. File options, including jq `-f`, `--rawfile`, and `--slurpfile`,
+  remain protected. Input redirects are reads; output redirect targets are not.
+  The flat scan accepts false positives such as `git commit -m "cat .env"`
+  and `echo "do not cat .env"`, which the user can bypass with `!`.
 
 ## Project settings `env` reaches hooks
 

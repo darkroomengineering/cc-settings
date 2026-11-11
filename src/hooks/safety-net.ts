@@ -226,6 +226,20 @@ function analyzeRmTarget(target: string, cmd: string): void {
   const within = (root: string): boolean =>
     absolute.startsWith(`${resolve(pwd ?? "/", root)}${sep}`);
 
+  if (process.getuid) {
+    const uid = process.getuid();
+    for (const root of [`/private/tmp/claude-${uid}`, `/tmp/claude-${uid}`]) {
+      if (absolute !== root && !within(root) && target !== root && !target.startsWith(`${root}/`))
+        continue;
+      const parts = target.split("/").filter(Boolean);
+      if (absolute === root || parts.some((part) => part === ".." || /[*?[{]/.test(part))) {
+        block(`rm -rf with unrecognized target path: ${target}`, cmd);
+      }
+      if (within(root)) return;
+      block(`rm -rf with unrecognized target path: ${target}`, cmd);
+    }
+  }
+
   // Normalize before checking containment so '..' cannot escape a safe prefix.
   if (within("/tmp") || within("/var/tmp")) return;
 
@@ -1927,11 +1941,11 @@ function checkRefUpdate(
 //
 // Printing, copying, or uploading a credential file puts its contents into the
 // transcript or onto the network. Blocked: readers/copiers/uploaders whose
-// input is a secret path (plus the flat word scan below for .env and dotenvx).
+// input is a secret path.
 // Not blocked: commands that only name the path
 // (`ssh -i ~/.ssh/id_ed25519`, `chmod 600`, `ls`), writes into it
 // (`cp .env.example .env`, `echo X >> .env`), and public keys (`*.pub`). `sed -i` on
-// a .env file is blocked by the flat word scan below, like any other reader.
+// a .env file is blocked like any other reader.
 // Accepted residual: paths built at runtime (`$(echo ~)/.ssh`), interpreter
 // one-liners (`python -c 'print(open(".env").read())'`), and recursive greps
 // over a directory that happens to contain one.
@@ -1992,6 +2006,7 @@ const SECRET_READERS = new Set([
   "awk",
   "gawk",
   "sed",
+  "jq",
   "strings",
   "xxd",
   "od",
@@ -2010,7 +2025,13 @@ const SECRET_READERS = new Set([
   "gcut",
   "gdiff",
   "ggrep",
+  "gegrep",
+  "gfgrep",
+  "grg",
+  "gag",
+  "gack",
   "gsed",
+  "gjq",
   "god",
   "gbase64",
   "gpaste",
@@ -2020,6 +2041,96 @@ const SECRET_READERS = new Set([
 ]);
 // The first positional of these is the pattern, not a file (unless -e/-f is used).
 const PATTERN_FIRST = new Set(["grep", "egrep", "fgrep", "rg", "ag", "ack"]);
+
+function inlineReaderOperands(reader: string, args: string[]): Set<number> {
+  const word = reader.replace(/^g(?=(?:grep|egrep|fgrep|rg|ag|ack|sed|awk|jq)$)/, "");
+  const pattern = PATTERN_FIRST.has(word);
+  const program = pattern || word === "sed" || word === "awk" || word === "jq";
+  const inline = new Set<number>();
+  if (!program) return inline;
+  const operands: number[] = [];
+  let explicitProgram = false;
+  let optionsEnded = false;
+  let positionalValues = false;
+  const exempt = (i: number, value: string): void => {
+    if (word === "jq" || /[|\\]/.test(value) || !isSecretPath(value)) inline.add(i);
+  };
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i] as string;
+    if (!optionsEnded && arg === "--") {
+      optionsEnded = true;
+      continue;
+    }
+    if (!optionsEnded && arg.startsWith("--")) {
+      const [flag, attached] = arg.split(/=(.*)/s);
+      if (word === "jq" && flag === "--run-tests") return new Set();
+      if (word === "jq" && (arg === "--args" || arg === "--jsonargs")) {
+        positionalValues = true;
+        continue;
+      }
+      if (word === "jq" && /^(?:--arg|--argjson|--rawfile|--slurpfile)$/.test(flag ?? "")) {
+        const count = attached === undefined ? 2 : 1;
+        if (flag === "--arg" || flag === "--argjson") {
+          for (let j = i + 1; j <= i + count; j++) inline.add(j);
+        }
+        i += count;
+        continue;
+      }
+      if (
+        program &&
+        /^(?:--regexp|--expression|--source|--file|--from-file|--exec)$/.test(flag ?? "")
+      ) {
+        explicitProgram = true;
+        const value = attached ?? args[++i];
+        if (/^(?:--regexp|--expression|--source)$/.test(flag ?? "") && value !== undefined)
+          exempt(i, value);
+        continue;
+      }
+      if (
+        (pattern && /^(?:--exclude-from|--ignore-file)$/.test(flag ?? "")) ||
+        (word === "awk" && flag === "--include")
+      ) {
+        if (attached === undefined) i++;
+        continue;
+      }
+      if (
+        /^--(?:exclude|include|exclude-dir|label|field-separator|assign|lines|bytes|max-count|after-context|before-context|context)$/.test(
+          flag ?? "",
+        )
+      ) {
+        if (attached === undefined) i++;
+        continue;
+      }
+      continue;
+    }
+    if (!optionsEnded && arg.startsWith("-") && arg !== "-") {
+      for (let j = 1; j < arg.length; j++) {
+        const flag = arg[j] as string;
+        const expression = program && word !== "jq" && flag === "e";
+        const programFile = (program && flag === "f") || (word === "awk" && flag === "E");
+        const includeFile = word === "awk" && flag === "i";
+        const valueFlag =
+          (pattern && "ABCm".includes(flag)) ||
+          (word === "awk" && "Fv".includes(flag)) ||
+          (/^(?:g?head|g?tail)$/.test(word) && "nc".includes(flag));
+        if (expression || programFile || includeFile || valueFlag) {
+          const value = arg.slice(j + 1) || args[++i];
+          if (expression || programFile) explicitProgram = true;
+          if (expression && value !== undefined) exempt(i, value);
+          break;
+        }
+        if (word === "sed" && flag === "i") break;
+      }
+      continue;
+    }
+    operands.push(i);
+  }
+  const first = operands[0];
+  if (!explicitProgram && first !== undefined) exempt(first, args[first] as string);
+  if (word === "jq" && positionalValues)
+    for (const i of operands.slice(explicitProgram ? 0 : 1)) inline.add(i);
+  return inline;
+}
 const COPY_VALUE_FLAGS: Record<string, string[]> = {
   cp: ["-t", "--target-directory", "-S", "--suffix"],
   scp: ["-i", "-P", "-o", "-F", "-J", "-l", "-c", "-S"],
@@ -2060,7 +2171,7 @@ function positionals(args: string[], valueFlags: string[] = []): string[] {
 //    and a later dotenvx word starts its own scan);
 //  - a word naming a secret .env file blocks when any word is a known reader.
 // Accepted false positives (the user can run the command with `!`): `dotenvx set get v`,
-// `grep .env README.md`, `git commit -m "dotenvx get"`, `sed -i s/a/b/ .env`.
+// `git commit -m "dotenvx get"`.
 const DOTENVX_PRINTERS = new Set(["get", "decrypt", "dec", "keypair"]);
 // The bin, its script, or the package, with an optional version: `dotenvx`,
 // `node_modules/.bin/dotenvx`, `.../@dotenvx/dotenvx/src/cli/dotenvx.js`, `@dotenvx/dotenvx@1`,
@@ -2069,6 +2180,63 @@ const DOTENVX_TOKEN_RE =
   /(?:^|[\\/:])(?:@dotenvx[\\/])?dotenvx(?:[@#][^\\/]*)?(?:\.(?:[cm]?js|cmd|exe|ps1|git))?$/i;
 // Output redirections write the file named after them; they do not read it.
 const OUTPUT_REDIRECT_RE = /\d*>>?[|&]?\s*[^\s;|&()<>]+/g;
+
+function maskInlineReaderOperands(cmd: string): string {
+  // Keep unfamiliar shell syntax in the conservative flat scan.
+  if (/<<|`|\$\(|\balias\s/.test(cmd) || FUNCTION_DEF_RE.test(cmd) || scanShell(cmd).unterminated)
+    return cmd;
+  const tokens = [
+    ...cmd.matchAll(
+      /(?:\$'(?:\\[\s\S]|[^'\\])*'|\\[\s\S]|"(?:\\[\s\S]|[^"\\])*"|'[^']*'|[^\s;&|()<>"'\\])+|[;&|()\n]|\d*[<>]+/g,
+    ),
+  ];
+  const blank = new Set<number>();
+  let stage: number[] = [];
+  const maskStage = (): void => {
+    const first = stage[0];
+    if (first === undefined) return;
+    const literal = tokens[first]?.[0] ?? "";
+    // sed and awk stay in the scan: their programs read files (`r`, `e`, getline, system()).
+    if (!/^(?:[\w./-]+\/)?g?(?:grep|egrep|fgrep|rg|ag|ack|jq)$/i.test(literal)) return;
+    const args = stage.slice(1);
+    const values = args.map((i) => shellWords(tokens[i]?.[0] ?? "")[0] ?? "");
+    for (const i of inlineReaderOperands(basename(literal).toLowerCase(), values)) {
+      const at = args[i];
+      if (at !== undefined) blank.add(at);
+    }
+  };
+  let comment = false;
+  let redirect = false;
+  for (const [i, token] of tokens.entries()) {
+    const raw = token[0];
+    if (raw === "\n") comment = false;
+    if (comment) continue;
+    if (raw.startsWith("#")) {
+      comment = true;
+    } else if (/^[;&|()\n]$/.test(raw)) {
+      maskStage();
+      stage = [];
+      redirect = false;
+    } else if (/^\d*[<>]+$/.test(raw)) {
+      redirect = true;
+    } else if (redirect) {
+      redirect = false;
+    } else {
+      stage.push(i);
+    }
+  }
+  maskStage();
+  let masked = cmd;
+  for (const i of [...blank].sort((a, b) => b - a)) {
+    const token = tokens[i];
+    if (token)
+      masked =
+        masked.slice(0, token.index) +
+        " ".repeat(token[0].length) +
+        masked.slice(token.index + token[0].length);
+  }
+  return masked;
+}
 
 // Three views of the string: quotes and backslashes as word breaks (so quoted strings are
 // split again); quotes removed (so `dot"env"x` and `g$'et'` are one word); and the shell's
@@ -2122,7 +2290,9 @@ function checkFlatWords(cmd: string): void {
       }
     }
   }
-  for (const words of flatWordLists(cmd.replace(OUTPUT_REDIRECT_RE, " "))) {
+  for (const words of flatWordLists(
+    maskInlineReaderOperands(cmd).replace(OUTPUT_REDIRECT_RE, " "),
+  )) {
     const reader = words.find((w) => SECRET_READERS.has(basename(w).toLowerCase()));
     const file = words.find(isSecretEnvWord);
     if (reader && file) block(`${basename(reader)} would expose the contents of ${file}`, cmd);
@@ -2140,16 +2310,11 @@ function checkSecretReaders(c: ParsedShellCommand, ctx: ShellCtx, cmd: string): 
   for (const path of c.reads) if (secret(path)) deny(path);
 
   if (SECRET_READERS.has(word)) {
-    // sed -i rewrites the file in place; it does not print it.
-    if (word === "sed" && args.some((t) => /^-[a-zA-Z]*i|^--in-place/.test(t))) return;
-    let files = positionals(args);
-    if (
-      PATTERN_FIRST.has(word) &&
-      !args.some((t) => /^-[a-zA-Z]*[ef]|^--(?:regexp|file)/.test(t))
-    ) {
-      files = files.slice(1);
+    const inline = inlineReaderOperands(word, args);
+    for (const [i, arg] of args.entries()) {
+      const path = arg.match(/^(?:--[^=]+=|-[a-zA-Z]*[efEi])(.+)$/)?.[1] ?? arg;
+      if (!inline.has(i) && secret(path)) deny(path);
     }
-    for (const path of files) if (secret(path)) deny(path);
     return;
   }
 
