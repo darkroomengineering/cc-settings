@@ -5,6 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { z } from "zod";
 import {
   buildClaudeArgs,
   CLAUDE_BRIDGE_DEFAULT_MODEL,
@@ -14,6 +15,10 @@ import {
 import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
 
 const BRIDGE = resolve(import.meta.dir, "../src/lib/claude-bridge.ts");
+
+// Above the 10s spawn timeout of the timeout scenario, so a hung scenario fails on
+// its exit code with its stderr instead of on the test timeout.
+const SPAWNING_TEST_TIMEOUT_MS = 30_000;
 
 describe("preflightClaudeBridge", () => {
   test("refuses inside a Claude Code session before checking anything else", () => {
@@ -129,4 +134,68 @@ console.log(JSON.stringify(await runClaudePrint({ prompt: ${JSON.stringify(promp
       await rm(dir, { recursive: true, force: true });
     }
   });
+});
+
+describe("runClaudePrint timeout", () => {
+  test(
+    "returns the partial output while a process Claude started still holds the pipes",
+    async () => {
+      // The subshell exits at once, so the holder is no longer a descendant of
+      // the fake Claude and outlives the kill. It stops when the scenario
+      // directory, and with it the started marker, is removed.
+      const dir = await mkdtemp(join(tmpdir(), "cc-claude-bridge-"));
+      try {
+        const started = join(dir, "started");
+        const fake = join(dir, "claude");
+        await writeFile(
+          fake,
+          `#!/bin/sh\necho partial\n(sh -c 'touch "$0"; while [ -f "$0" ]; do sleep 0.01; done' '${gitBashPath(started)}' &)\nwhile :; do sleep 0.01; done\n`,
+        );
+        await chmod(fake, 0o755);
+        const script = `
+          import { runClaudePrint } from ${JSON.stringify(BRIDGE)};
+          const startedAt = Date.now();
+          const run = await runClaudePrint({ prompt: "test", model: "sonnet", timeoutMs: 2000 });
+          const overshootMs = Date.now() - startedAt - 2000;
+          console.log(JSON.stringify({
+            ok: run.ok, detail: run.ok ? "" : run.detail, output: run.output ?? null,
+            holderStarted: await Bun.file(${JSON.stringify(started)}).exists(), overshootMs,
+          }));
+        `;
+        const env: Record<string, string | undefined> = {
+          ...process.env,
+          PATH: prependTestPath(dir),
+        };
+        delete env.CLAUDECODE;
+        delete env.CODEX_SANDBOX_NETWORK_DISABLED;
+        const child = Bun.spawn([process.execPath, "--eval", script], {
+          env,
+          stdout: "pipe",
+          stderr: "pipe",
+          timeout: 10_000,
+        });
+        const [stdout, stderr, exit] = await Promise.all([
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+          child.exited,
+        ]);
+        expect(exit, stderr).toBe(0);
+        const { overshootMs, detail, ...run } = z
+          .object({
+            ok: z.boolean(),
+            detail: z.string(),
+            output: z.string().nullable(),
+            holderStarted: z.boolean(),
+            overshootMs: z.number(),
+          })
+          .parse(JSON.parse(stdout));
+        expect(run).toEqual({ ok: false, output: "partial", holderStarted: true });
+        expect(detail).toContain("timed out");
+        expect(overshootMs).toBeLessThan(2500);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    },
+    SPAWNING_TEST_TIMEOUT_MS,
+  );
 });

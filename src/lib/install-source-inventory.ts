@@ -89,6 +89,7 @@ export const CURRENT_RUNTIME_TYPESCRIPT_SOURCES = [
   "src/lib/pinned-tools.ts",
   "src/lib/platform.ts",
   "src/lib/problem-signature.ts",
+  "src/lib/process-tree.ts",
   "src/lib/project-awareness.ts",
   "src/lib/prompts.ts",
   "src/lib/proof-of-work.ts",

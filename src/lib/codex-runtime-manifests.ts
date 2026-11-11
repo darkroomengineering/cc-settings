@@ -289,7 +289,9 @@ const ADDED_IN_V31 = [
   "skills/proof-of-work/scripts/offscreen.m",
   "skills/proof-of-work/scripts/offscreen.sh",
 ];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 31;
+// Version 32: the process-tree kill and bounded pipe reads both model bridges import.
+const ADDED_IN_V32 = ["src/lib/process-tree.ts"];
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 32;
 // Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
 // CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.
 const REMOVED_IN_V20 = [
@@ -316,7 +318,8 @@ const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
     !ADDED_IN_V15.includes(path) &&
     !ADDED_IN_V18.includes(path) &&
     !ADDED_IN_V27.includes(path) &&
-    !ADDED_IN_V28.includes(path),
+    !ADDED_IN_V28.includes(path) &&
+    !ADDED_IN_V32.includes(path),
 ).flatMap((path) => [path, ...(REJOINING_AFTER.get(path) ?? [])]);
 const RUNTIME_SOURCE_FILES_V10: readonly string[] = [
   ...RUNTIME_SOURCE_FILES_V4.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
@@ -451,9 +454,10 @@ const RUNTIME_SOURCE_FILES_V27: readonly string[] = [...RUNTIME_SOURCE_FILES_V26
 const RUNTIME_SOURCE_FILES_V28: readonly string[] = [...RUNTIME_SOURCE_FILES_V27, ...ADDED_IN_V28];
 const RUNTIME_SOURCE_FILES_V29: readonly string[] = [...RUNTIME_SOURCE_FILES_V28, ...ADDED_IN_V29];
 const RUNTIME_SOURCE_FILES_V30: readonly string[] = [...RUNTIME_SOURCE_FILES_V29, ...ADDED_IN_V30];
+const RUNTIME_SOURCE_FILES_V31: readonly string[] = [...RUNTIME_SOURCE_FILES_V30, ...ADDED_IN_V31];
 export const RUNTIME_SOURCE_FILES: readonly string[] = [
-  ...RUNTIME_SOURCE_FILES_V30,
-  ...ADDED_IN_V31,
+  ...RUNTIME_SOURCE_FILES_V31,
+  ...ADDED_IN_V32,
 ];
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
@@ -502,6 +506,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [28, RUNTIME_SOURCE_FILES_V28],
   [29, RUNTIME_SOURCE_FILES_V29],
   [30, RUNTIME_SOURCE_FILES_V30],
+  [31, RUNTIME_SOURCE_FILES_V31],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 
