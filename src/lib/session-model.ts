@@ -46,7 +46,9 @@ export async function runningSubagentModels(
             const file = await open(join(dir, name.replace(/\.meta\.json$/, ".jsonl")), "r");
             try {
               const info = await file.stat();
-              // SHORTCUT: infer liveness from mtime. ceiling: a subagent blocked on one tool call for longer than 30 minutes drops out of the count. upgrade: a completion field Claude Code writes on kill.
+              // SHORTCUT: infer liveness from mtime.
+              // ceiling: a subagent blocked on one tool call for longer than 30 minutes drops out of the count.
+              // upgrade: when Claude Code writes a completion field for a killed subagent, read that field.
               if (now - info.mtimeMs >= 30 * 60 * 1000) return null;
               const start = Math.max(0, info.size - 64 * 1024);
               const buffer = Buffer.alloc(Math.min(info.size, 64 * 1024));
