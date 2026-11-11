@@ -56,6 +56,9 @@ describe("running subagent models", () => {
       proc.stdin.end();
       expect((await new Response(proc.stdout).text()).trim()).toBe("Main | 2 fable · 1 sonnet");
       expect(await proc.exited).toBe(0);
+      await agent("inherited", { model: null, pickedEffortModel: "claude-opus-5-5" });
+      expect(await runningSubagentModels(transcript, now)).toBe("2 fable · 1 opus · 1 sonnet");
+      await rm(join(dir, "agent-inherited.meta.json"));
       await agent("custom", { model: "custom-model" });
       expect(await runningSubagentModels(transcript, now)).toBe(
         "2 fable · 1 custom-model · 1 sonnet",

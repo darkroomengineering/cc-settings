@@ -18,6 +18,8 @@ import { readValidatedState } from "./hook-runtime.ts";
 const SubagentMetaSchema = z.object({
   finished: z.boolean().nullable().optional(),
   model: z.string().nullable().optional(),
+  // The session model the subagent inherits when `model` is unset.
+  pickedEffortModel: z.string().nullable().optional(),
 });
 const AssistantModelSchema = z.object({
   type: z.string(),
@@ -51,7 +53,8 @@ export async function runningSubagentModels(
               const { bytesRead } = await file.read(buffer, 0, buffer.length, start);
               const lines = buffer.subarray(0, bytesRead).toString("utf8").split("\n");
               if (start > 0) lines.shift();
-              let model = meta.model;
+              const fallback = meta.model || meta.pickedEffortModel;
+              let model = fallback;
               for (const line of lines.reverse()) {
                 if (!line.trim()) continue;
                 // The last line can be half-written while the subagent runs.
@@ -62,7 +65,7 @@ export async function runningSubagentModels(
                   continue;
                 }
                 if (record.type === "assistant") {
-                  model = record.message?.model || meta.model;
+                  model = record.message?.model || fallback;
                   break;
                 }
               }
