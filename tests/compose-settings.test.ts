@@ -32,6 +32,20 @@ describe("composeSettings — repo dogfood", () => {
     expect(typeof out).toBe("object");
     expect(out).not.toBeNull();
   });
+
+  // Claude Code supports `ref` on a marketplace source but not `sha`, and drops
+  // the field when it rewrites settings.json. A shipped `sha` therefore changes
+  // the fingerprinted plugin keys after install and trips verify-hooks.
+  // Claude Code docs, plugin-marketplaces: "Marketplace sources vs plugin sources".
+  test("shipped marketplace sources hold no sha", async () => {
+    const out = (await composeSettings(ROOT)) as {
+      extraKnownMarketplaces?: Record<string, { source?: Record<string, unknown> }>;
+    };
+    const withSha = Object.entries(out.extraKnownMarketplaces ?? {})
+      .filter(([, entry]) => entry.source !== undefined && "sha" in entry.source)
+      .map(([name]) => name);
+    expect(withSha).toEqual([]);
+  });
 });
 
 describe("composeSettings — naming contract", () => {

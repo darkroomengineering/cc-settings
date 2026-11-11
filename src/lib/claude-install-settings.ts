@@ -277,7 +277,10 @@ export async function installPinnedTools(profile: Profile): Promise<void> {
 // --- Function-hook compaction plugins -------------------------------------
 
 const PLUGIN_INSTALL_TIMEOUT_MS = 90_000;
-// Keep in sync with config/10-core.json's extraKnownMarketplaces entry.
+// The fast-jev-compaction commit setup compares the marketplace clone's HEAD
+// against. It does not belong in config/10-core.json's extraKnownMarketplaces:
+// Claude Code drops `sha` from a marketplace source when it rewrites
+// settings.json, which changes the fingerprinted plugin keys.
 export const UPSTREAM_PINNED_SHA = "e3f262a7f4d42bd8dd32ced30d26176f7cb545b0";
 
 // Exported so the --dry-run reporter (install-display.ts) prints exactly what
@@ -743,9 +746,8 @@ async function storePluginKey(key: string): Promise<void> {
 
 /**
  * Registers the two marketplaces and installs the two compaction plugins
- * (upstream fast-jev-compaction, pinned by commit SHA — see
- * config/10-core.json's extraKnownMarketplaces — and cc-settings' own
- * compaction-trigger) via the `claude` CLI, mirroring what settings.json's
+ * (upstream fast-jev-compaction, reinstalled when its marketplace clone is not
+ * at UPSTREAM_PINNED_SHA, and cc-settings' own compaction-trigger) via the `claude` CLI, mirroring what settings.json's
  * enabledPlugins/pluginConfigs already declare.
  *
  * Fail-open throughout: any `claude plugin ...` command failing must never

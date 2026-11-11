@@ -34,8 +34,7 @@
 		"fast-jev-compaction": {
 			"source": {
 				"source": "github",
-				"repo": "tamaratran/fast-jev-compaction",
-				"sha": "e3f262a7f4d42bd8dd32ced30d26176f7cb545b0"
+				"repo": "tamaratran/fast-jev-compaction"
 			}
 		},
 		"cc-settings": {
