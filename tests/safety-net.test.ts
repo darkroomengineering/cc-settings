@@ -171,18 +171,22 @@ describe("TS safety-net — session scratchpad cleanup", () => {
       test(`blocks an unresolved or non-descendant target ${root}${suffix}`, () =>
         expectBlock(`rm -rf ${root}${suffix}`));
     }
-    test(`blocks scratchpad symlink components below ${root}`, async () => {
-      mkdirSync(root, { recursive: true });
-      const fixture = mkdtempSync(join(root, "cc-safety-symlink-"));
-      try {
-        const link = join(fixture, "outside");
-        symlinkSync(GITCONFIG_DIR, link);
-        await expectBlock(`rm -rf ${link}`);
-        await expectBlock(`rm -rf ${link}/missing/victim`);
-      } finally {
-        rmSync(fixture, { recursive: true, force: true });
-      }
-    });
+    // /private exists only on macOS; elsewhere the fixture cannot be created.
+    test.skipIf(root.startsWith("/private") && process.platform !== "darwin")(
+      `blocks scratchpad symlink components below ${root}`,
+      async () => {
+        mkdirSync(root, { recursive: true });
+        const fixture = mkdtempSync(join(root, "cc-safety-symlink-"));
+        try {
+          const link = join(fixture, "outside");
+          symlinkSync(GITCONFIG_DIR, link);
+          await expectBlock(`rm -rf ${link}`);
+          await expectBlock(`rm -rf ${link}/missing/victim`);
+        } finally {
+          rmSync(fixture, { recursive: true, force: true });
+        }
+      },
+    );
     test(`blocks qualifiers on a scratchpad path containing spaces below ${root}`, () =>
       expectBlock(`rm -rf '${root}/foo bar'(:h:h:h)`));
   }

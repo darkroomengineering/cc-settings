@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 const hook = resolve(import.meta.dir, "../src/hooks/safety-net.ts");
-const fixture = mkdtempSync(join(tmpdir(), "cc-safety-overrides-"));
+// Outside the temp directory: the hook allows a recursive delete under /tmp,
+// which is where tmpdir() points on Linux.
+const fixture = mkdtempSync(join(homedir(), ".cc-safety-overrides-"));
 const repo = join(fixture, "repo");
 const subdir = join(repo, "src");
 let nextHome = 0;
