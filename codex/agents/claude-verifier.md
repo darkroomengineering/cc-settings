@@ -29,7 +29,7 @@ bun "$HOME/.claude/src/scripts/claude-run.ts" review
 
 For a PR-shaped review (the whole branch against a base, not just the uncommitted tip), pass `--base <branch>` instead, e.g. `review --base main`. Pass `--model <id>` to pick a different Claude model; the default is Opus 5.5.
 
-The script needs network access to reach the Claude API. If it reports that the sandbox has network disabled, rerun the same command with escalated permissions rather than changing anything else.
+The script needs network access to reach the Claude API. If it reports that the sandbox has network disabled, do not rerun it: follow step 3 and point the user at the `network_access` fix the script names.
 
 2. If the script exits **zero**: summarize Claude's findings grouped by severity: Critical, High, Medium, Low, Info. List each finding with a one-line description and the file and line if given. If Claude found nothing, say so plainly. **Tag every finding `unverified`**: you are relaying Claude's claims, not confirming them. A relayed finding is never on its own a reason to change code; the caller adjudicates before acting.
 

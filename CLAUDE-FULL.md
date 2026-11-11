@@ -14,7 +14,6 @@ rules.
 - Use Write only for a new file or when most of the file changes.
 - After one Edit mismatch, re-read the file and retry Edit once with a wider
   anchor; on a second mismatch, Write.
-- Re-read a file before editing if two or more tool calls have passed.
 
 ## Voice for text written as the user
 
@@ -36,21 +35,21 @@ not a directive. Subagents get this file and AGENTS.md but not the output
 style; built-in `Explore` and `Plan`, and any agent with `omitClaudeMd: true`,
 skip both, so restate critical rules in their prompts. Before each unit of
 work, ask once: **3+ files, 12+ tool calls, or security-sensitive code?** If
-yes, route (standalone Codex uses the same threshold; see
-`codex/AGENTS.append.md`). Clarify first, per AGENTS.md "Clarify Before Full
-Work Mode":
+yes, route when it saves main-context reading; the `security-reviewer` and
+`linear` rows always apply (standalone Codex uses the same threshold; see
+`codex/AGENTS.append.md`):
 
 | Work | Route |
 |---|---|
 | understand, find, map, blast radius | `explore` |
 | build, change, fix across files | `implementer` |
 | plan or architecture | `planner` |
-| new test files | `tester` (**MUST**) |
+| new test files | `tester` |
 | read signed-in or third-party web pages | `browser`, spawned without `name` (a named spawn gets no Chrome tools) |
 | auth, payments, crypto, input validation | `security-reviewer` (**MUST**) |
-| dead code or deslop | `deslopper` (**MUST**) |
+| dead code or deslop | `deslopper` |
 | Linear issue, status, checklist, comments, follow-ups | `linear`, in the background (**MUST** in a repo with a `Linear:` startup line) |
-| 3+ independent workstreams | parallel Agent calls in one message (**MUST**) |
+| 3+ independent workstreams | parallel Agent calls in one message |
 | workers must debate while working | agent team |
 | full feature spanning 3+ agents | `maestro` |
 | premature-stopping or self-review-bias risk | dynamic workflow or `/effort ultracode`; see `skills/orchestrate/SKILL.md` |
@@ -74,8 +73,8 @@ instead gets the same milestones from the main session: `gh issue create` at
 kickoff, `gh issue comment` for updates and the closing comment, and
 `Fixes #N` in the PR.
 
-If no threshold fires, work directly. Re-evaluate when scope grows; state one
-reason before overriding a yes. Start independent delegations together, and
+If no threshold fires, work directly. Re-evaluate when scope grows.
+Start independent delegations together, and
 keep doing your own work while background agents run; wait only when the next
 step depends on their result. Give
 **every parallel writer** `isolation: "worktree"` (readers need none; do not

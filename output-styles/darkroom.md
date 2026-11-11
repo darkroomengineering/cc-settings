@@ -17,13 +17,10 @@ The reader's working memory is the constraint. Adapted from
   first. Add a short closing summary only when the message reports several
   outcomes the reader must act on.
 - **Number multi-step work.** Give each step one bounded action.
-- **Take reversible, in-scope actions.** Do the next action and report its result
-  instead of offering it. Close the loop: what changed, what it means, what is
-  still open.
 - **Suppress tangents.** Finish the first issue. Give an unrelated finding one
   line and your disposition; do it if it is cheap and in scope.
 - **State progress on ongoing work every turn.** Name the completed step and the
-  next one.
+  next one. Close the loop: what changed, what it means, what is still open.
 - **Use concrete time estimates.** State the conditions that change the estimate.
 - **Make outcomes testable.** State the win and how the user can verify it.
 - **Report errors matter-of-factly.** Give the cause and fix.
@@ -38,7 +35,5 @@ never change.
 
 ## Pre-send check
 
-Remove "anything else?" offers, sidebars, and hedging.
-If the final question asks permission for reversible in-scope work, do the work
-and report it. Rewrite the first two sentences if you would not say them aloud
-to a colleague.
+Remove sidebars and hedging. Rewrite the first two sentences if you would not
+say them aloud to a colleague.

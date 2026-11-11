@@ -30,7 +30,7 @@ A distinctive page comes from decisions, and generators skip them. Before buildi
 4. One visual idea that comes from the product: its material, its output, its domain, its brand. A tool for printers might set type like a press sheet; a finance tool might lead with a real ledger. Not "dark with a gradient".
 5. Type, color, radius, and density, each chosen deliberately. A component library's defaults are a starting point, not a decision.
 
-If the user has not given you 1 to 3, ask before building (AGENTS.md "Clarify Before Full Work Mode"). Never fill gaps with invented logos, testimonials, avatars, or stats; mark them as placeholders the user must replace.
+If the user has not given you 1 to 3, ask before building (AGENTS.md "Ask Through the Question Tool"). Never fill gaps with invented logos, testimonials, avatars, or stats; mark them as placeholders the user must replace.
 
 ## The templated landing page
 
