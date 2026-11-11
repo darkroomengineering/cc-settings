@@ -12,6 +12,7 @@ import {
   lookup,
   main,
   prCommands,
+  teamKeys,
 } from "../src/hooks/linear-gate.ts";
 import { captureIO, HookBlocked } from "../src/lib/hook-runtime.ts";
 import type { LinearMap } from "../src/lib/knowledge-index.ts";
@@ -79,7 +80,10 @@ describe("prCommands", () => {
   });
 
   test("defaults: no fill, no skip", () => {
-    expect(prCommands("gh pr create")[0]).toMatchObject({ fill: false, skip: false });
+    expect(prCommands("gh pr create")[0]).toMatchObject({
+      fill: false,
+      skip: false,
+    });
   });
 
   test.each([
@@ -114,9 +118,31 @@ describe("hasIssueId", () => {
     "",
   ])("%s names no OSS issue", (text) => expect(hasIssueId(text, "OSS")).toBe(false));
 
-  test("only the mapped team's key counts", () => {
+  test("only the given team keys count", () => {
     expect(hasIssueId("Fixes WEB-12", "OSS")).toBe(false);
     expect(hasIssueId("Fixes WEB-12", "WEB")).toBe(true);
+    expect(hasIssueId("Fixes WEB-12", ["OSS", "WEB"])).toBe(true);
+    expect(hasIssueId("Support UTF-8", ["OSS", "WEB"])).toBe(false);
+    expect(hasIssueId("Fixes WEB-12", [])).toBe(false);
+  });
+});
+
+describe("teamKeys", () => {
+  test("collects every team key from the teams file and the map, uppercased and deduped", () => {
+    const teams = { "o/a": { team: "own" }, "o/b": null };
+    const map: LinearMap = {
+      "o/c": { team: "OSS", project: "c" },
+      "o/d": { team: "DR", project: "d" },
+      "o/e": null,
+    };
+    expect(teamKeys(teams, map).sort()).toEqual(["DR", "OSS", "OWN"]);
+    expect(
+      teamKeys(null, {
+        "o/c": { team: "OSS", project: "c" },
+        "o/f": { team: "oss", project: "f" },
+      }),
+    ).toEqual(["OSS"]);
+    expect(teamKeys(null, null)).toEqual([]);
   });
 });
 
@@ -216,7 +242,10 @@ describe("gateReason", () => {
   });
 
   test("the teams file mapping applies when the map has nothing", async () => {
-    const deps = fakeDeps({ map: null, teams: { "darkroomengineering/app": { team: "WEB" } } });
+    const deps = fakeDeps({
+      map: null,
+      teams: { "darkroomengineering/app": { team: "WEB" } },
+    });
     expect(await gateReason("gh pr create -t 'Add hero (OSS-1)'", CWD, deps)).toContain("team WEB");
   });
 
@@ -242,6 +271,28 @@ describe("gateReason", () => {
     const reason = await gateReason("gh pr create -R darkroomengineering/other -t x", CWD, deps);
     expect(reason).toContain("darkroomengineering/other maps to Linear team OTH");
     expect(deps.originCalls).toEqual([]);
+  });
+
+  test("passes an issue of another team the map knows", async () => {
+    const map: LinearMap = {
+      "darkroomengineering/app": { team: "INC", project: "p" },
+      "darkroomengineering/site": { team: "DR", project: "d" },
+    };
+    const deps = fakeDeps({ map, branch: "franco/dr-910-meeting-identity" });
+    expect(await gateReason("gh pr create -t 'Meeting identity'", CWD, deps)).toBeNull();
+    expect(
+      await gateReason("gh pr create -t 'Meeting identity (DR-910)' -H feat/x", CWD, deps),
+    ).toBeNull();
+  });
+
+  test("an ID whose key no known team uses still blocks", async () => {
+    const map: LinearMap = { "darkroomengineering/app": { team: "INC", project: "p" } };
+    const reason = await gateReason(
+      "gh pr create -t 'Fixes WEB-12' -H feat/x",
+      CWD,
+      fakeDeps({ map }),
+    );
+    expect(reason).toContain("team INC");
   });
 
   test("a non-PR command never reads the mapping", async () => {
@@ -301,6 +352,20 @@ describe("commitReminder", () => {
   test("passes a branch that names an issue of the mapped team", async () => {
     expect(
       await commitReminder("git commit -m x", CWD, fakeDeps({ branch: "feat/OSS-12-hero" })),
+    ).toBeNull();
+  });
+
+  test("passes a branch that names an issue of another known team", async () => {
+    const map: LinearMap = {
+      "darkroomengineering/app": { team: "INC", project: "p" },
+      "darkroomengineering/site": { team: "DR", project: "d" },
+    };
+    expect(
+      await commitReminder(
+        "git commit -m x",
+        CWD,
+        fakeDeps({ map, branch: "franco/dr-910-meeting-identity" }),
+      ),
     ).toBeNull();
   });
 
