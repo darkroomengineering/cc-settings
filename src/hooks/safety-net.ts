@@ -89,6 +89,9 @@ class BlockDecision extends Error {
 }
 
 let allowedChecks = new Set<string>();
+// A directory change, or a word built at run time that could be one, makes the
+// hook's own directory the wrong base for a relative rm target.
+let directoryMayChange = false;
 const pendingForceChecks = new Map<string, { reason: string; cmd: string }>();
 
 function forceCheckKey(cmd: string, args: string[]): string {
@@ -215,6 +218,7 @@ function analyzeRmPortion(rmPortion: string, cmd: string): void {
 }
 
 function repoRmCheckId(target: string): string | undefined {
+  if (directoryMayChange) return undefined;
   if (/[$`*?[{]/.test(target) || target.startsWith("~")) return undefined;
   const words = shellWords(target);
   if (words.length !== 1) return undefined;
@@ -3064,27 +3068,21 @@ function checkPersonalOverridesWrite(
       blockWrite();
   }
   const copy = ["cp", "mv", "install", "rsync"].includes(c.word);
-  const operands = positionals(
-    c.args,
-    copy ? [...(COPY_VALUE_FLAGS[c.word] ?? []), "-t", "--target-directory"] : [],
-  );
+  const operands = positionals(c.args);
   if (copy) {
-    const target =
-      c.args
-        .find((arg) => arg.startsWith("--target-directory="))
-        ?.slice("--target-directory=".length) ??
-      c.args[c.args.findIndex((arg) => arg === "-t" || arg === "--target-directory") + 1];
-    const targetDirectory =
-      target !== undefined &&
-      c.args.some((arg) => arg === "-t" || arg.startsWith("--target-directory"));
-    const destination = targetDirectory ? target : operands.at(-1);
-    if (destination !== undefined) {
+    // Every operand and every target-directory value is a possible destination:
+    // which one the tool writes to depends on per-tool flag grammar
+    // (`-tDIR`, `-vt DIR`, rsync's `-t` taking no value).
+    const destinations = [...operands];
+    c.args.forEach((arg, i) => {
+      const long = /^--target-directory(?:=(.*))?$/s.exec(arg);
+      const short = long ? null : /^-[a-zA-Z]*t(.*)$/s.exec(arg);
+      const value = (long ?? short)?.[1] || (long || short ? c.args[i + 1] : undefined);
+      if (value !== undefined) destinations.push(value);
+    });
+    for (const destination of destinations) {
       if (protectedPath(destination)) blockWrite();
-      if (
-        (targetDirectory ? operands : operands.slice(0, -1)).some((source) =>
-          protectedPath(join(destination, basename(source))),
-        )
-      )
+      if (operands.some((source) => protectedPath(join(destination, basename(source)))))
         blockWrite();
     }
   } else if (["tee", "touch", "truncate"].includes(c.word)) {
@@ -3260,6 +3258,7 @@ export async function main(io: HookIO = processIO): Promise<void> {
     // Quotes and backslashes can split a name (`".e""nv"`, `.\env`), so the
     // fast path also looks at the text with them removed.
     const plain = COMMAND.replace(/\\\r?\n/g, "").replace(/["'\\]/g, "");
+    directoryMayChange = /[$`]|\b(?:cd|pushd|popd|chdir|eval|source)\b/.test(plain);
     const interesting = (text: string): boolean =>
       FAST_PATH_VERBS_RE.test(text) || SECRET_MARKER_RE.test(text);
     // A `$` or a backtick can build any of those words at run time (`$A$B`

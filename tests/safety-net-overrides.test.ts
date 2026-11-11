@@ -74,6 +74,17 @@ describe("personal safety-net overrides", () => {
     expect(await decision("rm -rf ../scratch", ["rm-repo-target"], subdir)).toBe("allow");
     expect(await decision("rm -rf ../scratch; cat .env", ["rm-repo-target"], subdir)).toBe("block");
   });
+  test("rm override does not apply after a directory change", async () => {
+    for (const command of [
+      "cd .. && rm -rf ../scratch",
+      "pushd .. ; rm -rf ../scratch",
+      "(cd ..; rm -rf ../scratch)",
+      "c\\d .. && rm -rf ../scratch",
+      "$X .. && rm -rf ../scratch",
+    ]) {
+      expect(await decision(command, ["rm-repo-target"], subdir)).toBe("block");
+    }
+  });
   test("rm override handles literal escapes without trusting symlinks or variables", async () => {
     expect(await decision("rm -rf ../scr\\atch", undefined, subdir)).toBe("block");
     expect(await decision("rm -rf ../scr\\atch", ["rm-repo-target"], subdir)).toBe("allow");
@@ -148,6 +159,10 @@ describe("personal safety-net overrides", () => {
     // biome-ignore lint/suspicious/noTemplateCurlyInString: shell home variable
     "echo '{}' > ${HOME}/.claude/personal-overrides.json",
     "cp -t ~/.claude personal-overrides.json",
+    "cp -t$HOME/.claude /tmp/personal-overrides.json",
+    "cp -vt ~/.claude /tmp/personal-overrides.json",
+    "mv --target-directory=$HOME/.claude /tmp/personal-overrides.json",
+    "rsync -t /tmp/source.json ~/.claude/personal-overrides.json",
     "mv -t ~/.claude personal-overrides.json",
     "install -t ~/.claude personal-overrides.json",
     "cp --target-directory=~/.claude personal-overrides.json",
