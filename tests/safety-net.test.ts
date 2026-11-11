@@ -155,6 +155,10 @@ describe("TS safety-net — session scratchpad cleanup", () => {
   for (const root of [`/private/tmp/claude-${uid}`, `/tmp/claude-${uid}`]) {
     test(`allows a scratchpad descendant of ${root}`, () =>
       expectAllow(`rm -rf ${root}/project/session/scratchpad/output`));
+    test(`blocks a scratchpad rm chained after a symlink is planted below ${root}`, () =>
+      expectBlock(
+        `ln -s ~ /private/tmp/claude-${uid}/h9 && rm -rf /private/tmp/claude-${uid}/h9/Documents`,
+      ));
     for (const suffix of [
       "",
       "/",

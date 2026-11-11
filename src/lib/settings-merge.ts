@@ -349,7 +349,7 @@ export async function resolveScalarConflict(
 
 // Protect trust roots and secret paths regardless of tool or path spelling.
 const NON_DROPPABLE_PERMISSION_PATH_RE =
-  /\b(?:settings(?:\.local)?\.json|personal-overrides\.json|hosts\.yml)\b|\.claude\.json\b|\.(?:env(?:rc)?|ssh|aws|gnupg|netrc|git-credentials|npmrc)\b|\.(?:docker[\\/]config\.json|kube[\\/]config|config[\\/]gh)\b/i;
+  /\b(?:settings(?:\.local)?\.json|personal-overrides\.json|hosts\.yml)\b|\.claude\.json\b|\.(?:env(?:rc)?|ssh|aws|gnupg|netrc|git-credentials|npmrc)\b|\.(?:docker[\\/]config\.json|kube[\\/]config|config[\\/]gh)\b|\.(?:zshrc|zshenv|zprofile|bashrc|bash_profile|profile|pem)\b|\.mcp\.json\b|\.claude-plugin\b|\.claude[\\/]src\b|\bCLAUDE\.md\b|\bclaude (?:mcp|plugin)\b/i;
 
 const NON_DROPPABLE_DENY_RULES = new Set([
   "Bash(rm -rf /)",
@@ -388,6 +388,9 @@ function dropPermissionRules(
     }),
   );
   const kept = rules.filter((rule) => !drops.has(rule));
+  for (const rule of rules) {
+    if (drops.has(rule)) info(`Personal overrides dropped permission rule ${JSON.stringify(rule)}`);
+  }
   ctx.accounting.permissionsDropped =
     (ctx.accounting.permissionsDropped ?? 0) + rules.length - kept.length;
   return kept;
@@ -700,8 +703,8 @@ export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
         [...teamCommands].some((teamCommand) =>
           [c, withManagedPrefix(c)].some(
             (candidate) =>
-              teamCommand.replace(/ --safety-net-allow=[a-z,-]+$/, "") ===
-              candidate.replace(/ --safety-net-allow=[a-z,-]+$/, ""),
+              teamCommand.replace(/[ \t]+--safety-net-allow=[a-z,-]+$/, "") ===
+              candidate.replace(/[ \t]+--safety-net-allow=[a-z,-]+$/, ""),
           ),
         );
       if (cmds.length > 0 && cmds.every((c) => isManagedCommand(c) && teamHas(c))) {

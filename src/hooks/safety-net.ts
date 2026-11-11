@@ -280,6 +280,9 @@ function analyzeRmTarget(target: string, cmd: string): void {
       if (absolute === root || parts.some((part) => part === ".." || /[*?[{()]/.test(part))) {
         block(`rm -rf with unrecognized target path: ${target}`, cmd);
       }
+      // An earlier part of the same command can plant a symlink after this
+      // lstat ran, so only a lone rm gets the scratchpad allowance.
+      if (!plainRmInvocation) break;
       if (within(root)) {
         let componentPath = root;
         try {

@@ -143,6 +143,12 @@ describe("personal permission overrides", () => {
       ].map((path) => `${tool}(~/project/${path})`),
     ),
     "Edit(~/.CLAUDE/SETTINGS.JSON)",
+    "Edit(~/.zshrc)",
+    "Bash(cp * ~/.bash_profile*)",
+    "Edit(**/.mcp.json)",
+    "Edit(**/.claude-plugin/plugin.json)",
+    "Bash(claude mcp add:*)",
+    "Bash(claude plugin install:*)",
   ]) {
     test(`sensitive rule cannot be dropped from ask or deny: ${rule}`, async () => {
       const dir = await fixture();

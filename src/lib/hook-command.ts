@@ -87,7 +87,7 @@ export interface ParsedHookCommand {
 /** Parse a hook command string against the managed pattern. */
 export function parseHookCommand(command: string): ParsedHookCommand {
   const m = validSafetyNetSuffix(command)
-    ? command.replace(/ --safety-net-allow=[a-z,-]+$/, "").match(MANAGED_HOOK_CMD)
+    ? command.replace(/[ \t]+--safety-net-allow=[a-z,-]+$/, "").match(MANAGED_HOOK_CMD)
     : null;
   const relPath = m?.groups?.rel;
   if (!relPath) {
