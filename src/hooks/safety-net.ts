@@ -89,9 +89,7 @@ class BlockDecision extends Error {
 }
 
 let allowedChecks = new Set<string>();
-// A directory change, or a word built at run time that could be one, makes the
-// hook's own directory the wrong base for a relative rm target.
-let directoryMayChange = false;
+let plainRmInvocation = false;
 const pendingForceChecks = new Map<string, { reason: string; cmd: string }>();
 
 function forceCheckKey(cmd: string, args: string[]): string {
@@ -218,7 +216,7 @@ function analyzeRmPortion(rmPortion: string, cmd: string): void {
 }
 
 function repoRmCheckId(target: string): string | undefined {
-  if (directoryMayChange) return undefined;
+  if (!plainRmInvocation) return undefined;
   if (/[$`*?[{]/.test(target) || target.startsWith("~")) return undefined;
   const words = shellWords(target);
   if (words.length !== 1) return undefined;
@@ -280,10 +278,23 @@ function analyzeRmTarget(target: string, cmd: string): void {
       if (absolute !== root && !within(root) && target !== root && !target.startsWith(`${root}/`))
         continue;
       const parts = target.split("/").filter(Boolean);
-      if (absolute === root || parts.some((part) => part === ".." || /[*?[{]/.test(part))) {
+      if (absolute === root || parts.some((part) => part === ".." || /[*?[{()]/.test(part))) {
         block(`rm -rf with unrecognized target path: ${target}`, cmd);
       }
-      if (within(root)) return;
+      if (within(root)) {
+        let componentPath = root;
+        try {
+          for (const component of relative(root, absolute).split(sep)) {
+            componentPath = join(componentPath, component);
+            if (lstatSync(componentPath, { throwIfNoEntry: false })?.isSymbolicLink()) {
+              block(`rm -rf through a scratchpad symlink: ${target}`, cmd);
+            }
+          }
+        } catch {
+          block(`rm -rf with an unreadable scratchpad path: ${target}`, cmd);
+        }
+        return;
+      }
       block(`rm -rf with unrecognized target path: ${target}`, cmd);
     }
   }
@@ -301,7 +312,7 @@ function analyzeRmTarget(target: string, cmd: string): void {
   block(`rm -rf with unrecognized target path: ${target}`, cmd, repoRmCheckId(target));
 }
 
-function checkRmRf(cmd: string): void {
+function checkRmRf(cmd: string, scratchpadQualifiersOnly = false): void {
   // Evaluate EVERY 'rm' occurrence in the string, not just the first — a
   // single-match `cmd.match(...)` latches onto the first invocation and lets
   // a second `rm -rf /` later in the same (unsplit) string ride along
@@ -320,6 +331,11 @@ function checkRmRf(cmd: string): void {
   // biome-ignore lint/suspicious/noAssignInExpressions: regex exec loop idiom
   while ((m = re.exec(cmd))) {
     const rmPortion = (m[2] ?? "").trim();
+    if (scratchpadQualifiersOnly) {
+      const targets = extractRmTargets(rmPortion).map((target) => resolve(target));
+      if (!targets.some((target) => /^\/(?:private\/)?tmp\/claude-\d+\/.*[()]/.test(target)))
+        continue;
+    }
     if (rmPortion) analyzeRmPortion(rmPortion, cmd);
   }
 }
@@ -1957,7 +1973,8 @@ function checkRefUpdate(
     const value = r === null ? undefined : config()?.get(`remote.${r}.mirror`)?.at(-1);
     return value !== undefined && !/^(?:false|no|off|0)$/i.test(value);
   };
-  let toMain = u.everyBranch || (u.refspecs === null && mirrored());
+  const mirrorForced = args.includes("--mirror") || mirrored();
+  let toMain = u.everyBranch || mirrorForced;
   let forcedSpec = false;
   // A refspec without a destination goes where the remote's `push` lines map
   // it, so check every configured destination too.
@@ -2002,7 +2019,7 @@ function checkRefUpdate(
     if (spec.startsWith("+")) forcedSpec = true;
   }
 
-  if (toMain && (u.forced || forcedSpec)) {
+  if (toMain && (u.forced || forcedSpec || (mirrorForced && allowedChecks.has("git-push-main")))) {
     block(`git ${u.verb} forces an update of main or master, which rewrites shared history`, cmd);
   }
   // The generic force check can yield only after this contextual reading
@@ -2026,7 +2043,7 @@ function checkRefUpdate(
     return;
   ask(
     toMain ? MAIN_PUSH_ASK : UNKNOWN_PUSH_ASK,
-    toMain && !unknown && !u.forced && !forcedSpec ? "git-push-main" : undefined,
+    toMain && !unknown && !u.forced && !forcedSpec && !mirrorForced ? "git-push-main" : undefined,
   );
 }
 
@@ -2135,7 +2152,11 @@ const SECRET_READERS = new Set([
 // The first positional of these is the pattern, not a file (unless -e/-f is used).
 const PATTERN_FIRST = new Set(["grep", "egrep", "fgrep", "rg", "ag", "ack"]);
 
-function inlineReaderOperands(reader: string, args: string[]): Set<number> {
+function hasUnquotedReaderExpansion(token: string): boolean {
+  return /[{*?[]/.test(token.replace(/\\[\s\S]|"(?:\\[\s\S]|[^"\\])*"|'[^']*'/g, ""));
+}
+
+function inlineReaderOperands(reader: string, args: string[], rawArgs = args): Set<number> {
   const word = reader.replace(/^g(?=(?:grep|egrep|fgrep|rg|ag|ack|sed|awk|jq)$)/, "");
   const pattern = PATTERN_FIRST.has(word);
   const program = pattern || word === "sed" || word === "awk" || word === "jq";
@@ -2144,8 +2165,9 @@ function inlineReaderOperands(reader: string, args: string[]): Set<number> {
   const operands: number[] = [];
   let explicitProgram = false;
   let optionsEnded = false;
-  let positionalValues = false;
+  let positionalValues = -1;
   const exempt = (i: number, value: string): void => {
+    if (hasUnquotedReaderExpansion(rawArgs[i] ?? value)) return;
     if (word === "jq" || /[|\\]/.test(value) || !isSecretPath(value)) inline.add(i);
   };
   for (let i = 0; i < args.length; i++) {
@@ -2158,13 +2180,13 @@ function inlineReaderOperands(reader: string, args: string[]): Set<number> {
       const [flag, attached] = arg.split(/=(.*)/s);
       if (word === "jq" && flag === "--run-tests") return new Set();
       if (word === "jq" && (arg === "--args" || arg === "--jsonargs")) {
-        positionalValues = true;
+        if (positionalValues === -1) positionalValues = i;
         continue;
       }
       if (word === "jq" && /^(?:--arg|--argjson|--rawfile|--slurpfile)$/.test(flag ?? "")) {
         const count = attached === undefined ? 2 : 1;
         if (flag === "--arg" || flag === "--argjson") {
-          for (let j = i + 1; j <= i + count; j++) inline.add(j);
+          for (let j = i + 1; j <= i + count; j++) exempt(j, args[j] ?? "");
         }
         i += count;
         continue;
@@ -2194,7 +2216,7 @@ function inlineReaderOperands(reader: string, args: string[]): Set<number> {
         if (attached === undefined) i++;
         continue;
       }
-      continue;
+      return new Set();
     }
     if (!optionsEnded && arg.startsWith("-") && arg !== "-") {
       for (let j = 1; j < arg.length; j++) {
@@ -2220,8 +2242,9 @@ function inlineReaderOperands(reader: string, args: string[]): Set<number> {
   }
   const first = operands[0];
   if (!explicitProgram && first !== undefined) exempt(first, args[first] as string);
-  if (word === "jq" && positionalValues)
-    for (const i of operands.slice(explicitProgram ? 0 : 1)) inline.add(i);
+  if (word === "jq" && positionalValues !== -1)
+    for (const i of operands.slice(explicitProgram ? 0 : 1))
+      if (i > positionalValues) exempt(i, args[i] as string);
   return inline;
 }
 const COPY_VALUE_FLAGS: Record<string, string[]> = {
@@ -2280,7 +2303,7 @@ function maskInlineReaderOperands(cmd: string): string {
     return cmd;
   const tokens = [
     ...cmd.matchAll(
-      /(?:\$'(?:\\[\s\S]|[^'\\])*'|\\[\s\S]|"(?:\\[\s\S]|[^"\\])*"|'[^']*'|[^\s;&|()<>"'\\])+|[;&|()\n]|\d*[<>]+/g,
+      /(?:\$'(?:\\[\s\S]|[^'\\])*'|\\[\s\S]|"(?:\\[\s\S]|[^"\\])*"|'[^']*'|[^\s;&|()<>"'\\])+|\d*(?:&>>?|>>?&|>\||[<>]+)|[;&|()\n]/g,
     ),
   ];
   const blank = new Set<number>();
@@ -2292,8 +2315,9 @@ function maskInlineReaderOperands(cmd: string): string {
     // sed and awk stay in the scan: their programs read files (`r`, `e`, getline, system()).
     if (!/^(?:[\w./-]+\/)?g?(?:grep|egrep|fgrep|rg|ag|ack|jq)$/i.test(literal)) return;
     const args = stage.slice(1);
-    const values = args.map((i) => shellWords(tokens[i]?.[0] ?? "")[0] ?? "");
-    for (const i of inlineReaderOperands(basename(literal).toLowerCase(), values)) {
+    const rawArgs = args.map((i) => tokens[i]?.[0] ?? "");
+    const values = rawArgs.map((arg) => shellWords(arg)[0] ?? "");
+    for (const i of inlineReaderOperands(basename(literal).toLowerCase(), values, rawArgs)) {
       const at = args[i];
       if (at !== undefined) blank.add(at);
     }
@@ -2310,7 +2334,7 @@ function maskInlineReaderOperands(cmd: string): string {
       maskStage();
       stage = [];
       redirect = false;
-    } else if (/^\d*[<>]+$/.test(raw)) {
+    } else if (/^\d*(?:&>>?|>>?&|>\||[<>]+)$/.test(raw)) {
       redirect = true;
     } else if (redirect) {
       redirect = false;
@@ -2772,7 +2796,12 @@ function checkGhWrites(c: ParsedShellCommand, ctx: ShellCtx, cmd: string): void 
     block(
       `gh ${what}: cannot tell which repository owner it targets; pass -R darkroomengineering/<repo>`,
       cmd,
-      group === "pr" && sub === "create" ? "gh-pr-create-unknown-owner" : undefined,
+      group === "pr" &&
+        sub === "create" &&
+        !c.args.some((arg) => /^-R|^--repo(?:=|$)/.test(arg)) &&
+        ![c.env.GH_REPO, ctx.env.GH_REPO, process.env.GH_REPO].some(Boolean)
+        ? "gh-pr-create-unknown-owner"
+        : undefined,
     );
     return;
   }
@@ -2890,6 +2919,8 @@ function checkInterpreterOneliners(cmd: string, depth: number): void {
 //     or URL does not trigger them.
 
 function analyzeFullString(cmd: string): void {
+  // The shell scanner splits parentheses, including zsh path qualifiers.
+  checkRmRf(cmd, true);
   checkAiAttribution(cmd);
   checkFindXargs(cmd);
   unwrapAndAnalyze(cmd, 0);
@@ -3258,7 +3289,7 @@ export async function main(io: HookIO = processIO): Promise<void> {
     // Quotes and backslashes can split a name (`".e""nv"`, `.\env`), so the
     // fast path also looks at the text with them removed.
     const plain = COMMAND.replace(/\\\r?\n/g, "").replace(/["'\\]/g, "");
-    directoryMayChange = /[$`]|\b(?:cd|pushd|popd|chdir|eval|source)\b/.test(plain);
+    plainRmInvocation = /^rm(?:\s|$)/.test(COMMAND.trim()) && !/[;&|\r\n$`()<>]/.test(COMMAND);
     const interesting = (text: string): boolean =>
       FAST_PATH_VERBS_RE.test(text) || SECRET_MARKER_RE.test(text);
     // A `$` or a backtick can build any of those words at run time (`$A$B`

@@ -91,6 +91,59 @@ describe("personal safety-net overrides", () => {
     expect(await decision("rm -rf ../outside/victim", ["rm-repo-target"], subdir)).toBe("block");
     expect(await decision("rm -rf ../$UNKNOWN", ["rm-repo-target"], subdir)).toBe("block");
   });
+  test("rm override requires a whole plain rm invocation", async () => {
+    for (const command of [
+      "env -C /some/dir rm -rf Doc\\uments",
+      ". ./x.sh && rm -rf Doc\\uments",
+      "echo ok; rm -rf Doc\\uments",
+      "rm -rf Doc\\uments | cat",
+      "rm -rf Doc\\uments\necho ok",
+      "rm -rf Doc\\uments > output",
+      "/bin/rm -rf Doc\\uments",
+    ]) {
+      expect(await decision(command, ["rm-repo-target"], subdir)).toBe("block");
+    }
+    expect(await decision("  rm -rf ../scr\\atch  ", ["rm-repo-target"], subdir)).toBe("allow");
+  });
+  test("unknown-owner PR override cannot grant explicit repository operands", async () => {
+    for (const command of [
+      'R=other/x; gh pr create -R "$R" --title x --body y',
+      'gh pr create -R "$(cat /tmp/r)" --title x --body y',
+      'gh pr create --repo "$R" --title x --body y',
+      'gh pr create --repo="$R" --title x --body y',
+      'gh pr create -R="$R" --title x --body y',
+      'gh pr create -R"$R" --title x --body y',
+      "gh pr create -R other/x --title x --body y",
+      'export GH_REPO="$R"; GH_REPO=other/x gh pr create --title x --body y',
+    ]) {
+      expect(await decision(command, ["gh-pr-create-unknown-owner"])).toBe("block");
+    }
+  });
+  test("main push override cannot grant mirror pushes", async () => {
+    for (const command of ["git push --mirror origin", "git push --mirror"]) {
+      expect(await decision(command)).toBe("ask");
+      expect(await decision(command, ["git-push-main"])).toBe("block");
+    }
+    const mirrorRepo = join(fixture, "mirror-repo");
+    expect(Bun.spawnSync(["git", "init", "--initial-branch=feature", mirrorRepo]).exitCode).toBe(0);
+    expect(
+      Bun.spawnSync(["git", "-C", mirrorRepo, "config", "remote.origin.mirror", "true"]).exitCode,
+    ).toBe(0);
+    expect(
+      Bun.spawnSync([
+        "git",
+        "-C",
+        mirrorRepo,
+        "config",
+        "remote.origin.url",
+        "https://github.com/darkroomengineering/test.git",
+      ]).exitCode,
+    ).toBe(0);
+    for (const command of ["git push", "git push origin"]) {
+      expect(await decision(command, undefined, mirrorRepo)).toBe("ask");
+      expect(await decision(command, ["git-push-main"], mirrorRepo)).toBe("block");
+    }
+  });
   test("unknown IDs and floor reasons grant nothing", async () => {
     expect(
       await decision("git checkout -- .", [

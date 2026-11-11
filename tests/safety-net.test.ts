@@ -6,7 +6,7 @@
 
 import { afterAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseShellCommand, type ShellScan, scanShell } from "../src/lib/hook-command.ts";
@@ -162,16 +162,35 @@ describe("TS safety-net — session scratchpad cleanup", () => {
       "/project/../../outside",
       "/**/..",
       "/$SESSION/output",
+      "/x(:h:h:h)",
     ]) {
       test(`blocks an unresolved or non-descendant target ${root}${suffix}`, () =>
         expectBlock(`rm -rf ${root}${suffix}`));
     }
+    test(`blocks scratchpad symlink components below ${root}`, async () => {
+      mkdirSync(root, { recursive: true });
+      const fixture = mkdtempSync(join(root, "cc-safety-symlink-"));
+      try {
+        const link = join(fixture, "outside");
+        symlinkSync(GITCONFIG_DIR, link);
+        await expectBlock(`rm -rf ${link}`);
+        await expectBlock(`rm -rf ${link}/missing/victim`);
+      } finally {
+        rmSync(fixture, { recursive: true, force: true });
+      }
+    });
+    test(`blocks qualifiers on a scratchpad path containing spaces below ${root}`, () =>
+      expectBlock(`rm -rf '${root}/foo bar'(:h:h:h)`));
   }
   test("does not grant the private temp allowance to another uid", () =>
     expectBlock(`rm -rf /private/tmp/claude-${uid + 1}/project/session/scratchpad/output`));
   for (const root of [`/tmp/./claude-${uid}`, `/tmp//claude-${uid}`]) {
     test(`blocks the normalized session root ${root}`, () => expectBlock(`rm -rf ${root}`));
+    test(`blocks qualifiers below the normalized session root ${root}`, () =>
+      expectBlock(`rm -rf ${root}/x(:h:h:h)`));
   }
+  test("blocks qualifiers below a private temp root with repeated separators", () =>
+    expectBlock(`rm -rf /private/tmp//claude-${uid}/x(:h:h:h)`));
 });
 
 describe("TS safety-net — git destructive → BLOCK", () => {
@@ -557,6 +576,9 @@ describe("TS safety-net — decision protocol", () => {
 
 describe("TS safety-net — reader programs and patterns are not file operands", () => {
   for (const [name, cmd] of [
+    ["recursive grep source pattern", "grep -rn 'process\\.env\\.' src"],
+    ["ripgrep source text", 'rg "process.env" src'],
+    ["jq env field", "jq '.env' package.json"],
     ["grep source pattern", "grep -n 'process\\.env\\.\\|allowlist' src/hooks/safety-net.ts"],
     ["ripgrep source pattern", "rg 'process\\.env\\.' src | head -5"],
     ["grep escaped env pattern", 'grep -n "\\.env" .gitignore'],
@@ -595,6 +617,22 @@ describe("TS safety-net — reader programs and patterns are not file operands",
 
 describe("TS safety-net — reader file operands remain protected", () => {
   for (const [name, cmd] of [
+    ["grep empty brace operand", "grep {KEY,.env,}"],
+    ["grep nonempty brace operand", "grep {KEY,.env,x}"],
+    ["ripgrep empty brace operand", "rg {KEY,.env,}"],
+    ["grep env-local brace operand", "grep -h {KEY,.env.production,} src"],
+    ["grep explicit brace pattern", "grep -e {KEY,.env,} README.md"],
+    ["ripgrep second brace pattern", "rg -e KEY -e {x,.env,}"],
+    ["clobber redirect keeps operand roles", "cat >| grep {x,.env,}"],
+    ["fd redirect keeps operand roles", "cat x >& grep {a,.env,b}"],
+    ["combined redirect keeps operand roles", "cat x &> grep {a,.env,b}"],
+    ["combined append redirect keeps operand roles", "cat &>> jq '.env'"],
+    ["fd append redirect keeps operand roles", "cat >>& jq '.env'"],
+    ["jq file before args flag", "jq . .env --args"],
+    ["jq file before jsonargs flag", "jq . .env.local --jsonargs"],
+    ["grep abbreviated long option", "grep --regex=KEY 'x|/../.env'"],
+    ["unknown option invalidates an earlier exemption", "grep -e 'x|/../.env' --regex=KEY"],
+    ["jq glob filter cannot mask a file", "jq .env* package.json"],
     ["explicit whole grep pattern", "grep -e '.env' README.md"],
     ["attached whole grep pattern", "grep -e.env README.md"],
     ["variable before reader", 'F=.env; cat "$F"'],
