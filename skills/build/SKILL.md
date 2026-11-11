@@ -1,6 +1,6 @@
 ---
 name: build
-description: Build a feature, page, or integration end-to-end with a GO/NO-GO gate. Triggers "build a feature", "implement feature", "add feature", "build integration". Components go to /component, hooks to /hook.
+description: Build a feature, page, or integration end-to-end with a GO/NO-GO gate. Triggers "build a feature", "implement feature", "add feature", "build integration". Components go to /component.
 context: fork
 ---
 

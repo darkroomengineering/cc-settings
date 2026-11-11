@@ -1726,6 +1726,20 @@ describe("Codex installer lifecycle", () => {
     );
   });
 
+  test("version 33 drops only the hook, refactor and zero-tech-debt skills from the Codex runtime", () => {
+    const removed = [
+      "skills/hook/SKILL.md",
+      "skills/refactor/SKILL.md",
+      "skills/zero-tech-debt/SKILL.md",
+    ];
+    expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBeGreaterThanOrEqual(33);
+    const v32 = runtimePathsForVersion(32, "test");
+    for (const path of removed) expect(v32).toContain(path);
+    expect(runtimePathsForVersion(33, "test")).toEqual(
+      v32.filter((path) => !removed.includes(path)),
+    );
+  });
+
   // Existing installs validate ownership against the manifest version their
   // sentinel recorded. Adding a file to a shipped version makes every such
   // install fail with "missing: <file>", so shipped versions are pinned by hash.
@@ -1891,6 +1905,25 @@ describe("Codex installer lifecycle", () => {
     }
     const v24Full = claudeManagedManifestPaths(24, "full", "test");
     for (const path of [...removed, "skills/review/SKILL.md"]) expect(v24Full).toContain(path);
+  });
+
+  test("Claude version 46 drops only the hook, refactor and zero-tech-debt skills, from full installs", async () => {
+    const removed = [
+      "skills/hook/SKILL.md",
+      "skills/refactor/SKILL.md",
+      "skills/zero-tech-debt/SKILL.md",
+    ];
+    const { CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, claudeManagedManifestPaths } =
+      await import("../src/lib/claude-managed-file-manifests.ts");
+    expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBeGreaterThanOrEqual(46);
+    const v45Full = claudeManagedManifestPaths(45, "full", "test");
+    for (const path of removed) expect(v45Full).toContain(path);
+    expect(claudeManagedManifestPaths(46, "full", "test")).toEqual(
+      v45Full.filter((path) => !removed.includes(path)),
+    );
+    expect(claudeManagedManifestPaths(46, "light", "test")).toEqual(
+      claudeManagedManifestPaths(45, "light", "test"),
+    );
   });
 
   test("the static runtime manifest closes every transitive relative TypeScript import", async () => {

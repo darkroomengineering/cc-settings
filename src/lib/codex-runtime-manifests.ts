@@ -291,7 +291,7 @@ const ADDED_IN_V31 = [
 ];
 // Version 32: the process-tree kill and bounded pipe reads both model bridges import.
 const ADDED_IN_V32 = ["src/lib/process-tree.ts"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 32;
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 33;
 // Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
 // CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.
 const REMOVED_IN_V20 = [
@@ -455,10 +455,17 @@ const RUNTIME_SOURCE_FILES_V28: readonly string[] = [...RUNTIME_SOURCE_FILES_V27
 const RUNTIME_SOURCE_FILES_V29: readonly string[] = [...RUNTIME_SOURCE_FILES_V28, ...ADDED_IN_V29];
 const RUNTIME_SOURCE_FILES_V30: readonly string[] = [...RUNTIME_SOURCE_FILES_V29, ...ADDED_IN_V30];
 const RUNTIME_SOURCE_FILES_V31: readonly string[] = [...RUNTIME_SOURCE_FILES_V30, ...ADDED_IN_V31];
-export const RUNTIME_SOURCE_FILES: readonly string[] = [
-  ...RUNTIME_SOURCE_FILES_V31,
-  ...ADDED_IN_V32,
+const RUNTIME_SOURCE_FILES_V32: readonly string[] = [...RUNTIME_SOURCE_FILES_V31, ...ADDED_IN_V32];
+// Version 33: the hook, refactor and zero-tech-debt skills left the library (see
+// TOMBSTONE_SKILLS in managed-skills.ts). Versions 1-32 still own them.
+const REMOVED_IN_V33 = [
+  "skills/hook/SKILL.md",
+  "skills/refactor/SKILL.md",
+  "skills/zero-tech-debt/SKILL.md",
 ];
+export const RUNTIME_SOURCE_FILES: readonly string[] = RUNTIME_SOURCE_FILES_V32.filter(
+  (path) => !REMOVED_IN_V33.includes(path),
+);
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
 );
@@ -507,6 +514,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [29, RUNTIME_SOURCE_FILES_V29],
   [30, RUNTIME_SOURCE_FILES_V30],
   [31, RUNTIME_SOURCE_FILES_V31],
+  [32, RUNTIME_SOURCE_FILES_V32],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 
