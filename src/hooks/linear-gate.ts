@@ -1,10 +1,12 @@
 #!/usr/bin/env bun
 // Linear Gate — PreToolUse hook (Bash). Blocks `gh pr create`, and a
 // `gh pr edit` that sets a title, when the repo maps to a Linear team and no
-// issue of that team appears in the title, the body or the branch name. The
-// ship skill's "Linear issue" step finds or creates the issue; this hook
-// catches PRs opened any other way. A `git commit` on a branch that names no
-// issue gets a reminder, never a block, so the ticket exists from kickoff.
+// issue of a known team appears in the title, the body or the branch name.
+// A known team is the mapped one or any other team the mapping names, since a
+// repo can ship another team's issues. The ship skill's "Linear issue" step
+// finds or creates the issue; this hook catches PRs opened any other way. A
+// `git commit` on a branch that names no issue gets a reminder, never a block,
+// so the ticket exists from kickoff.
 //
 // The mapping is read in the ship skill's order: ~/.claude/linear-teams.json,
 // then the linear-map.json cache SessionStart keeps from team-knowledge. An
@@ -119,12 +121,38 @@ export function lookup(
   return undefined;
 }
 
-// SHORTCUT: only the mapped team's key counts as an issue ID, so `UTF-8` or `GPT-6` never passes.
-// ceiling: a PR fixing another team's issue is blocked.
-// upgrade: when a repo routinely ships cross-team issues, confirm generic IDs through the Linear API.
-export function hasIssueId(text: string, team: string): boolean {
-  const escaped = team.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?:^|[^A-Za-z0-9])${escaped}-\\d+(?![A-Za-z0-9])`, "i").test(text);
+/** Every team key the teams file and the map name, uppercased and deduped. */
+export function teamKeys(
+  teams: Record<string, LinearTarget | null> | null,
+  map: LinearMap | null,
+): string[] {
+  const keys = new Set<string>();
+  for (const source of [teams, map]) {
+    for (const entry of Object.values(source ?? {})) {
+      if (entry) keys.add(entry.team.toUpperCase());
+    }
+  }
+  return [...keys];
+}
+
+// SHORTCUT: only keys of teams the mapping names count as issue IDs, so `UTF-8` or `GPT-6` never passes.
+// ceiling: a PR for an issue of a team no repo maps to is blocked, and an unchecked `DR-99999` passes.
+// upgrade: when that blocks real PRs or a bogus ID slips through review, confirm IDs through the Linear API.
+export function hasIssueId(text: string, team: string | string[]): boolean {
+  const keys = (Array.isArray(team) ? team : [team]).map((k) =>
+    k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+  );
+  if (keys.length === 0) return false;
+  return new RegExp(`(?:^|[^A-Za-z0-9])(?:${keys.join("|")})-\\d+(?![A-Za-z0-9])`, "i").test(text);
+}
+
+/** The mapped team first, then every other team the mapping knows. */
+function acceptedKeys(
+  target: LinearTarget,
+  teams: Record<string, LinearTarget | null> | null,
+  map: LinearMap | null,
+): string[] {
+  return [target.team, ...teamKeys(teams, map)];
 }
 
 export interface GateDeps {
@@ -176,7 +204,7 @@ export async function gateReason(
       const path = isAbsolute(pr.bodyFile) ? pr.bodyFile : join(cwd, pr.bodyFile);
       texts.push(await deps.readText(path).catch(() => ""));
     }
-    if (texts.some((t) => hasIssueId(t, target.team))) continue;
+    if (texts.some((t) => hasIssueId(t, acceptedKeys(target, teams, map)))) continue;
 
     const project = target.project ? ` (project ${target.project})` : "";
     const fill = pr.fill ? " Drop --fill and write the title and body yourself." : "";
@@ -204,7 +232,7 @@ export async function commitReminder(
   const branch = await deps.branch(cwd);
   // main and master are /ship's to branch off; a detached HEAD has no name to fix.
   if (!branch || branch === "main" || branch === "master") return null;
-  if (hasIssueId(branch, target.team)) return null;
+  if (hasIssueId(branch, acceptedKeys(target, teams, map))) return null;
   return (
     `[Linear Gate] Branch ${branch} names no ${target.team} issue, so this work has no ticket yet. ` +
     `Spawn the linear agent with event start now (the goal, why it matters, the plan, and what done means), ` +
