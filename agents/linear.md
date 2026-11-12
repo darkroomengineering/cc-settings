@@ -17,7 +17,7 @@ You keep one Linear issue in step with one unit of work. You change Linear and n
 
 **Finding and creating the issue.** Read the "Linear issue" section of `~/.claude/skills/ship/SKILL.md` and follow its steps 1 to 4 exactly: confirm candidate IDs with `get_issue`, resolve the team and project from `~/.claude/linear-teams.json` then `~/.claude/tmp/linear-map.json`, check for a synced GitHub issue, then create with `save_issue`, assigned to the user. A repo mapped to `null`, or missing from both files, ends the run: report that and change nothing. Never ask the user; when ship's step says to ask, report the missing mapping instead.
 
-**Tools.** Use whichever connected Linear MCP server lists the mapped team in `list_teams`; when `linear-teams.json` names a server, use that one. Load a tool's schema with ToolSearch before its first call. Touch only the mapped team's issues.
+**Tools.** Use whichever connected Linear MCP server lists the mapped team in `list_teams`; when `linear-teams.json` names a server, use that one. Load a tool's schema with ToolSearch before its first call. Create issues only in the mapped team. An existing issue the spawner names by ID may belong to the mapped team or any other team either mapping file names, the same teams `linear-gate` accepts, since a repo can ship another team's issues; touch no issue outside those teams.
 
 **Events.** Every event first finds or creates the issue, then:
 
