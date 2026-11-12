@@ -292,7 +292,9 @@ const ADDED_IN_V31 = [
 // Version 32: the process-tree kill and bounded pipe reads both model bridges import.
 const ADDED_IN_V32 = ["src/lib/process-tree.ts"];
 const ADDED_IN_V34 = ["src/lib/personal-overrides.ts", "src/schemas/personal-overrides.ts"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 34;
+// Version 35: the proof-of-work verify-app template.
+const ADDED_IN_V35 = ["skills/proof-of-work/references/verify-app-template.md"];
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 35;
 // Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
 // CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.
 const REMOVED_IN_V20 = [
@@ -468,9 +470,10 @@ const REMOVED_IN_V33 = [
 const RUNTIME_SOURCE_FILES_V33: readonly string[] = RUNTIME_SOURCE_FILES_V32.filter(
   (path) => !REMOVED_IN_V33.includes(path),
 );
+const RUNTIME_SOURCE_FILES_V34: readonly string[] = [...RUNTIME_SOURCE_FILES_V33, ...ADDED_IN_V34];
 export const RUNTIME_SOURCE_FILES: readonly string[] = [
-  ...RUNTIME_SOURCE_FILES_V33,
-  ...ADDED_IN_V34,
+  ...RUNTIME_SOURCE_FILES_V34,
+  ...ADDED_IN_V35,
 ];
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
@@ -522,6 +525,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [31, RUNTIME_SOURCE_FILES_V31],
   [32, RUNTIME_SOURCE_FILES_V32],
   [33, RUNTIME_SOURCE_FILES_V33],
+  [34, RUNTIME_SOURCE_FILES_V34],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

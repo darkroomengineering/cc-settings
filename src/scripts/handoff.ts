@@ -8,8 +8,18 @@
 //   handoff.ts list
 //   handoff.ts clean [keep]
 
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { lstat, mkdir, realpath, stat, unlink, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  readFile,
+  readlink,
+  realpath,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { basename, join, sep } from "node:path";
 import {
   listArtifacts,
@@ -77,6 +87,167 @@ async function listSafeHandoffs(dir: string): Promise<string[]> {
   const names = await listArtifacts(dir, /^handoff_.*\.md$/);
   const safe = await Promise.all(names.map((n) => isContainedRegularFile(dir, join(dir, n))));
   return names.filter((_, i) => safe[i]);
+}
+
+/** HEAD plus a fingerprint of everything uncommitted, taken when a handoff is written. */
+interface TreeState {
+  head: string;
+  /** sha256 over the staged diff, the unstaged diff, then each untracked path and its content. */
+  fingerprint: string;
+  /** Content digest per dirty or untracked path. Only names what changed on resume. */
+  paths: Record<string, string>;
+}
+
+const SHA1_RE = /^[0-9a-f]{40}$/;
+const SHA256_RE = /^[0-9a-f]{64}$/;
+// SHORTCUT: untracked content past this total is not hashed, and the handoff records
+// no fingerprint.
+// ceiling: 64 MiB read on the PreCompact hook
+// upgrade: hash in a worker when resumes report "no fingerprint recorded" on normal-sized repos
+const MAX_UNTRACKED_BYTES = 64 * 1024 * 1024;
+
+/** Raw stdout of `git -C root …`, or null on any failure, so truncated output is never hashed. */
+async function gitBytes(root: string, args: string[]): Promise<Buffer | null> {
+  const proc = Bun.spawn(["git", "-C", root, ...args], {
+    stdout: "pipe",
+    stderr: "ignore",
+    stdin: "ignore",
+    timeout: 15_000,
+    killSignal: "SIGKILL",
+  });
+  const out = Buffer.from(await new Response(proc.stdout).arrayBuffer());
+  return (await proc.exited) === 0 && proc.signalCode === null ? out : null;
+}
+
+const nulList = (buf: Buffer) => buf.toString("utf8").split("\0").filter(Boolean);
+const sha256 = (data: Buffer | string) => createHash("sha256").update(data).digest("hex");
+
+/** Bytes that stand for `path` in the working tree; a symlink stands for its target. */
+async function pathContent(path: string): Promise<Buffer> {
+  try {
+    const st = await lstat(path);
+    if (st.isSymbolicLink()) return Buffer.from(`symlink:${await readlink(path)}`);
+    if (st.isFile()) return await readFile(path);
+    return Buffer.from(st.isDirectory() ? "directory" : "special");
+  } catch {
+    return Buffer.from("missing");
+  }
+}
+
+/** Null outside a repo, before the first commit, or when the tree is too large to hash. */
+async function readTreeState(root: string): Promise<TreeState | null> {
+  if (!root) return null;
+  // Staged and unstaged diffs are hashed apart: `git diff HEAD` alone misses a staged
+  // change whose working file was restored to HEAD.
+  const [headOut, staged, unstaged, untrackedOut, stagedNames, unstagedNames, index] =
+    await Promise.all([
+      gitBytes(root, ["rev-parse", "--verify", "HEAD"]),
+      gitBytes(root, ["diff", "--binary", "--cached"]),
+      gitBytes(root, ["diff", "--binary"]),
+      gitBytes(root, ["ls-files", "--others", "--exclude-standard", "-z"]),
+      gitBytes(root, ["diff", "--cached", "--name-only", "-z"]),
+      gitBytes(root, ["diff", "--name-only", "-z"]),
+      gitBytes(root, ["ls-files", "--stage", "-z"]),
+    ]);
+  if (
+    !headOut ||
+    !staged ||
+    !unstaged ||
+    !untrackedOut ||
+    !stagedNames ||
+    !unstagedNames ||
+    !index
+  ) {
+    return null;
+  }
+  const head = headOut.toString("utf8").trim();
+  if (!SHA1_RE.test(head)) return null;
+
+  const untracked = nulList(untrackedOut).sort();
+  const sizes = await Promise.all(
+    untracked.map((p) =>
+      lstat(join(root, p)).then(
+        (st) => st.size,
+        () => 0,
+      ),
+    ),
+  );
+  if (sizes.reduce((a, b) => a + b, 0) > MAX_UNTRACKED_BYTES) return null;
+
+  const indexEntry = new Map<string, string>();
+  for (const line of nulList(index)) {
+    const tab = line.indexOf("\t");
+    if (tab > 0) indexEntry.set(line.slice(tab + 1), line.slice(0, tab));
+  }
+  const contents = new Map<string, Buffer>();
+  for (const p of new Set([...nulList(stagedNames), ...nulList(unstagedNames), ...untracked])) {
+    const work = await pathContent(join(root, p));
+    contents.set(p, Buffer.concat([Buffer.from(`${indexEntry.get(p) ?? "unindexed"}\0`), work]));
+  }
+  const hash = createHash("sha256").update(staged).update("\0staged-end\0").update(unstaged);
+  for (const p of untracked) {
+    hash.update(`\0${p}\0`);
+    hash.update(contents.get(p) ?? "");
+  }
+  const paths: Record<string, string> = {};
+  for (const [p, content] of [...contents].sort(([a], [b]) => a.localeCompare(b))) {
+    paths[p] = sha256(content);
+  }
+  return { head, fingerprint: hash.digest("hex"), paths };
+}
+
+/**
+ * One line comparing the repo now with the HEAD and fingerprint a handoff recorded,
+ * plus the changed paths when the tree changed. The recorded values come from an
+ * untrusted file, so each one is shape-checked before it reaches a git argument.
+ */
+async function compareWithHandoff(dir: string, mdFile: string): Promise<string[]> {
+  const jsonFile = mdFile.replace(/\.md$/, ".json");
+  let recorded: { head?: unknown; treeFingerprint?: unknown; treePaths?: unknown } = {};
+  if (await isContainedRegularFile(dir, jsonFile)) {
+    try {
+      const parsed = JSON.parse(readFileSync(jsonFile, "utf8")) as { git?: typeof recorded };
+      recorded = parsed?.git ?? {};
+    } catch {
+      // Unparseable JSON is the same as no record.
+    }
+  }
+  const oldHead = typeof recorded.head === "string" ? recorded.head : "";
+  const oldFp = typeof recorded.treeFingerprint === "string" ? recorded.treeFingerprint : "";
+  if (!SHA1_RE.test(oldHead) || !SHA256_RE.test(oldFp)) return ["no fingerprint recorded"];
+
+  const now = await readTreeState(await runGit(["rev-parse", "--show-toplevel"]));
+  if (!now) return ["current tree could not be read, so it was not compared"];
+
+  if (now.head !== oldHead) {
+    const range = `${oldHead.slice(0, 12)}..${now.head.slice(0, 12)}`;
+    const count = await runGit(["rev-list", "--count", `${oldHead}..${now.head}`]);
+    if (!/^\d+$/.test(count)) {
+      return [`HEAD moved: ${range} (the recorded HEAD is not in this repository)`];
+    }
+    const commits = `${count} commit${count === "1" ? "" : "s"}`;
+    const ancestor = await runProcessFull("git", [
+      "merge-base",
+      "--is-ancestor",
+      oldHead,
+      now.head,
+    ]);
+    return ancestor.exit === 0
+      ? [`HEAD moved: ${range} (${commits})`]
+      : [
+          `HEAD moved: ${range} (${commits}; the recorded HEAD is not an ancestor, history was rewritten)`,
+        ];
+  }
+  if (now.fingerprint === oldFp) return ["unchanged since handoff"];
+
+  const oldPaths =
+    recorded.treePaths && typeof recorded.treePaths === "object"
+      ? (recorded.treePaths as Record<string, unknown>)
+      : {};
+  const changed = [...new Set([...Object.keys(oldPaths), ...Object.keys(now.paths)])]
+    .filter((p) => oldPaths[p] !== now.paths[p])
+    .sort();
+  return ["working tree changed since handoff", ...changed.map((p) => `  - ${p}`)];
 }
 
 async function cmdCreate(args: string[]): Promise<void> {
@@ -173,6 +344,8 @@ async function cmdCreate(args: string[]): Promise<void> {
   const repoRoot = gitDir ? await runGit(["rev-parse", "--show-toplevel"]) : "";
   const ledgerChanged = toProjectRelative(digest.changes, repoRoot);
   const ledgerRead = toProjectRelative(digest.reads, repoRoot);
+  // Taken last, so it describes the tree exactly as this handoff leaves it.
+  const tree = await readTreeState(repoRoot);
 
   // Key Files is the union: what is dirty right now, plus what this session is
   // observed to have changed. Order puts still-dirty files first, since those
@@ -188,7 +361,13 @@ async function cmdCreate(args: string[]): Promise<void> {
   const json = {
     timestamp: isoNow(),
     project: { name: projectName, path: projectDir },
-    git: { branch: gitBranch, pendingChanges },
+    git: {
+      branch: gitBranch,
+      pendingChanges,
+      head: tree?.head,
+      treeFingerprint: tree?.fingerprint,
+      treePaths: tree?.paths,
+    },
     context: { summary, activeTodos: [], keyFiles: modifiedFiles, currentTask: "" },
     recentCommits,
     notes: "",
@@ -230,7 +409,7 @@ async function cmdCreate(args: string[]): Promise<void> {
 - **Name:** ${projectName}
 - **Path:** ${projectDir}
 - **Branch:** ${gitBranch}
-- **Source:** ${source}${source === "auto" ? " (hook-triggered, no --summary)" : ""}
+- **Source:** ${source}${source === "auto" ? " (hook-triggered, no --summary)" : ""}${tree ? `\n- **HEAD:** ${tree.head}\n- **Tree:** ${tree.fingerprint.slice(0, 16)}` : ""}
 
 ## Pending Changes
 \`\`\`
@@ -312,6 +491,9 @@ async function cmdResume(id: string): Promise<number> {
   console.log("");
   console.log(id ? `RESUMING SESSION: ${id}` : "RESUMING LATEST SESSION");
   console.log("------------------------------------");
+  const [status, ...changedPaths] = await compareWithHandoff(dir, file);
+  console.log(`Since handoff: ${status}`);
+  for (const line of changedPaths) console.log(line);
   console.log("");
   console.log(readFileSync(file, "utf8"));
   console.log("");
