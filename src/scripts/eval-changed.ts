@@ -210,14 +210,17 @@ function captureHistories(
   return cost;
 }
 
-// A throwaway plugin that mirrors ROOT except `skills/`, where each skill in
-// `swap` is replaced by its version at `mergeBase`. `evals/` is copied from the
-// working tree so both arms run the same cases (the runner refuses a symlinked
-// evals dir). Skills absent at the merge-base are returned in `added`.
-function buildBasePlugin(mergeBase: string, swap: string[]): { dir: string; added: string[] } {
-  const dir = mkdtempSync(join(tmpdir(), "cc-settings-eval-base-"));
+// Worktrees nested in ROOT each hold a full plugin copy, and the runner loads
+// every one it finds: duplicate cases, then E2BIG from the oversized argv.
+const NESTED_WORKTREES = ".worktrees";
+
+// A throwaway plugin that mirrors ROOT without `.git` or nested worktrees.
+// `skills/` and `evals/` are copied so callers can swap a skill and capture
+// histories without touching ROOT (the runner refuses a symlinked evals dir).
+function mirrorPlugin(label: string): string {
+  const dir = mkdtempSync(join(tmpdir(), `cc-settings-eval-${label}-`));
   for (const entry of readdirSync(ROOT)) {
-    if (entry === ".git" || entry === "skills" || entry === "evals") continue;
+    if ([".git", NESTED_WORKTREES, "skills", "evals"].includes(entry)) continue;
     symlinkSync(join(ROOT, entry), join(dir, entry));
   }
   cpSync(join(ROOT, "skills"), join(dir, "skills"), { recursive: true });
@@ -225,6 +228,13 @@ function buildBasePlugin(mergeBase: string, swap: string[]): { dir: string; adde
     recursive: true,
     filter: (src) => !src.startsWith(join(ROOT, "evals", "results")),
   });
+  return dir;
+}
+
+// A mirror where each skill in `swap` is replaced by its version at
+// `mergeBase`. Skills absent at the merge-base are returned in `added`.
+function buildBasePlugin(mergeBase: string, swap: string[]): { dir: string; added: string[] } {
+  const dir = mirrorPlugin("base");
   const added: string[] = [];
   for (const name of swap) {
     const archive = Bun.spawnSync({
@@ -497,8 +507,16 @@ function main(): never {
   console.error(
     `[eval-changed] running evals for: ${targets.join(", ")} (${runs} run(s) per case)`,
   );
-  const captureCost = captureHistories(ROOT, cases, targets, armCost);
-  const current = runArm(ROOT, targets, armCost, "current", runs);
+  const mirrored = existsSync(join(ROOT, NESTED_WORKTREES));
+  const plugin = mirrored ? mirrorPlugin("current") : ROOT;
+  let captureCost: number;
+  let current: Arm;
+  try {
+    captureCost = captureHistories(plugin, cases, targets, armCost);
+    current = runArm(plugin, targets, armCost, "current", runs);
+  } finally {
+    if (mirrored) rmSync(plugin, { recursive: true, force: true });
+  }
 
   for (const c of current.report.cases ?? []) {
     const score = c.aggregates?.score ?? 0;
