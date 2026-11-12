@@ -119,7 +119,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "16.1.0"; // /ship pushes with the detected git login and branches off main.
+const VERSION = "16.1.1"; // /ship pushes with the detected git login and branches off main.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
