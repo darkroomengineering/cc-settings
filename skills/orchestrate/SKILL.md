@@ -73,7 +73,9 @@ or reporting success:
    `git add -N .` so new files show, write `git diff <base>` from the tree it
    wrote to into a scratch file, and hand the `reviewer` that path, the base
    SHA, and the brief. The implementer's report goes along only as claims to
-   check, never as a summary in place of the diff.
+   check, never as a summary in place of the diff. A verdict holds only for
+   the SHA it judged: any later commit in that territory gets a fresh diff and
+   a fresh verdict before it lands.
 6. **Five fix rounds per task, then stop.** A fix round is one fix dispatch
    plus a re-review of the new diff. Rounds 1-3 resume the same implementer
    (item 4) with the open findings verbatim. Rounds 4-5 spawn a fresh

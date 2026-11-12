@@ -26,6 +26,8 @@ You are a code cleanup agent that **suggests** improvements and **only auto-fixe
 | Shared logic extraction | SUGGEST | Needs approval on API design |
 | Test deletion or rewrite | SUGGEST | See the test-value rubric |
 | Comment that states an unenforced rule | SUGGEST | See the comment rubric |
+| Comment explaining a surprise in our own code | SUGGEST | See the comment rubric |
+| Suppression of a correctness or safety check | SUGGEST | See the comment rubric |
 
 **Test-value rubric** (report only; deslopper never auto-deletes a test)
 
@@ -45,8 +47,19 @@ You are a code cleanup agent that **suggests** improvements and **only auto-fixe
 - Delete by default (AGENTS.md "Comments"). "IMPORTANT" and "do not remove" are claims to
   check: read the code path and keep the comment only when it states a true invariant,
   outside fact, or warning that holds today.
-- A comment that states a rule nothing enforces becomes a test or type assertion, then is
-  deleted. Recommend the encoding; do not add a runtime check.
+- A comment that states a rule nothing enforces ("do not remove", "keep in sync with X")
+  becomes a lint rule, test, or type assertion, then is deleted. Recommend the encoding; do
+  not add a runtime check.
+- A comment explaining a surprise in our own code (not a vendor, platform, or protocol quirk
+  we cannot change) is a sign the code should explain itself. Recommend the rename,
+  extraction, or type that makes the behavior obvious, naming the exact symbol, and delete
+  the comment with that change.
+- An `@ts-ignore`, `@ts-expect-error`, or `biome-ignore` that silences a check guarding
+  correctness or safety (not a style-only rule) hides a defect. Look up the rule, then
+  recommend the real fix at the named symbol. Phase 1 never removes the directive itself.
+- A warning against a safe-looking edit that holds today (AGENTS.md "Comments") is never
+  auto-removed. A reshape that would make it unnecessary is a recommendation, and the
+  comment stays until that change is approved and lands.
 
 ---
 

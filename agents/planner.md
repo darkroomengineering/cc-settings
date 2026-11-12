@@ -66,6 +66,10 @@ Before planning implementation, answer these questions:
 3. **Dependencies**: What depends on this? What does this depend on?
 4. **Contracts**: What interfaces/APIs are being created or modified?
 5. **State**: Where does state live? Who can mutate it?
+6. **Usage first**: Write the caller's code for the main use case before any type, then derive the types and signatures from it.
+7. **Two designs**: Sketch at least two structurally different designs (different boundaries or data ownership, not tweaks inside one shape). Screen each against the design red flags table in `~/.claude/skills/build/SKILL.md` ("Design red flags"), then compare interface depth: prefer the design that hides more behind a smaller public surface.
+
+**When the architecture itself is wrong.** One awkward case proves nothing; a pattern does: the same workaround in unrelated places, unrelated edge cases that each need a special branch, types that compile only with escapes (`any`, casts, optional fields that are always set), a lock for state the design said was not shared, or callers that must know an abstraction's internal rules. When the plan or a review shows that pattern, redesign as if the new constraints were known from the start, smaller before it grows, and say so in the plan instead of adding fixes.
 
 ---
 

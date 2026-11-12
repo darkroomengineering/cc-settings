@@ -46,7 +46,7 @@ A deliberate simplification with a known ceiling gets a `SHORTCUT:` comment nami
 
 ### 2-Iteration Limit
 
-After **2 failed attempts** with one approach, stop using it. Summarize the attempts, pick the best of **2-3 alternatives**, and continue, saying so; ask only when the choice changes the user's stated direction or is hard to reverse. Never spend 6+ attempts on one strategy.
+After **2 failed attempts** with one approach, stop using it. Summarize the attempts, pick the best of **2-3 alternatives**, and continue, saying so; ask only when the choice changes the user's stated direction or is hard to reverse. Never spend 6+ attempts on one strategy. The alternatives must not rest on the premise the failed attempts shared; test that premise first.
 
 ### Stop-Loss on Environment Blockers
 
@@ -88,6 +88,8 @@ If uncertain, treat it as a regression and stop to confirm. Making the suite gre
 ### Never Fake Measurements
 
 Never fabricate Lighthouse, bundle-size, profiler, test-runner, or build output. If a tool cannot run, say so. Report a delta only when both baselines were measured; otherwise report countable facts. Label extrapolations `est.` and name their source.
+
+Before claiming a speed result, name its limiter (CPU, I/O, network, load generator) and confirm the timed code did the work. Compare at least 5 alternating runs per side (A, B, A, B); report median and range. A gap inside the range is no measurable difference; "inconclusive" is a valid verdict.
 
 ### Visual/Spatial Honesty
 
@@ -258,7 +260,7 @@ AGENTS.md-aware reviewers use this scope. Report only behavior or risk; skip for
 After the Laziness Ladder, before using any external library:
 
 1. Fetch current documentation; do not rely on remembered APIs.
-2. Check the latest version with `bun info <package>`.
+2. Research the version the lockfile pins, not the latest `bun info <package>` shows. Sources in order: installed code in `node_modules`, that version's official docs, then upstream source. Blogs and Q&A are leads, never sources.
 
 ## Context Hygiene
 
