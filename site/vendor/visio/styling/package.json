@@ -1,0 +1,48 @@
+{
+  "name": "@visio/styling",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Build-time styling for Solid 2: typed style objects, one atomic stylesheet, fluid tokens, and style linting.",
+  "bin": {
+    "visio-styling": "./bin/visio-styling.js"
+  },
+  "files": [
+    "DESIGN.md",
+    "bin",
+    "skills",
+    "src"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./internal/vite": "./src/vite.ts",
+    "./internal/runtime": "./src/runtime.ts",
+    "./css": {
+      "types": "./src/css.d.ts",
+      "default": "./src/css-placeholder.css"
+    }
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@jridgewell/sourcemap-codec": "^1.6.0",
+    "@visio/router": "0.1.0",
+    "browserslist": "^4.29.5",
+    "csstype": "^3.2.3",
+    "harfbuzzjs": "1.6.4",
+    "html-entities": "^2.6.0",
+    "lightningcss": "^1.33.0",
+    "magic-string": "^1.4.5",
+    "oxc-parser": "^0.156.0",
+    "wawoff2": "2.0.1"
+  },
+  "devDependencies": {
+    "@solidjs/compiler": "2.0.0-rc.20",
+    "solid-js": "2.0.0-rc.20"
+  },
+  "peerDependencies": {
+    "solid-js": ">=2.0.0-rc.20",
+    "vite": ">=8"
+  }
+}

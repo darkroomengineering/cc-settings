@@ -1,0 +1,38 @@
+{
+  "name": "@visio/scroll",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scrolling for Solid 2: optional Lenis on the shared frame loop of @visio/frame, stopped when the router navigates, and scrollTo() and lockScroll() that work with Lenis or without it.",
+  "files": [
+    "DESIGN.md",
+    "skills",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@visio/frame": "0.1.0",
+    "lenis": "2.0.0-dev.5"
+  },
+  "devDependencies": {
+    "@solidjs/router": "2.0.0-next.43",
+    "@solidjs/web": "2.0.0-rc.20",
+    "solid-js": "2.0.0-rc.20"
+  },
+  "peerDependencies": {
+    "@solidjs/router": ">=2.0.0-next.43",
+    "@solidjs/web": ">=2.0.0-rc.20",
+    "solid-js": ">=2.0.0-rc.20"
+  },
+  "visio": {
+    "stylesheets": [
+      "lenis/dist/lenis.css"
+    ]
+  }
+}

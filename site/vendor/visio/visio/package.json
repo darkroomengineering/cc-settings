@@ -1,0 +1,48 @@
+{
+  "name": "visio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "One Vite plugin for a visio site: images, SVG, styling, Solid and the route table in the right order, with the defaults every site copied by hand and one place for the facts the parts share.",
+  "files": [
+    "DESIGN.md",
+    "bin",
+    "skills",
+    "src",
+    "tsconfig.base.json"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": {
+      "types": "./src/client.d.ts"
+    },
+    "./internal/deploy": "./src/deploy.ts",
+    "./tsconfig.base.json": "./tsconfig.base.json"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@jridgewell/trace-mapping": "^0.3.31",
+    "@solidjs/vite-plugin": "3.0.0-next.55",
+    "@types/bun": "^1.4.4",
+    "@visio/aeo": "0.1.0",
+    "@visio/env": "0.1.0",
+    "@visio/gate": "0.1.0",
+    "@visio/i18n": "0.1.0",
+    "@visio/image-optimizer": "0.1.0",
+    "@visio/router": "0.1.0",
+    "@visio/styling": "0.1.0"
+  },
+  "peerDependencies": {
+    "@solidjs/prerender": ">=0.3.0",
+    "@solidjs/router": ">=2.0.0-next.43",
+    "@solidjs/web": ">=2.0.0-rc.20",
+    "prerender-crawler": ">=0.3.0",
+    "solid-js": ">=2.0.0-rc.20",
+    "vite": ">=8"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

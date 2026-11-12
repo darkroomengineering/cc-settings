@@ -1,0 +1,17 @@
+{
+  "name": "@visio/gate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A site-wide password gate for a visio deployment on Vercel or Cloudflare, on when SITE_PASSWORD is set.",
+  "files": [
+    "DESIGN.md",
+    "src"
+  ],
+  "type": "module",
+  "exports": {
+    "./internal/gate": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  }
+}

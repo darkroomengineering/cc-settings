@@ -1,0 +1,95 @@
+{
+  "name": "cc-settings-site",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "vendor/visio/*"
+    ],
+    "catalog": {
+      "@sanity/types": "6.21.0",
+      "@solidjs/compiler": "2.0.0-rc.20",
+      "@solidjs/diagnostics": "2.0.0-rc.20",
+      "@solidjs/prerender": "0.3.0",
+      "@solidjs/router": "2.0.0-next.43",
+      "@solidjs/vite-plugin": "3.0.0-next.55",
+      "@solidjs/web": "2.0.0-rc.20",
+      "@types/bun": "^1.4.4",
+      "magic-string": "^1.4.5",
+      "oxc-parser": "^0.156.0",
+      "oxlint": "~1.90.0",
+      "prerender-crawler": "0.3.0",
+      "react": "^19.3.1",
+      "react-dom": "^19.3.1",
+      "sanity": "6.21.0",
+      "solid-js": "2.0.0-rc.20",
+      "styled-components": "^6.6.0",
+      "valibot": "1.5.0",
+      "vite": "^8.3.5"
+    }
+  },
+  "type": "module",
+  "scripts": {
+    "smoke": "bun vendor/visio/visio/bin/visio-smoke.ts",
+    "dev": "bun --bun vite",
+    "build": "bun --bun vite build",
+    "serve": "vite preview",
+    "deploy": "bun scripts/deploy.ts",
+    "check": "visio-styling check",
+    "typecheck": "tsc -p .",
+    "lint": "oxlint --deny-warnings",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "visio:update": "bun vendor/visio/visio/bin/visio-vendor.ts update",
+    "visio:check": "bun vendor/visio/visio/bin/visio-vendor.ts check"
+  },
+  "dependencies": {
+    "@solidjs/prerender": "catalog:",
+    "@solidjs/router": "catalog:",
+    "@solidjs/web": "catalog:",
+    "@visio/cloudflare": "workspace:*",
+    "@visio/env": "workspace:*",
+    "@visio/image-optimizer": "workspace:*",
+    "@visio/router": "workspace:*",
+    "@visio/styling": "workspace:*",
+    "@visio/transitions": "workspace:*",
+    "solid-js": "catalog:",
+    "valibot": "catalog:",
+    "visio": "workspace:*"
+  },
+  "devDependencies": {
+    "@solidjs/diagnostics": "catalog:",
+    "@solidjs/vite-plugin": "catalog:",
+    "@types/bun": "catalog:",
+    "@visio/oxlint-plugin": "workspace:*",
+    "eslint-plugin-solid": "~0.18.1",
+    "oxfmt": "~0.75.0",
+    "oxlint": "catalog:",
+    "prerender-crawler": "catalog:",
+    "typescript": "^7.0.2",
+    "ultracite": "8.1.1",
+    "vite": "catalog:"
+  },
+  "overrides": {
+    "@solidjs/babel-plugin": "2.0.0-rc.20",
+    "@solidjs/compiler": "2.0.0-rc.20",
+    "@solidjs/compiler-darwin-arm64": "2.0.0-rc.20",
+    "@solidjs/compiler-darwin-x64": "2.0.0-rc.20",
+    "@solidjs/compiler-linux-arm64-gnu": "2.0.0-rc.20",
+    "@solidjs/compiler-linux-x64-gnu": "2.0.0-rc.20",
+    "@solidjs/compiler-wasm32-wasi": "2.0.0-rc.20",
+    "@solidjs/compiler-win32-x64-msvc": "2.0.0-rc.20",
+    "@solidjs/diagnostics": "2.0.0-rc.20",
+    "@solidjs/prerender": "0.3.0",
+    "@solidjs/router": "2.0.0-next.43",
+    "@solidjs/signals": "2.0.0-rc.20",
+    "@solidjs/vite-plugin": "3.0.0-next.55",
+    "@solidjs/web": "2.0.0-rc.20",
+    "seroval": "1.7.0",
+    "seroval-plugins": "1.7.0",
+    "solid-js": "2.0.0-rc.20"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

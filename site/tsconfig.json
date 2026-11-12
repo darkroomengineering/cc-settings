@@ -1,0 +1,9 @@
+{
+  "extends": "visio/tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "jsxImportSource": "@solidjs/web",
+    "types": ["vite/client", "@visio/image-optimizer/client", "visio/client"]
+  },
+  "include": ["src", "vite.config.ts"]
+}

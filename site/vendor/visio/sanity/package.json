@@ -1,0 +1,73 @@
+{
+  "name": "@visio/sanity",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sanity in a visio site: the client for server functions with the defaults a prerendered site needs, image attributes from Sanity's CDN, and a Portable Text renderer for Solid 2.",
+  "bin": {
+    "visio-sanity": "./bin/visio-sanity.js"
+  },
+  "files": [
+    "DESIGN.md",
+    "bin",
+    "skills",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts",
+    "./studio": "./src/define-studio.ts",
+    "./studio/cli": "./src/studio-cli.ts",
+    "./studio/schema": "./src/studio-schema.ts",
+    "./vite": "./src/extension.ts",
+    "./internal/middleware": "./src/middleware.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@portabletext/toolkit": "^6.0.0",
+    "@portabletext/types": "^4.0.2",
+    "@sanity/client": "^8.14.1",
+    "@sanity/preview-url-secret": "^4.1.5",
+    "@sanity/visual-editing-standalone": "^2.0.3",
+    "@vercel/stega": "^1.1.0",
+    "@visio/env": "0.1.0",
+    "@visio/image-optimizer": "0.1.0",
+    "@visio/router": "0.1.0",
+    "groq-js": "^2.0.1",
+    "oxc-parser": "^0.156.0"
+  },
+  "devDependencies": {
+    "@sanity/codegen": "^8.3.0",
+    "@sanity/image-url": "^2.1.1",
+    "@sanity/schema": "6.21.0",
+    "@sanity/types": "6.21.0",
+    "@solidjs/router": "2.0.0-next.43",
+    "@solidjs/vite-plugin": "3.0.0-next.55",
+    "@solidjs/web": "2.0.0-rc.20",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "sanity": "6.21.0",
+    "solid-js": "2.0.0-rc.20",
+    "styled-components": "^6.6.0",
+    "vite": "^8.3.5"
+  },
+  "peerDependencies": {
+    "@sanity/types": ">=6.21.0",
+    "@solidjs/router": ">=2.0.0-next.43",
+    "@solidjs/web": ">=2.0.0-rc.20",
+    "sanity": ">=6.21.0",
+    "solid-js": ">=2.0.0-rc.20",
+    "vite": ">=8"
+  },
+  "peerDependenciesMeta": {
+    "@sanity/types": {
+      "optional": true
+    },
+    "sanity": {
+      "optional": true
+    }
+  }
+}
