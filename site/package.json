@@ -47,12 +47,12 @@
     "@solidjs/prerender": "catalog:",
     "@solidjs/router": "catalog:",
     "@solidjs/web": "catalog:",
-    "@visio/cloudflare": "workspace:*",
     "@visio/env": "workspace:*",
     "@visio/image-optimizer": "workspace:*",
     "@visio/router": "workspace:*",
     "@visio/styling": "workspace:*",
     "@visio/transitions": "workspace:*",
+    "@visio/vercel": "workspace:*",
     "solid-js": "catalog:",
     "valibot": "catalog:",
     "visio": "workspace:*"
