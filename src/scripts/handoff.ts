@@ -101,8 +101,9 @@ interface TreeState {
 const SHA1_RE = /^[0-9a-f]{40}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
 // SHORTCUT: untracked content past this total is not hashed, and the handoff records
-// no fingerprint. ceiling: 64 MiB read on the PreCompact hook. upgrade: hash in a
-// worker when resumes report "no fingerprint recorded" on normal-sized repos.
+// no fingerprint.
+// ceiling: 64 MiB read on the PreCompact hook
+// upgrade: hash in a worker when resumes report "no fingerprint recorded" on normal-sized repos
 const MAX_UNTRACKED_BYTES = 64 * 1024 * 1024;
 
 /** Raw stdout of `git -C root …`, or null on any failure, so truncated output is never hashed. */
