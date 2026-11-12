@@ -91,6 +91,8 @@ Then fold the confirmed findings into the verdict below — map HIGH→Critical,
 
 Each finding carries severity, a 0/25/50/75/100 confidence, the quoted motivating line with `file:line`, and an `introduced` or `pre-existing` tag, as the reviewer agent defines them. **Verdict rule:** only `introduced` findings at confidence 75 or 100 can block. `pre-existing` findings and anything below 75 never do. A confirmed Codex finding goes through the same gate: quote the line or it stays a Suggestion.
 
+**Risk claims carry a rung.** Judge every claim that a change is safe or that it breaks something (from the PR body, an implementer's report, Codex, or your own finding) on the confidence ladder defined in `~/.claude/agents/explore.md`: asserted, pointed at a line, showed the bad case can't happen, ran it, reproduced it in the app. Name the rung each claim reached. An asserted safety claim is not evidence; when the change is safe because of one fact, name that fact and its rung. The rung describes the evidence; the 0 to 100 confidence still decides what blocks.
+
 ## Escalation
 
 Escalate to `/poke-holes` when the diff touches auth, payments, crypto, input validation, or a breaking public API. This skill is the fast checklist pass; `/poke-holes` runs three adversarial agents (issue-finder, disprover, judge) and is the gate for security-sensitive or financial code.
@@ -207,11 +209,19 @@ Default to fixing. Most feedback, nitpicks included, is correct. Judge every thr
 
 - **valid**: the finding holds and the fix is clear. Includes small real improvements.
 - **invalid**: the finding does not hold (the code already handles it), the concern is outdated (the anchored code is gone and tracing the behavior it described, including where it moved or was renamed, shows the defect no longer exists), the fix would make the code worse (dead defensive code, a broken project rule), or the change buys nothing. Reply with the reason and the evidence.
-- **needs-decision**: the fix would reverse a deliberate choice that has an artifact behind it (a comment, a test, a commit or PR rationale) and engineers could reasonably disagree; the change is risky on a hot path or a boundary other code relies on and reading the callers did not bound the risk; reviewers ask for opposite things; or the comment is a question only the user can answer. Investigate first so the user can decide in under 30 seconds.
+- **needs-decision**: the fix would reverse a deliberate choice that has an artifact behind it (a comment, a test, a commit or PR rationale) and engineers could reasonably disagree; the change is risky on a hot path or a boundary other code relies on and reading the callers did not bound the risk; reviewers ask for opposite things and the precedence below does not settle it; or the comment is a question only the user can answer. Investigate first so the user can decide in under 30 seconds.
 
 A question the code answers gets a reply, not a decision.
 
 **Cluster by root assumption.** Read all threads before fixing any. When a bot is wrong once, scrutinize its sibling comments, since a wrong premise produces several plausible wrong findings. Several reviewers asking for the same change is a strong sign it is valid. When a valid finding applies to other sites this PR touched under the same invariant, fix them together.
+
+**Conflicting feedback follows precedence.** A decision the user recorded (PR body, ticket, chat) wins, then a reproduction or the repo's own checks, then a human reviewer, then an AI reviewer. List both threads in the digest with the one that won and why. Opposite requests from the same level with nothing higher to settle them are needs-decision.
+
+**Some findings are never dismissed on sight.** A finding about security, privacy, auth, billing, migrations, or concurrency is traced in the code before any verdict, even when its bot was wrong elsewhere in this review. Clustering never dismisses one.
+
+**A dismissed bot finding leaves a record.** The `Not addressing:` reply carries the reason and the evidence. When the same false finding comes back (an earlier resolved thread on this PR already answered it), propose a repo rule in the digest, such as the bot's config or a review section in the repo's AGENTS.md, instead of arguing it again.
+
+**Loosening a gate needs proof the gate was wrong.** A thread asking to raise a budget, add an allowlist entry, or skip, disable, or soft-fail a check is valid only with evidence that the gate itself misfires, such as a false positive you reproduced. Without that proof it is needs-decision.
 
 **Instruction prose is not code.** When the target is a `SKILL.md`, agent prompt, or rule file, a case the stated condition already decides is not a fix: reply and quote the condition. Fix the condition when it is wrong or missing. When a finding lands on a block that an earlier review-fix commit on this branch already patched, stop adding cases; restate the block as its goal, done condition, and safe direction.
 

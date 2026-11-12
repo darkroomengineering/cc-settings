@@ -40,10 +40,13 @@ You are in **Maestro orchestration mode**. Delegate immediately to specialized a
 1. **Explore** - Spawn `explore` agent to understand the affected codebase area
 2. **Reproduce** - Spawn `tester` agent to create a failing test if possible
 3. **Diagnose** - Analyze findings to identify root cause. Commits named in the bug report are hypotheses, not conclusions — blame the actually-affected file's history before fixing; regressions often ride in earlier on the same branch as the change that got blamed. Before blaming, fetch the team-knowledge index and read any note whose title matches the error's nouns; the fetch command is in docs/knowledge-system.md (fail-open — skip if `gh` is unavailable)
+   - No hypothesis before a signal: a reproducer that checks the exact reported symptom (not "it didn't crash"), returns the same verdict on every run, and finishes unattended in seconds. A flaky failure gets a measured rate instead: failures out of N runs, with the command and seed policy recorded. Without a signal, report what you tried and what would produce one.
    - A prediction must name something not yet looked at (another code path, an observable the first hypothesis did not touch). One that restates the symptom or only re-reads the suspect line is rejected.
    - The user's own uncommitted edits are hypothesis 1. Test them: `git stash push -u -m <unique-tag>`, rerun the reproducer, then restore only the entry this run created: find its `stash@{n}` by the tag in `git stash list`, `git stash apply --index stash@{n}` so staged state comes back too, and `git stash drop stash@{n}` only after the apply succeeds. Never pop other entries. If the push reports nothing to save, restore nothing.
    - No fix until the causal chain from trigger to symptom is complete, with file:line evidence at each link. "Somehow X leads to Y" is a gap.
-4. **Implement** - Spawn `implementer` agent to fix the issue
+   - When two fixes resting on one premise fail the same check, write the premise as one sentence and test it directly, with an observation that would come out differently if it were false, before a third fix. A refuted premise puts the cause elsewhere: revert everything it motivated.
+   - Tag every temporary debug probe (log line, print, scratch harness) with one unique marker, such as `[DEBUG-a4f2]`. Before reporting, `git grep -n --untracked '\[DEBUG-a4f2\]'` prints nothing.
+4. **Implement** - Spawn `implementer` agent to fix the issue, only once the root cause grades Confirmed (see Output)
 5. **Verify** - Spawn `tester` agent to confirm the fix
 6. **Learn** - If this was a non-obvious fix, the auto-memory system in `~/.claude/CLAUDE.md` captures it; for team-wide gotchas use `/share-learning` to post to the team-knowledge repo
 
@@ -105,8 +108,14 @@ already fixed in current HEAD.
 ## Output
 
 Return a concise summary:
-- **Root cause**: What was wrong
-- **Fix applied**: What changed
+- **Root cause**: What was wrong, with one grade:
+  - Confirmed: reproduced on the symptom's own surface, a one-variable probe flipped the outcome as predicted, and the cause maps to `file:line`
+  - Supported: a real record (trace, bisect result, CI log) points at it and nothing contradicts it, but no probe flipped it
+  - Inferred: reasoned from the code or the timeline, never run
+  - Unknown: nothing found; list what was searched
+
+  Only a Confirmed cause may be committed as a fix (AGENTS.md "Name the Cause"). Any lower grade means gather more evidence and report what is missing; it never ships a fix.
+- **Fix applied**: What changed, with one verdict: VERIFIED (the reproducer failed before and passes after on the same surface; a flaky failure passes every run of a count chosen before the first run), NOT VERIFIED (the symptom remains, or the check could not run), or INCONCLUSIVE (wrong surface, noise larger than the effect, or a check that did not test the claim). INCONCLUSIVE is never a pass.
 - **Files modified**: List of files
 - **Verification**: How it was tested
 - **Learning stored**: If applicable

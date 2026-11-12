@@ -21,7 +21,7 @@ Before any implementation, complete this research phase:
 2. **Understand requirements** — parse what the user actually needs. When the work is a ticket (a Linear or GitHub issue, often a `/stories` ticket), read it in full: its Acceptance criteria are the done list, its Out of scope is a boundary, and its Open questions with no default make the verdict ASK. Read the kickoff it links for the standard Verify commands and the data contract. In Claude Code, when building an agent, bot, assistant, or autonomous job inside a product, read `~/.claude/profiles/durable-agents.md` before implementation.
 3. **Explore codebase** — find existing patterns, similar implementations. Fetch the team-knowledge index and read any note whose title matches the libraries and integrations this feature touches; the fetch command is in docs/knowledge-system.md (fail-open — skip if `gh` is unavailable).
 4. **Fetch docs** — use Context7 in Claude or when configured in Codex; otherwise use the standalone fallback above. Never code from memory.
-5. **Check versions** — run `bun info <package>` for the latest version.
+5. **Check versions** — read the version the lockfile pins for each library the feature touches, and research that version (AGENTS.md "External Libraries"). `bun info <package>` shows the latest, which matters only for a package you are adding.
 6. **Assess feasibility** — can this be done cleanly within existing architecture?
 7. **Cold-reader check.** Write what you will build as a short spec (behavior, scope, decisions made). You wrote it, so you cannot see the gaps your own context fills. Spawn a general-purpose subagent with `model: "sonnet"` (standalone Codex: a fresh read-only `spawn_agent` worker), not `explore`, whose initial prompt maps the repo and would fill the gaps itself. Paste only the spec text into the prompt below and give it no file paths. List its questions in the verdict. Answer each from the codebase and fold the answer into the spec; a question only the user can answer makes the verdict ASK.
 
@@ -48,6 +48,21 @@ diagram — inputs left, operations merging rightward, one terminal verification
 - Files to create/modify (with stack-correct paths — `lib/hooks/` for satus, `hooks/` for novus, etc.)
 - Key decisions and rationale
 - Dependency order — read off the DAG's columns, not restated by hand
+
+### Design red flags
+
+Screen the approach against this table before listing files. The next contributor is often an agent that sees only the file it opened, copies the nearest example, and takes the shortest path that compiles, so prefer the design where an edit that looks right in one file is right for the whole repo. A flag is a cost, not a veto: change the approach, or record the flag under Key decisions with why it is accepted. The `planner` agent screens its candidate designs against this same table.
+
+| Flag | How it shows | Direction |
+|---|---|---|
+| Shallow module | Callers chain several calls to do one job, or its options name its internal stages | Hide more behind a smaller surface |
+| Leaked decision | One format, rule, or wire type appears in several modules, or a transport type is re-exported | Parse at the edge into domain types; one module owns the decision |
+| Split by run order | Load, check, transform, and save stages each handle the same data and its rules | Group code by the knowledge it owns, not by when it runs |
+| Pass-through layer | A method hands the same arguments to a method of the same shape | Delete it, or give it real policy or adaptation |
+| Two writers | Two modules write the same state or keep their own copy of it | One owner writes; the others read it or ask the owner |
+| Two routes to one result | An old path stays "for now" beside the new one | Keep one; move its callers and delete the other in the same change |
+| Reachable internals | Outside code can import a module's private parts | Make that import fail the build |
+| Hand-synced lists | Adding an item means editing several lists | Derive every list from one, or fail the build when they disagree |
 
 ## Phase 3: Implement
 
