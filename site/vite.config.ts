@@ -1,4 +1,4 @@
-import { cloudflare } from "@visio/cloudflare";
+import { vercel } from "@visio/vercel";
 import { visio } from "visio";
 import { defineConfig } from "vite";
 
@@ -18,7 +18,7 @@ export default defineConfig({
           alt: "A green terminal prompt next to the name cc-settings, the line Darkroom's setup for Claude Code and Codex, and the command npx darkroom-settings",
         },
       },
-      deploy: cloudflare(),
+      deploy: vercel(),
     }),
   ],
   server: {
