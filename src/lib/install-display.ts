@@ -76,6 +76,13 @@ export async function countEntriesRecursive(full: string, pattern: RegExp): Prom
   }
 }
 
+export const CREDIT_LINE =
+  "A sidequest by Darkroom Engineering Incubator · https://darkroom.engineering/incubator";
+
+export function showCredit(): void {
+  console.log(`${palette.dim}${CREDIT_LINE}${palette.reset}`);
+}
+
 export async function showSummary(
   profile: "full" | "light",
   sourceDir?: string,
