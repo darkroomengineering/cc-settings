@@ -2918,6 +2918,7 @@ describe("install E2E — uninstall ownership", () => {
             "skills/dr-review/SKILL.md",
             "skills/poke-holes/SKILL.md",
             "skills/proof-of-work/references/offscreen.md",
+            "skills/proof-of-work/references/verify-app-template.md",
             "skills/proof-of-work/scripts/offscreen.m",
             "skills/proof-of-work/scripts/offscreen.sh",
             "skills/retro/references/prs.md",

@@ -50,7 +50,25 @@ creation time:
 - **Key files**: uncommitted paths **union** the files the session ledger
   observed being changed (see below)
 - **Recent commits**: subjects of the last 3 commits
+- **HEAD and tree fingerprint**: the full HEAD SHA, and a sha256 over
+  `git diff --binary HEAD` plus the path and content of every untracked,
+  non-ignored file. Resume compares both against the repo as it is then.
 - **Source**: `manual` or `auto` (see below)
+
+#### Gates count only at the current HEAD
+
+When the handoff records build or test state (the Session Summary, Current
+State, or Notes), a gate (typecheck, test, lint, build) is green only if it
+passed in this session, after the last edit, at the current HEAD. Record the
+exact command, the HEAD SHA it ran at, and its result line:
+
+```
+Green: `bun run test` at 3f2a9c1, result: `412 pass, 0 fail`
+Not run: `bun run lint` (last passed before the final edit)
+```
+
+A gate that passed before a later edit or commit is not run. Never carry a
+green result forward from memory or from an earlier handoff.
 
 In Claude, three additional sections are built purely from **observed** tool
 activity, not inference:
@@ -325,7 +343,17 @@ automatically on every session, so this is only needed for on-demand cleanup
 1. **Check GitHub Issue** - Read linked issue for shared project context
 2. **Load local handoff** - Read session-specific state from the one selected source
 3. **Review combined context** - Understand where we left off
-4. **Verify files** - Check current state vs handoff
+4. **Verify files** - Read the `Since handoff:` line that `resume` prints
+   above the handoff body:
+   - `unchanged since handoff`: the tree matches; the recorded state holds.
+   - `HEAD moved: <old>..<new> (N commits)`: run `git log --oneline <old>..<new>`
+     to see what landed, and treat every recorded gate as not run. When it says
+     history was rewritten, stop and ask the user before building on the handoff.
+   - `working tree changed since handoff`: the uncommitted work differs; the
+     changed paths are listed under it. Treat every recorded gate as not run, and
+     do not discard or restore anything.
+   - `no fingerprint recorded`: an older handoff. Compare `git status` and
+     `git log` with its Pending Changes and Recent Commits by hand.
 5. **Continue work** - Pick up next steps from the issue task list
 
 ### Claude automatic session start

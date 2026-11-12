@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 47;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 48;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -961,9 +961,15 @@ const v46 = {
   light: v45.light,
 };
 MANIFESTS.set(46, v46);
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v47 = {
   full: [...v46.full, ...ADDED_IN_V47],
   light: [...v46.light, ...ADDED_IN_V47],
+};
+MANIFESTS.set(47, v47);
+// Version 48: the proof-of-work verify-app template (full profile only).
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v47.full, "skills/proof-of-work/references/verify-app-template.md"],
+  light: v47.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([

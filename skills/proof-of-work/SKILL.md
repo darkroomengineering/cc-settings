@@ -26,6 +26,32 @@ Projects can opt into **advisory** probes by depending on the tool — the gate 
 
 For UI changes, attach a screenshot (via the `tester` agent, which starts the chrome-devtools MCP for the run) as the visual half of the proof — tests can't prove "looks right".
 
+### App verification skill
+
+A web project can carry its own verification skill at
+`.claude/skills/verify-app/SKILL.md`. It gives the launch command, URL and
+readiness signal, a doctor check, a feature map with one entry per key flow
+(route, steps, expected result), where evidence goes, and how to clean up.
+
+- **It exists:** for a UI or feature change, use it instead of a lone
+  screenshot. Run its Doctor, Launch, then drive every feature-map flow the
+  diff touches, save its Evidence, and run its Cleanup even after a failure.
+  Report each flow as passed, failed, or not run, with the evidence path.
+- **It does not exist:** say so, and offer to generate one. With a yes, fill
+  `references/verify-app-template.md` from the project's `package.json`
+  scripts and its routes (`app/**/page.tsx` for Next.js, `app/routes` for
+  React Router), write it to `.claude/skills/verify-app/SKILL.md`, and run it
+  once before relying on it. Until then, fall back to the screenshot.
+- **Upkeep:** when a diff adds or changes a route or a key flow, update the
+  feature map in the same PR and drive the changed entry once. A map that lags
+  the app proves the old app.
+
+What it proves is narrow: the mapped flows work in a local build, in the
+browser it drove, with local data. It says nothing about unmapped routes,
+production data or auth, third-party services, or how the page looks at other
+breakpoints. A generated skill is written from reading code, so its steps stay
+unconfirmed until a run passes them. Say which flows ran and which did not.
+
 For a native macOS app, run and capture it on a virtual display with the `offscreen` tool, never by driving the user's real cursor, keyboard, or focus. Read `references/offscreen.md` first; it gives the tool's installed path.
 
 ## Standalone Codex semantic probe

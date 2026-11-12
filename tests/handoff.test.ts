@@ -17,7 +17,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { pointLatest } from "../src/lib/artifact-store.ts";
-import { GIT_ISOLATION_ENV, makeRepo as makeGitRepo } from "./support/git.ts";
+import { GIT_ISOLATION_ENV, git, makeRepo as makeGitRepo } from "./support/git.ts";
 import { spawnCapture } from "./support/proc.ts";
 
 const SCRIPT = resolve(import.meta.dir, "..", "src", "scripts", "handoff.ts");
@@ -203,6 +203,119 @@ describe("handoff.ts create content (H10)", () => {
       const parsed = JSON.parse(raw) as { source: string; context: { summary: string } };
       expect(parsed.source).toBe("manual");
       expect(parsed.context.summary).toBe("shipped the thing");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("handoff.ts records HEAD and a tree fingerprint, and resume compares against them", () => {
+  // Creates a handoff, applies `change` to the repo, then resumes and returns
+  // the "Since handoff" block of the resume output.
+  async function sinceHandoff(
+    name: string,
+    change: (repo: string) => Promise<void>,
+    setup: (repo: string) => Promise<void> = async () => {},
+  ): Promise<string> {
+    const home = await mkdtemp(join(tmpdir(), "cc-handoff-home-"));
+    const repo = await makeRepo(name);
+    try {
+      await setup(repo);
+      const created = await run(["create", "--summary", "fingerprinted"], repo, home);
+      expect(created.exit).toBe(0);
+      await change(repo);
+      const resumed = await run(["resume"], repo, home);
+      expect(resumed.exit).toBe(0);
+      const start = resumed.stdout.indexOf("Since handoff:");
+      expect(start).toBeGreaterThan(-1);
+      return resumed.stdout.slice(start, resumed.stdout.indexOf("# Session Handoff", start));
+    } finally {
+      await rm(home, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  }
+
+  test("create stores the full HEAD SHA and a sha256 fingerprint in the JSON and Markdown", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-handoff-home-"));
+    const repo = await makeRepo("fp-record");
+    try {
+      await run(["create"], repo, home);
+      const projectDir = join(home, ".claude", "handoffs", basename(repo));
+      const parsed = JSON.parse(await readFile(join(projectDir, "latest.json"), "utf8")) as {
+        git: { head: string; treeFingerprint: string; treePaths: Record<string, string> };
+      };
+      expect(parsed.git.head).toMatch(/^[0-9a-f]{40}$/);
+      expect(parsed.git.treeFingerprint).toMatch(/^[0-9a-f]{64}$/);
+      expect(Object.keys(parsed.git.treePaths)).toEqual(["README.md"]);
+      const md = await readFile(join(projectDir, "latest.md"), "utf8");
+      expect(md).toContain(`- **HEAD:** ${parsed.git.head}`);
+      expect(md).toContain(`- **Tree:** ${parsed.git.treeFingerprint.slice(0, 16)}`);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  test("nothing changed: unchanged since handoff", async () => {
+    const out = await sinceHandoff("fp-stable", async () => {});
+    expect(out).toContain("Since handoff: unchanged since handoff");
+  });
+
+  test("an edit to a tracked file changes the fingerprint and names the path", async () => {
+    const out = await sinceHandoff("fp-tracked", (repo) =>
+      writeFile(join(repo, "README.md"), "edited after the handoff\n"),
+    );
+    expect(out).toContain("Since handoff: working tree changed since handoff");
+    expect(out).toContain("  - README.md");
+  });
+
+  test("a new untracked file changes the fingerprint and names the path", async () => {
+    const out = await sinceHandoff("fp-untracked", (repo) =>
+      writeFile(join(repo, "notes.txt"), "new file\n"),
+    );
+    expect(out).toContain("Since handoff: working tree changed since handoff");
+    expect(out).toContain("  - notes.txt");
+    expect(out).not.toContain("README.md");
+  });
+
+  test("an ignored file does not affect the fingerprint", async () => {
+    const out = await sinceHandoff(
+      "fp-ignored",
+      (repo) => writeFile(join(repo, "debug.log"), "noise\n"),
+      (repo) => writeFile(join(repo, ".gitignore"), "*.log\n"),
+    );
+    expect(out).toContain("Since handoff: unchanged since handoff");
+  });
+
+  test("new commits report HEAD moved with the range and commit count", async () => {
+    const out = await sinceHandoff("fp-head", async (repo) => {
+      await git(repo, ["commit", "-q", "-am", "second"]);
+      await writeFile(join(repo, "more.txt"), "more\n");
+      await git(repo, ["add", "-A"]);
+      await git(repo, ["commit", "-q", "-m", "third"]);
+    });
+    expect(out).toMatch(/Since handoff: HEAD moved: [0-9a-f]{12}\.\.[0-9a-f]{12} \(2 commits\)/);
+    expect(out).not.toContain("working tree changed");
+  });
+
+  test("a handoff written without a fingerprint still resumes", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-handoff-home-"));
+    const repo = await makeRepo("fp-legacy");
+    try {
+      const projectDir = join(home, ".claude", "handoffs", basename(repo));
+      await mkdir(projectDir, { recursive: true });
+      const md = join(projectDir, "handoff_20250101_000000.md");
+      const json = join(projectDir, "handoff_20250101_000000.json");
+      await writeFile(md, "# Session Handoff - old\n\nold handoff content\n");
+      await writeFile(json, `${JSON.stringify({ git: { branch: "main", pendingChanges: 1 } })}\n`);
+      await pointLatest(projectDir, md, "latest.md");
+      await pointLatest(projectDir, json, "latest.json");
+
+      const resumed = await run(["resume"], repo, home);
+      expect(resumed.exit).toBe(0);
+      expect(resumed.stdout).toContain("Since handoff: no fingerprint recorded");
+      expect(resumed.stdout).toContain("old handoff content");
     } finally {
       await rm(home, { recursive: true, force: true });
       await rm(repo, { recursive: true, force: true });

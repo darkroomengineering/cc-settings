@@ -41,6 +41,24 @@ Both starters:
 3. **Start dev** — `bun dev`.
 4. **Open debug** — `Cmd/Ctrl + O` (satus) or `Cmd + .` / `Ctrl + O` (novus).
 
+## Step 4: App verification skill
+
+Give the new project its own verification skill at
+`.claude/skills/verify-app/SKILL.md`, which proof of work uses to drive the app
+for real. Start from the template:
+
+```bash
+VERIFY_TEMPLATE="${CODEX_HOME:-$HOME/.codex}/darkroom/source/skills/proof-of-work/references/verify-app-template.md"
+[ -f "$VERIFY_TEMPLATE" ] || VERIFY_TEMPLATE="$HOME/.claude/skills/proof-of-work/references/verify-app-template.md"
+```
+
+Fill it from the clone, not from memory: the dev script and port from
+`package.json`, and the routes the starter ships (`app/**/page.tsx` in satus,
+`app/routes.ts` or `app/routes/` in novus). Map three to five key flows, such
+as the home page, navigation, and the 404 page. Add `.verify-app/` to
+`.gitignore`. Then run the skill once (launch, drive one flow, save evidence,
+clean up). If the run fails, say so; the skill stays a draft until a run passes.
+
 ## Project structure
 
 ### satus
@@ -77,4 +95,5 @@ utils/              # Pure utilities
 After initialization:
 - Confirm project created and which starter was used
 - List the next steps (env, dev server)
+- Report the verify-app skill: the flows it maps, and whether its first run passed
 - Offer to start the dev server
