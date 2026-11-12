@@ -25,6 +25,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { capture, captureCases } from "../lib/eval-capture.ts";
 import {
   type CaseRuns,
   CRITICAL_TAG,
@@ -143,28 +144,7 @@ function runArm(
       ...targets.flatMap((t) => ["--tag", t]),
       "--runs",
       runs,
-      // Parallel runs share scaffold state and let cases see the plugin checkout.
-      "-j",
-      "1",
-      "--ablation",
-      "none",
-      "--trust-plugin",
-      // The cases and their fixture scripts are this repo's own files, so the
-      // scaffold and write grants cover code we already review in the diff.
-      "--scaffold",
-      "--allow-tools",
-      "Write",
-      "Edit",
-      "Bash",
-      "--no-publish",
-      "--model",
-      MODEL,
-      "--judge-model",
-      JUDGE_MODEL,
-      "--threshold",
-      THRESHOLD,
-      "--max-cost-usd",
-      maxCost,
+      ...runnerFlags(maxCost),
       "--json",
       out,
     ],
@@ -182,14 +162,65 @@ function runArm(
   return { exitCode: proc.exitCode, stderr: new TextDecoder().decode(proc.stderr), report };
 }
 
-// A throwaway plugin that mirrors ROOT except `skills/`, where each skill in
-// `swap` is replaced by its version at `mergeBase`. `evals/` is copied from the
-// working tree so both arms run the same cases (the runner refuses a symlinked
-// evals dir). Skills absent at the merge-base are returned in `added`.
-function buildBasePlugin(mergeBase: string, swap: string[]): { dir: string; added: string[] } {
-  const dir = mkdtempSync(join(tmpdir(), "cc-settings-eval-base-"));
+function runnerFlags(maxCost: string): string[] {
+  return [
+    // Parallel runs share scaffold state and let cases see the plugin checkout.
+    "-j",
+    "1",
+    "--ablation",
+    "none",
+    "--trust-plugin",
+    // The cases and their fixture scripts are this repo's own files, so the
+    // scaffold and write grants cover code we already review in the diff.
+    "--scaffold",
+    "--allow-tools",
+    "Write",
+    "Edit",
+    "Bash",
+    "--no-publish",
+    "--model",
+    MODEL,
+    "--judge-model",
+    JUDGE_MODEL,
+    "--threshold",
+    THRESHOLD,
+    "--max-cost-usd",
+    maxCost,
+  ];
+}
+
+/**
+ * Writes history.jsonl for each multi-turn case of `targets` in `plugin`, from
+ * a fresh run of its source case, and returns the capture cost. A failed
+ * capture leaves no history, so that case errors and goes ungraded.
+ */
+function captureHistories(
+  plugin: string,
+  cases: Map<string, string[]>,
+  targets: string[],
+  maxCost: string,
+): number {
+  let cost = 0;
+  for (const c of captureCases(join(plugin, "evals"))) {
+    if (!(cases.get(c.name) ?? []).some((tag) => targets.includes(tag))) continue;
+    const result = capture(plugin, c, runnerFlags(maxCost));
+    cost += result.costUsd;
+    console.error(`  ${result.ok ? "captured" : "capture FAILED"}  ${c.name}: ${result.detail}`);
+  }
+  return cost;
+}
+
+// Worktrees nested in ROOT each hold a full plugin copy, and the runner loads
+// every one it finds: duplicate cases, then E2BIG from the oversized argv.
+const NESTED_WORKTREES = ".worktrees";
+
+// A throwaway plugin that mirrors ROOT without `.git` or nested worktrees.
+// `skills/` and `evals/` are copied so callers can swap a skill and capture
+// histories without touching ROOT (the runner refuses a symlinked evals dir).
+function mirrorPlugin(label: string): string {
+  const dir = mkdtempSync(join(tmpdir(), `cc-settings-eval-${label}-`));
   for (const entry of readdirSync(ROOT)) {
-    if (entry === ".git" || entry === "skills" || entry === "evals") continue;
+    if ([".git", NESTED_WORKTREES, "skills", "evals"].includes(entry)) continue;
     symlinkSync(join(ROOT, entry), join(dir, entry));
   }
   cpSync(join(ROOT, "skills"), join(dir, "skills"), { recursive: true });
@@ -197,6 +228,13 @@ function buildBasePlugin(mergeBase: string, swap: string[]): { dir: string; adde
     recursive: true,
     filter: (src) => !src.startsWith(join(ROOT, "evals", "results")),
   });
+  return dir;
+}
+
+// A mirror where each skill in `swap` is replaced by its version at
+// `mergeBase`. Skills absent at the merge-base are returned in `added`.
+function buildBasePlugin(mergeBase: string, swap: string[]): { dir: string; added: string[] } {
+  const dir = mirrorPlugin("base");
   const added: string[] = [];
   for (const name of swap) {
     const archive = Bun.spawnSync({
@@ -469,13 +507,23 @@ function main(): never {
   console.error(
     `[eval-changed] running evals for: ${targets.join(", ")} (${runs} run(s) per case)`,
   );
-  const current = runArm(ROOT, targets, armCost, "current", runs);
+  const mirrored = existsSync(join(ROOT, NESTED_WORKTREES));
+  const plugin = mirrored ? mirrorPlugin("current") : ROOT;
+  let captureCost: number;
+  let current: Arm;
+  try {
+    captureCost = captureHistories(plugin, cases, targets, armCost);
+    current = runArm(plugin, targets, armCost, "current", runs);
+  } finally {
+    if (mirrored) rmSync(plugin, { recursive: true, force: true });
+  }
 
   for (const c of current.report.cases ?? []) {
     const score = c.aggregates?.score ?? 0;
     console.error(`  ${score >= threshold ? "pass" : "FAIL"} ${score.toFixed(2)}  ${c.name}`);
   }
-  let cost = current.report.costUsd;
+  let cost =
+    current.report.costUsd === undefined ? undefined : current.report.costUsd + captureCost;
 
   let baseRuns: Map<string, CaseRuns> | null = null;
   if (baseCommit !== null) {
@@ -489,6 +537,7 @@ function main(): never {
         console.error(
           `[eval-changed] base arm at ${baseCommit.slice(0, 9)} for: ${baseTargets.join(", ")}`,
         );
+        cost = (cost ?? 0) + captureHistories(dir, cases, baseTargets, armCost);
         const old = runArm(dir, baseTargets, armCost, "base", runs);
         if (old.report.cases) {
           reportBaseArm(old, current);
