@@ -48,13 +48,13 @@ description: Launch the fixture site locally, drive its key flows in a real brow
 
 ## Launch
 
-- Command: `bun dev` from the repo root, in the background, pid in `.verify-app/run/app.pid`.
+- Command: `set -m; bun dev > .verify-app/run/app.log 2>&1 & echo $! > .verify-app/run/app.pgid` from the repo root.
 - URL: `http://localhost:4317`. Port: `4317`.
 - Ready when: `curl -fsS http://localhost:4317/pricing` returns 200.
 
 ## Doctor
 
-- `lsof -nP -iTCP:4317 -sTCP:LISTEN` shows the pid in `.verify-app/run/app.pid`.
+- The listener from `lsof -nP -t -iTCP:4317 -sTCP:LISTEN` is in the process group in `.verify-app/run/app.pgid`.
 - Failed launch: read the last 50 lines of `.verify-app/run/app.log`.
 
 ## Drive
@@ -70,7 +70,7 @@ Save screenshots to `.verify-app/evidence/<run-id>/<flow>.png`. Cleanup never de
 
 ## Cleanup
 
-`kill "$(cat .verify-app/run/app.pid)"`, confirm port 4317 is free, delete `.verify-app/run/`.
+`kill -- -"$(cat .verify-app/run/app.pgid)"`, confirm port 4317 is free, delete `.verify-app/run/`.
 MD
 
 git init -q

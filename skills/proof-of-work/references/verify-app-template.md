@@ -51,8 +51,10 @@ Run the sections in order. Cleanup runs even when a step fails.
 
 ## Launch
 
-- Command: `{{bun dev}}` from the repo root, started in the background with its
-  pid written to `.verify-app/run/app.pid`.
+- Command: `{{bun dev}}` from the repo root, started in the background in its
+  own process group, since a dev script usually forks the real server:
+  `set -m; {{bun dev}} > .verify-app/run/app.log 2>&1 & echo $! > .verify-app/run/app.pgid`.
+  With job control on, the background job's pid is also its process group id.
 - URL: `{{http://localhost:3000}}`. Port: `{{3000}}`, or `PORT={{port}}` when
   that port is taken.
 - Ready when: `{{the "Ready in" line in the log}}`, and
@@ -66,9 +68,10 @@ Run before the first drive, and again after any failed step:
 
 - Prerequisites: `{{bun --version}}`, dependencies installed
   (`{{bun install --frozen-lockfile}}`), env file present.
-- Port owner: `lsof -nP -iTCP:{{3000}} -sTCP:LISTEN` shows the pid in
-  `.verify-app/run/app.pid`, not another app. Never drive an instance this
-  run did not start.
+- Port owner: the listener from `lsof -nP -t -iTCP:{{3000}} -sTCP:LISTEN`
+  belongs to this run's process group (`ps -o pgid= -p <listener pid>` equals
+  `.verify-app/run/app.pgid`), not to another app. Never drive an instance
+  this run did not start.
 - Failed launch: read the last 50 lines of `.verify-app/run/app.log`. Usual
   causes: {{port in use, missing env var, failed build}}.
 
@@ -111,8 +114,9 @@ Example for a Next.js App Router site:
 
 ## Cleanup
 
-- `kill "$(cat .verify-app/run/app.pid)"`. Kill only the processes this run
-  started, never by name.
+- `kill -- -"$(cat .verify-app/run/app.pgid)"` stops the launcher and every
+  process it forked. Kill only the process group this run started, never by
+  name.
 - Confirm `lsof -nP -iTCP:{{3000}} -sTCP:LISTEN` prints nothing.
 - Delete `.verify-app/run/`. Keep `.verify-app/evidence/`.
 

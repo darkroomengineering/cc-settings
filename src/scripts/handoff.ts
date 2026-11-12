@@ -92,7 +92,7 @@ async function listSafeHandoffs(dir: string): Promise<string[]> {
 /** HEAD plus a fingerprint of everything uncommitted, taken when a handoff is written. */
 interface TreeState {
   head: string;
-  /** sha256 over `git diff --binary HEAD`, then each untracked path and its content. */
+  /** sha256 over the staged diff, the unstaged diff, then each untracked path and its content. */
   fingerprint: string;
   /** Content digest per dirty or untracked path. Only names what changed on resume. */
   paths: Record<string, string>;
@@ -136,13 +136,29 @@ async function pathContent(path: string): Promise<Buffer> {
 /** Null outside a repo, before the first commit, or when the tree is too large to hash. */
 async function readTreeState(root: string): Promise<TreeState | null> {
   if (!root) return null;
-  const [headOut, diff, untrackedOut, dirtyOut] = await Promise.all([
-    gitBytes(root, ["rev-parse", "--verify", "HEAD"]),
-    gitBytes(root, ["diff", "--binary", "HEAD"]),
-    gitBytes(root, ["ls-files", "--others", "--exclude-standard", "-z"]),
-    gitBytes(root, ["diff", "--name-only", "-z", "HEAD"]),
-  ]);
-  if (!headOut || !diff || !untrackedOut || !dirtyOut) return null;
+  // Staged and unstaged diffs are hashed apart: `git diff HEAD` alone misses a staged
+  // change whose working file was restored to HEAD.
+  const [headOut, staged, unstaged, untrackedOut, stagedNames, unstagedNames, index] =
+    await Promise.all([
+      gitBytes(root, ["rev-parse", "--verify", "HEAD"]),
+      gitBytes(root, ["diff", "--binary", "--cached"]),
+      gitBytes(root, ["diff", "--binary"]),
+      gitBytes(root, ["ls-files", "--others", "--exclude-standard", "-z"]),
+      gitBytes(root, ["diff", "--cached", "--name-only", "-z"]),
+      gitBytes(root, ["diff", "--name-only", "-z"]),
+      gitBytes(root, ["ls-files", "--stage", "-z"]),
+    ]);
+  if (
+    !headOut ||
+    !staged ||
+    !unstaged ||
+    !untrackedOut ||
+    !stagedNames ||
+    !unstagedNames ||
+    !index
+  ) {
+    return null;
+  }
   const head = headOut.toString("utf8").trim();
   if (!SHA1_RE.test(head)) return null;
 
@@ -157,11 +173,17 @@ async function readTreeState(root: string): Promise<TreeState | null> {
   );
   if (sizes.reduce((a, b) => a + b, 0) > MAX_UNTRACKED_BYTES) return null;
 
-  const contents = new Map<string, Buffer>();
-  for (const p of new Set([...nulList(dirtyOut), ...untracked])) {
-    contents.set(p, await pathContent(join(root, p)));
+  const indexEntry = new Map<string, string>();
+  for (const line of nulList(index)) {
+    const tab = line.indexOf("\t");
+    if (tab > 0) indexEntry.set(line.slice(tab + 1), line.slice(0, tab));
   }
-  const hash = createHash("sha256").update(diff);
+  const contents = new Map<string, Buffer>();
+  for (const p of new Set([...nulList(stagedNames), ...nulList(unstagedNames), ...untracked])) {
+    const work = await pathContent(join(root, p));
+    contents.set(p, Buffer.concat([Buffer.from(`${indexEntry.get(p) ?? "unindexed"}\0`), work]));
+  }
+  const hash = createHash("sha256").update(staged).update("\0staged-end\0").update(unstaged);
   for (const p of untracked) {
     hash.update(`\0${p}\0`);
     hash.update(contents.get(p) ?? "");

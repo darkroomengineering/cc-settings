@@ -279,6 +279,19 @@ describe("handoff.ts records HEAD and a tree fingerprint, and resume compares ag
     expect(out).not.toContain("README.md");
   });
 
+  test("a staged change whose working file was restored still changes the fingerprint", async () => {
+    const out = await sinceHandoff("fp-staged", async (repo) => {
+      const git = (...args: string[]) =>
+        expect(Bun.spawnSync(["git", "-C", repo, ...args]).exitCode).toBe(0);
+      const original = await readFile(join(repo, "README.md"), "utf8");
+      await writeFile(join(repo, "README.md"), "staged after the handoff\n");
+      git("add", "README.md");
+      await writeFile(join(repo, "README.md"), original);
+    });
+    expect(out).toContain("Since handoff: working tree changed since handoff");
+    expect(out).toContain("  - README.md");
+  });
+
   test("an ignored file does not affect the fingerprint", async () => {
     const out = await sinceHandoff(
       "fp-ignored",
