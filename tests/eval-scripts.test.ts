@@ -539,6 +539,16 @@ describe("repo-local git hooks gate only cc-settings", () => {
     expect(gitTargets(`bash -c '${G} ${C} -m x'`, C, "/a")).toEqual([null]);
   });
 
+  test("keeps the gate on where the directory or command is hidden", async () => {
+    const { gitTargets } = await import("../.claude/hooks/git-target.ts");
+    expect(gitTargets(`(cd /b && ${G} status); ${G} ${C}`, C, "/a")).toEqual(["/a"]);
+    expect(gitTargets(`(cd /b && ${G} ${C})`, C, "/a")).toEqual(["/b"]);
+    expect(gitTargets(`cd /b | cat; ${G} ${C}`, C, "/a")).toEqual([null]);
+    expect(gitTargets(`${G} -C/b ${C}`, C, "/a")).toEqual(["/b"]);
+    expect(gitTargets(`${G} -C /b ${C} && bash -c '${G} ${C}'`, C, "/a")).toEqual(["/b", null]);
+    expect(gitTargets(`pushd /b && popd && ${G} ${C}`, C, "/a")).toEqual([null]);
+  });
+
   test("ignores the words inside quotes and heredoc bodies", async () => {
     const { gitTargets } = await import("../.claude/hooks/git-target.ts");
     expect(gitTargets(`grep -rn '${G} ${C}' src`, C, "/a")).toEqual([]);

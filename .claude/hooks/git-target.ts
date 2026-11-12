@@ -4,7 +4,13 @@
 
 import { existsSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
-import { parseShellCommand, SUBSTITUTION, scanShell, splitPipes } from "../../src/lib/hook-command.ts";
+import {
+  parseShellCommand,
+  type ShellSegment,
+  SUBSTITUTION,
+  scanShell,
+  splitPipes,
+} from "../../src/lib/hook-command.ts";
 
 const GIT_VALUE_FLAGS = new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env"]);
 
@@ -35,23 +41,38 @@ function shellPath(arg: string, base: string): string | null {
  */
 export function gitTargets(cmd: string, sub: string, cwd: string): Array<string | null> {
   const targets: Array<string | null> = [];
-  let dir: string | null = cwd;
-  for (const seg of scanShell(cmd).segments) {
-    for (const stage of splitPipes(seg.clean)) {
+  const { segments, scopeParents } = scanShell(cmd);
+  // A subshell starts in its parent's directory and its `cd` never leaks out.
+  const dirs = new Map<number, string | null>([[0, cwd]]);
+  const dirOf = (scope: number): string | null => {
+    if (!dirs.has(scope)) dirs.set(scope, dirOf(scopeParents[scope] ?? 0));
+    return dirs.get(scope) ?? null;
+  };
+  let prevJoiner: ShellSegment["joiner"] = null;
+  for (const seg of segments) {
+    const stages = splitPipes(seg.clean);
+    // A pipeline stage or background job runs in a subshell of its own; which
+    // directory later commands see is left to the running shell.
+    const isolated = stages.length > 1 || seg.joiner === "|" || seg.joiner === "&" || prevJoiner === "|";
+    prevJoiner = seg.joiner;
+    for (const stage of stages) {
       const { word, args } = parseShellCommand(stage);
-      if (word === "cd") {
+      if (word === "cd" || word === "pushd" || word === "popd") {
         const arg = args.find((a) => !a.startsWith("-") || a === "-");
-        if (arg === undefined) dir = process.env.HOME ?? null;
-        else if (arg === "-") dir = null;
-        else if (dir !== null) dir = shellPath(arg, dir);
+        const from = dirOf(seg.scope);
+        let next: string | null;
+        if (isolated || word === "popd" || arg === "-") next = null;
+        else if (arg === undefined) next = word === "cd" ? (process.env.HOME ?? null) : null;
+        else next = from === null ? null : shellPath(arg, from);
+        dirs.set(seg.scope, next);
         continue;
       }
       if (word !== "git") continue;
-      let at: string | null = dir;
+      let at: string | null = dirOf(seg.scope);
       for (let i = 0; i < args.length; i++) {
         const a = args[i] as string;
-        if (a === "-C") {
-          const value = args[++i];
+        if (a === "-C" || (a.startsWith("-C") && a.length > 2)) {
+          const value = a === "-C" ? args[++i] : a.slice(2);
           at = value === undefined || at === null ? null : shellPath(value, at);
         } else if (GIT_VALUE_FLAGS.has(a)) {
           if (a === "--git-dir" || a === "--work-tree") at = null;
@@ -65,7 +86,7 @@ export function gitTargets(cmd: string, sub: string, cwd: string): Array<string 
       }
     }
   }
-  if (targets.length === 0 && wrapped(cmd, sub)) targets.push(null);
+  if (wrapped(cmd, sub)) targets.push(null);
   return targets;
 }
 
