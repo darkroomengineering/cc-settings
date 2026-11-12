@@ -4,6 +4,23 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [16.1.1] — 2026-11-12
+
+Synced with Claude Code v2.1.322 and Codex v0.167.2. This release changes docs and manifests only; installed settings are unchanged.
+
+**Adopted:**
+- `CLAUDE_CODE_PLUGIN_DIR_WATCH` (Claude Code v2.1.321) is tracked in `upstream/claude-code-manifest.json` and documented in `docs/settings-reference.md`. Headless sessions now reload mods in `.claude/skills` when their files change, and `"0"` turns that off; cc-settings leaves it unset (OSS-229).
+- `docs/settings-reference.md` says `claude -p` stops background commands after 10 minutes, not 30, which matches the v2.1.321 fix. It also documents `claude remote-control --settings <file>` (v2.1.321) (OSS-229).
+
+**Deletions / Native-now-redundant:** none.
+
+**Files changed:**
+- `docs/settings-reference.md`
+- `upstream/claude-code-manifest.json`
+- `upstream/codex-manifest.json`
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts` (version)
+- `CHANGELOG.md`
+
 ## [16.1.0] — 2026-11-10
 
 Sessions start on Opus 5.5 again, with Fable 5.2 as the advisor. The safety net closes the remaining known ways to hide a push to main inside a command, and proof-of-work tests Mac apps without taking over your screen.

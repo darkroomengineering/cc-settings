@@ -110,6 +110,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_ENABLE_FEEDBACK_SURVEY_FOR_OTEL` | `"1"` or unset | Re-enable the session quality survey for enterprises capturing responses through OpenTelemetry (v2.1.136) |
 | `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` | integer (string) | Caps consecutive Stop-hook block cycles before the turn ends with a warning (default: 8) (v2.1.143) |
 | `CLAUDE_CODE_POWERSHELL_RESPECT_EXECUTION_POLICY` | `"1"` or unset | Opt out of the new PowerShell `-ExecutionPolicy Bypass` default. Windows only (v2.1.143) |
+| `CLAUDE_CODE_PLUGIN_DIR_WATCH` | `"0"` or unset | Headless sessions reload mods in `.claude/skills` when their files change (v2.1.321); `"0"` turns the reload off. Unset here |
 | `CLAUDE_CODE_PLUGIN_PREFER_HTTPS` | `"1"` or unset | Clone GitHub plugin sources over HTTPS instead of SSH. For environments without a GitHub SSH key (v2.1.141) |
 | `ANTHROPIC_WORKSPACE_ID` | UUID string | Scopes the workload-identity-federation minted token to a specific workspace (v2.1.141) |
 | `CLAUDE_CODE_USE_POWERSHELL_TOOL` | `"0"` to opt out, unset for default | Now defaults on for Windows Bedrock/Vertex/Foundry users (v2.1.143) |
@@ -881,7 +882,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `preferredNotifChannel` | enum | U | Preferred desktop/terminal notification channel (`auto`, `terminal_bell`, `iterm2`, …) |
 | `prefersReducedMotion` | boolean | U | Suppress animations in the TUI |
 | `promptCacheTtl` | `"5m"` \| `"1h"` | G | Prompt-cache lifetime for the main conversation; cc-settings sets `"1h"` (v2.1.242) |
-| `remoteControlAtStartup` | boolean | G | Auto-connect the session to Remote Control at startup, so it is reachable from claude.ai/phone without running `/remote-control` (v2.1.226; cc-settings sets `true`) |
+| `remoteControlAtStartup` | boolean | G | Auto-connect the session to Remote Control at startup, so it is reachable from claude.ai/phone without running `/remote-control` (v2.1.226; cc-settings sets `true`). `claude remote-control --settings <file>` applies a settings file to every session it starts; a change to that file takes effect after a restart (v2.1.321) |
 | `requiredMaximumVersion` | string | E | Managed: refuse to start if the Claude Code version is above this (v2.1.163) |
 | `requiredMinimumVersion` | string | E | Managed: refuse to start if the Claude Code version is below this; pairs with `requiredMaximumVersion` to define an allowed range (v2.1.163) |
 | `respectGitignore` | boolean | G | Honour .gitignore when listing files |
@@ -1234,7 +1235,7 @@ A matching `permissions.allow`, `ask`, or `deny` rule resolves before the classi
 
 Two v2.1.271 behavior changes in auto mode need no config: a skill's or slash command's inline `!` shell commands now follow default-mode permission rules instead of the classifier, and a command no rule decides runs as a reviewed tool call; and a subagent hands its result back through a dedicated call the classifier reviews, instead of its last message being reviewed after the fact. Monitor watches also always carry a deadline now (30 minutes at most, 10 in `-p` runs) and ask Claude to re-arm; the no-timeout `persistent` option is gone.
 
-In unattended sessions (`-p`, the Agent SDK, CI and cloud), background Bash and PowerShell commands stop at their time limit: the `timeout` given with `run_in_background`, 30 minutes by default and 2 hours at most. Claude is notified when one is stopped. Pass a longer `timeout` for a background job that legitimately runs past 30 minutes, such as a full test suite on a slow runner. Since v2.1.288, terminal, desktop app and VS Code sessions have no limit.
+In unattended sessions (`-p`, the Agent SDK, CI and cloud), background Bash and PowerShell commands stop at their time limit: the `timeout` given with `run_in_background`, 30 minutes by default (10 minutes in `claude -p` runs) and 2 hours at most. Claude is notified when one is stopped. Pass a longer `timeout` for a background job that legitimately runs past the default, such as a full test suite on a slow runner. Since v2.1.288, terminal, desktop app and VS Code sessions have no limit.
 
 ```json
 {
