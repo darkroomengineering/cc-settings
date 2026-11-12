@@ -2,7 +2,15 @@
 // call the paid `claude plugin eval` CLI are not run here.
 
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -510,6 +518,56 @@ describe("pre-push eval gate", () => {
       "echo hi",
     ]) {
       expect(isPush(c)).toBe(false);
+    }
+  });
+});
+
+describe("repo-local git hooks gate only cc-settings", () => {
+  const G = "git";
+  const C = "commit";
+  const repo = join(import.meta.dir, "..");
+
+  test("finds where each commit runs", async () => {
+    const { gitTargets } = await import("../.claude/hooks/git-target.ts");
+    expect(gitTargets(`${G} ${C} -m x`, C, "/a")).toEqual(["/a"]);
+    expect(gitTargets(`${G} -C "/b c" ${C} -m x`, C, "/a")).toEqual(["/b c"]);
+    expect(gitTargets(`${G} -C sub ${C}`, C, "/a")).toEqual(["/a/sub"]);
+    expect(gitTargets(`cd /b && cd d && ${G} add -A && ${G} ${C} -m x`, C, "/a")).toEqual(["/b/d"]);
+    expect(gitTargets(`${G} -C "$W" ${C}`, C, "/a")).toEqual([null]);
+    expect(gitTargets(`cd - && ${G} ${C}`, C, "/a")).toEqual([null]);
+    expect(gitTargets(`${G} --git-dir=/b/.git ${C}`, C, "/a")).toEqual([null]);
+    expect(gitTargets(`bash -c '${G} ${C} -m x'`, C, "/a")).toEqual([null]);
+  });
+
+  test("keeps the gate on where the directory or command is hidden", async () => {
+    const { gitTargets } = await import("../.claude/hooks/git-target.ts");
+    expect(gitTargets(`(cd /b && ${G} status); ${G} ${C}`, C, "/a")).toEqual(["/a"]);
+    expect(gitTargets(`(cd /b && ${G} ${C})`, C, "/a")).toEqual(["/b"]);
+    expect(gitTargets(`cd /b | cat; ${G} ${C}`, C, "/a")).toEqual([null]);
+    expect(gitTargets(`${G} -C/b ${C}`, C, "/a")).toEqual(["/b"]);
+    expect(gitTargets(`${G} -C /b ${C} && bash -c '${G} ${C}'`, C, "/a")).toEqual(["/b", null]);
+    expect(gitTargets(`pushd /b && popd && ${G} ${C}`, C, "/a")).toEqual([null]);
+  });
+
+  test("ignores the words inside quotes and heredoc bodies", async () => {
+    const { gitTargets } = await import("../.claude/hooks/git-target.ts");
+    expect(gitTargets(`grep -rn '${G} ${C}' src`, C, "/a")).toEqual([]);
+    expect(gitTargets(`cat > f <<'EOF'\n${G} ${C} -m x\nEOF`, C, "/a")).toEqual([]);
+    expect(gitTargets(`${G} log --grep ${C}`, C, "/a")).toEqual([]);
+  });
+
+  test("gates cc-settings and its worktrees, not other repositories", async () => {
+    const { gatedCheckout } = await import("../.claude/hooks/git-target.ts");
+    const other = mkdtempSync(join(tmpdir(), "git-target-"));
+    try {
+      Bun.spawnSync({ cmd: ["git", "init", "-q", other] });
+      expect(gatedCheckout([other], repo)).toBeNull();
+      expect(gatedCheckout([repo], repo)).toBe(realpathSync(repo));
+      expect(gatedCheckout([null], repo)).toBe(repo);
+      expect(gatedCheckout([join(other, "missing")], repo)).toBe(repo);
+      expect(gatedCheckout([other, repo], repo)).toBe(realpathSync(repo));
+    } finally {
+      rmSync(other, { recursive: true, force: true });
     }
   });
 });

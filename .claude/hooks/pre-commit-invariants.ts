@@ -5,12 +5,15 @@
 // sync, version drift) and block the commit when any fails. The full suite
 // takes five minutes and runs at PR time; this set runs in a few seconds and
 // covers the failures that used to land on main and get found afterwards.
+// A commit to another repository is not gated; a commit in a cc-settings
+// worktree runs the tests in that worktree.
 //
 // Exit 0 allows. Exit 2 blocks with the reason on stderr. Infrastructure
 // errors (bun missing, spawn failure) fail open: this guards invariants, it is
 // not itself a gate on the environment.
 
 import { readHookInput } from "../../src/lib/hook-runtime.ts";
+import { gatedCheckout, gitTargets } from "./git-target.ts";
 
 const INVARIANT_TESTS = [
   "tests/plugin-manifest.test.ts",
@@ -26,8 +29,9 @@ const INVARIANT_TESTS = [
 ];
 
 // Claude Code sends the PreToolUse payload on stdin; the env vars are fallbacks.
-async function readCommand(): Promise<string> {
-  const input = await readHookInput<{ tool_input?: { command?: unknown } }>();
+const input = await readHookInput<{ cwd?: unknown; tool_input?: { command?: unknown } }>();
+
+function readCommand(): string {
   const fromStdin = input.tool_input?.command;
   if (typeof fromStdin === "string") return fromStdin;
   const env = process.env.TOOL_INPUT_command;
@@ -40,10 +44,13 @@ async function readCommand(): Promise<string> {
   }
 }
 
-const command = await readCommand();
-if (!/\bgit\s+(?:-C\s+\S+\s+)?commit\b/.test(command)) process.exit(0);
+const projectDir = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
+const cwd = typeof input.cwd === "string" ? input.cwd : process.cwd();
+const targets = gitTargets(readCommand(), "commit", cwd);
+if (targets.length === 0) process.exit(0);
+const root = gatedCheckout(targets, projectDir);
+if (root === null) process.exit(0);
 
-const root = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 try {
   const proc = Bun.spawnSync({
     cmd: ["bun", "test", ...INVARIANT_TESTS],
