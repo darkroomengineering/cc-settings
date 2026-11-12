@@ -12,3 +12,4 @@ hooks-config.local.json
 plans/
 node_modules/
 evals/results/
+evals/*/*.jsonl

@@ -5,6 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { captureCases, keptDir } from "../src/lib/eval-capture.ts";
 import {
   type CaseRuns,
   gate,
@@ -65,6 +66,33 @@ describe("eval-changed", () => {
   test("flag reads the value after the name, else the fallback", () => {
     expect(flag("--base", "x", ["bun", "s", "--base", "main"])).toBe("main");
     expect(flag("--base", "x", ["bun", "s", "--base-arm"])).toBe("x");
+  });
+});
+
+describe("eval-capture", () => {
+  test("keptDir reads the sandbox path from the runner's --keep-temp notice", () => {
+    const stderr = "⚠ kept /private/tmp/e-C4HBtR: home/ and tmp/ in it were written by the plugin";
+    expect(keptDir(stderr)).toBe("/private/tmp/e-C4HBtR");
+    expect(keptDir("Wrote report.json")).toBeNull();
+  });
+
+  test("captureCases lists cases with a capture.json and rejects a missing source", () => {
+    const dir = mkdtempSync(join(tmpdir(), "eval-capture-"));
+    try {
+      mkdirSync(join(dir, "src-case"));
+      mkdirSync(join(dir, "reply-case"));
+      mkdirSync(join(dir, "plain-case"));
+      writeFileSync(join(dir, "reply-case", "capture.json"), '{"from":"src-case"}');
+      expect(captureCases(dir)).toEqual([{ name: "reply-case", from: "src-case" }]);
+      writeFileSync(join(dir, "plain-case", "capture.json"), '{"from":"gone"}');
+      expect(() => captureCases(dir)).toThrow(/does not exist/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("every capture.json in the repo names an existing case", () => {
+    expect(() => captureCases(join(ROOT, "evals"))).not.toThrow();
   });
 });
 
