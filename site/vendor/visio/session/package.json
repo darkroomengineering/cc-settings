@@ -1,0 +1,24 @@
+{
+  "name": "@visio/session",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Signed cookie sessions for Solid 2 server code: a small helper over @solidjs/web's request event and WebCrypto HMAC, with secret rotation and server-enforced expiry.",
+  "files": [
+    "DESIGN.md",
+    "skills",
+    "src"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@solidjs/web": "2.0.0-rc.20"
+  },
+  "peerDependencies": {
+    "@solidjs/web": ">=2.0.0-rc.20"
+  }
+}

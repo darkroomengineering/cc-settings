@@ -1,0 +1,29 @@
+{
+  "name": "@visio/frame",
+  "version": "0.1.0",
+  "private": true,
+  "description": "One frame loop for Solid 2: tempus runs every per-frame callback in a set order (scroll, animation, render).",
+  "files": [
+    "DESIGN.md",
+    "skills",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./internal/motion": "./src/motion.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "tempus": "1.0.0"
+  },
+  "devDependencies": {
+    "solid-js": "2.0.0-rc.20"
+  },
+  "peerDependencies": {
+    "solid-js": ">=2.0.0-rc.20"
+  }
+}

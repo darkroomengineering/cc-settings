@@ -1,0 +1,38 @@
+{
+  "name": "@visio/router",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An explicit, typed route table on top of Solid Router: pages own their pattern, data and meta; the routes file owns the tree; a Vite plugin splits each page into an eager config and a lazy component and checks the two agree.",
+  "files": [
+    "DESIGN.md",
+    "skills",
+    "src"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./internal/api": "./src/api.ts",
+    "./internal/cache": "./src/cache.ts",
+    "./internal/crawl": "./src/crawl.ts",
+    "./internal/sitemap": "./src/sitemap.ts",
+    "./internal/extend": "./src/extend.ts",
+    "./internal/outlet": "./src/outlet.ts",
+    "./internal/smoke": "./src/smoke.ts",
+    "./internal/vite": "./src/vite.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "magic-string": "^1.4.5",
+    "oxc-parser": "^0.156.0"
+  },
+  "peerDependencies": {
+    "@solidjs/prerender": ">=0.3.0",
+    "@solidjs/router": ">=2.0.0-next.43",
+    "@solidjs/web": ">=2.0.0-rc.20",
+    "prerender-crawler": ">=0.3.0",
+    "solid-js": ">=2.0.0-rc.20",
+    "vite": ">=8"
+  }
+}

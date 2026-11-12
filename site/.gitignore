@@ -1,0 +1,17 @@
+dist
+.wrangler
+.output
+
+# Environment
+.env*.local
+.env.keys
+
+# dependencies
+node_modules/
+
+# System Files
+.DS_Store
+
+# @visio/styling artifacts
+.visio/
+*.tsbuildinfo

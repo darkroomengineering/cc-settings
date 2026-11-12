@@ -1,0 +1,35 @@
+{
+  "name": "@visio/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A site in more than one language: each route's path in each language, the language in a page's props, paths(lang), hreflang alternates, a 404 for a missing translation, and the build's checks of the table.",
+  "files": [
+    "DESIGN.md",
+    "skills",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./vite": "./src/vite.ts"
+  },
+  "scripts": {
+    "test": "bun test --isolate"
+  },
+  "dependencies": {
+    "@visio/router": "0.1.0"
+  },
+  "devDependencies": {
+    "@solidjs/router": "2.0.0-next.43",
+    "@solidjs/web": "2.0.0-rc.20",
+    "solid-js": "2.0.0-rc.20",
+    "vite": "^8.3.5"
+  },
+  "peerDependencies": {
+    "@solidjs/router": ">=2.0.0-next.43",
+    "@solidjs/web": ">=2.0.0-rc.20",
+    "solid-js": ">=2.0.0-rc.20",
+    "vite": ">=8"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@visio/env",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A site's environment: dotenvx-encrypted .env files in git, typed through one defineEnv() in src/env.ts, and pushed to Vercel or Cloudflare from a developer's machine.",
+  "bin": {
+    "visio-env": "./src/cli.ts"
+  },
+  "files": [
+    "DESIGN.md",
+    "skills",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./internal/files": "./src/files.ts",
+    "./internal/platform": "./src/platform.ts",
+    "./internal/vite": "./src/vite.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@dotenvx/primitives": "^4.3.0"
+  },
+  "devDependencies": {
+    "valibot": "1.5.0",
+    "vite": "^8.3.5"
+  },
+  "peerDependencies": {
+    "vite": ">=8"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "name": "@visio/image-optimizer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Resizes and re-encodes images with Bun.Image into WebP and the original format at a list of widths, with a blurred inline placeholder, cached by content. The Vite plugin serves `*.jpg?responsive` imports.",
+  "files": [
+    "DESIGN.md",
+    "skills",
+    "src"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./internal/vite": "./src/vite.ts",
+    "./internal/select": "./src/select.ts",
+    "./internal/icons": "./src/icons.ts",
+    "./client": {
+      "types": "./src/client.d.ts"
+    }
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@resvg/resvg-wasm": "^2.6.2",
+    "svgo": "^4.1.0"
+  },
+  "devDependencies": {
+    "@solidjs/vite-plugin": "3.0.0-next.55",
+    "@solidjs/web": "2.0.0-rc.20",
+    "solid-js": "2.0.0-rc.20"
+  },
+  "peerDependencies": {
+    "@solidjs/web": ">=2.0.0-rc.20",
+    "solid-js": ">=2.0.0-rc.20",
+    "vite": ">=8"
+  }
+}

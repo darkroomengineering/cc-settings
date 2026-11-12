@@ -1,0 +1,26 @@
+{
+  "name": "@visio/oxlint-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The project's conventions as oxlint rules.",
+  "files": [
+    "DESIGN.md",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
+    "./internal/zones": "./src/zones.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "oxlint": "~1.90.0"
+  },
+  "peerDependencies": {
+    "oxlint": "~1.90.0"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@visio/aeo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Makes a visio site readable for AI agents and answer engines: a Markdown copy of every page, llms.txt, and the AI crawler rules of robots.txt.",
+  "files": [
+    "DESIGN.md",
+    "skills",
+    "src"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./internal/llms": "./src/llms-text.ts",
+    "./internal/middleware": "./src/middleware.ts",
+    "./internal/smoke": "./src/smoke.ts",
+    "./internal/vite": "./src/vite.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "prerender-crawler": ">=0.3.0",
+    "vite": ">=8"
+  }
+}
