@@ -8,13 +8,17 @@
 // Exit 0 allows. Exit 2 blocks with the reason on stderr. Infrastructure
 // errors fail open, same as pre-commit-invariants.ts.
 
-import { parseShellCommand, scanShell, splitPipes } from "../../src/lib/hook-command.ts";
 import { readHookInput } from "../../src/lib/hook-runtime.ts";
+import { gatedCheckout, gitTargets } from "./git-target.ts";
 
 // Claude Code sends the PreToolUse payload on stdin; the env vars are fallbacks.
-async function readCommand(): Promise<string> {
-  const input = await readHookInput<{ tool_input?: { command?: unknown } }>();
-  const fromStdin = input.tool_input?.command;
+async function readInput(): Promise<{ command: string; cwd: string }> {
+  const input = await readHookInput<{ cwd?: unknown; tool_input?: { command?: unknown } }>();
+  const cwd = typeof input.cwd === "string" ? input.cwd : process.cwd();
+  return { command: readCommand(input.tool_input?.command), cwd };
+}
+
+function readCommand(fromStdin: unknown): string {
   if (typeof fromStdin === "string") return fromStdin;
   const env = process.env.TOOL_INPUT_command;
   if (env) return env;
@@ -29,33 +33,17 @@ async function readCommand(): Promise<string> {
 // Parse the shell so only a real push runs the evals: the words inside a quoted
 // grep pattern or commit message must not spend eval money, and env prefixes
 // (`GIT_SSH_COMMAND=... git push`, `env git push`) must not skip the gate.
-const WRAPPED_PUSH =
-  /(?:\beval|\b(?:ba|z|da|k)?sh\s+(?:-\w+\s+)*-\w*c)\s+["'][^"']*\bgit\b[^"']*\bpush\b|\$\([^)]*\bgit\b[^)]*\bpush\b|`[^`]*\bgit\b[^`]*\bpush\b/;
-const GIT_VALUE_FLAGS = new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env"]);
 export function isPush(cmd: string): boolean {
-  for (const seg of scanShell(cmd).segments) {
-    for (const stage of splitPipes(seg.clean)) {
-      const { word, args } = parseShellCommand(stage);
-      if (word !== "git") continue;
-      for (let i = 0; i < args.length; i++) {
-        const a = args[i] as string;
-        if (GIT_VALUE_FLAGS.has(a)) i++;
-        else if (a.startsWith("-")) continue;
-        else if (a === "push") return true;
-        else break;
-      }
-    }
-  }
-  // A push wrapped in `bash -c '...'`, `eval`, or a substitution hides inside one
-  // word. Fail toward running the gate when such a wrapper names a push.
-  return WRAPPED_PUSH.test(cmd);
+  return gitTargets(cmd, "push", process.cwd()).length > 0;
 }
 
 if (import.meta.main) {
-  const command = await readCommand();
-  if (!isPush(command)) process.exit(0);
-
-  const root = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
+  const { command, cwd } = await readInput();
+  const targets = gitTargets(command, "push", cwd);
+  if (targets.length === 0) process.exit(0);
+  // A push to another repository (Programa, a client repo) runs no evals.
+  const root = gatedCheckout(targets, process.env.CLAUDE_PROJECT_DIR ?? process.cwd());
+  if (root === null) process.exit(0);
   try {
     const proc = Bun.spawnSync({
       cmd: ["bun", "src/scripts/eval-changed.ts"],
