@@ -281,3 +281,5 @@ more legible to humans: the conventions an agent needs are the same debt the tea
 engineers.
 
 [darkroom.engineering](https://darkroom.engineering) | MIT
+
+[A sidequest by Darkroom Engineering Incubator](https://darkroom.engineering/incubator)

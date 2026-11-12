@@ -34,6 +34,7 @@ import {
   claudeManagedAllowedPaths,
 } from "../src/lib/claude-managed-files.ts";
 import { verifySrcManifest } from "../src/lib/hooks-fingerprint.ts";
+import { CREDIT_LINE } from "../src/lib/install-display.ts";
 import { AUDIT_PERFORMANCE_RESOURCES } from "../src/lib/install-source-inventory.ts";
 import { LIGHT_SKILLS } from "../src/lib/light-profile.ts";
 import { autoUpdateLogPath, buildPlist } from "../src/lib/schedule.ts";
@@ -1664,6 +1665,7 @@ mock.module("node:fs/promises", () => ({ ...original,
 
       expect(reinstall.exitCode, `${reinstall.stdout}\n${reinstall.stderr}`).toBe(0);
       expect(reinstall.stdout).toContain("Installed to:");
+      expect(reinstall.stdout).toContain(CREDIT_LINE);
       for (const [path, bytes] of personal) expect(await readFile(path, "utf8"), path).toBe(bytes);
     } finally {
       await rm(home, { recursive: true, force: true });

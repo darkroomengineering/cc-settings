@@ -79,7 +79,7 @@ import { reportCopilotSync } from "./lib/copilot-instructions.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
 import { FINGERPRINT_FILENAME } from "./lib/hooks-fingerprint.ts";
 import { prepareClaudeCompensation, printHelp } from "./lib/install-cmds.ts";
-import { cmdDryRun, printStatus, showSummary } from "./lib/install-display.ts";
+import { cmdDryRun, printStatus, showCredit, showSummary } from "./lib/install-display.ts";
 import { createBackup, createDirectories, preflightInstallSource } from "./lib/install-fs.ts";
 import {
   applyAutoUpdate,
@@ -441,6 +441,7 @@ async function main(): Promise<number> {
     console.log("");
     info("Rollback if needed: bun src/setup.ts --target=codex --rollback");
     success("Restart Codex to apply changes.");
+    showCredit();
     console.log("");
     return 0;
   }
@@ -815,6 +816,7 @@ async function main(): Promise<number> {
   success(
     `Done in ${((Date.now() - startedAt) / 1000).toFixed(1)}s. Restart ${target === "both" ? "Claude Code and Codex" : "Claude Code"} to apply changes.`,
   );
+  showCredit();
   console.log("");
   return 0;
 }
