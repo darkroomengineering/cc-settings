@@ -294,8 +294,14 @@ const ADDED_IN_V32 = ["src/lib/process-tree.ts"];
 const ADDED_IN_V34 = ["src/lib/personal-overrides.ts", "src/schemas/personal-overrides.ts"];
 // Version 35: the proof-of-work verify-app template.
 const ADDED_IN_V35 = ["skills/proof-of-work/references/verify-app-template.md"];
-// Version 36: the /audit Platform checks.
-const ADDED_IN_V36 = ["skills/audit/references/platform-checks.md"];
+// Version 36: the /audit Platform checks and the profile and rules they read.
+const ADDED_IN_V36 = [
+  "profiles/native-apps.md",
+  "rules/android-design.md",
+  "rules/apple-design.md",
+  "rules/windows-design.md",
+  "skills/audit/references/platform-checks.md",
+];
 export const CURRENT_RUNTIME_MANIFEST_VERSION = 36;
 // Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
 // CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.

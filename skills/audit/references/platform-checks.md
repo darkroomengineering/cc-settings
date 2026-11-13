@@ -4,7 +4,7 @@ Read by `/audit platform`. The mode rides the Shared Contract and the finding co
 
 **Role additions.** A user who also runs the platform's own apps and notices what is out of place. A platform engineer who knows which system component replaces each custom view.
 
-**Scope.** All UI code for the platforms the app ships on, its asset catalog or resources (icon, accent, fonts), and its character sheet. Load the matching rule in full and treat its bullets as the checklist: `rules/apple-design.md` for Swift, `rules/windows-design.md` for XAML and C#, `rules/android-design.md` for Kotlin Compose. An app that ships on several platforms is audited per platform, with one finding list.
+**Scope.** All UI code for the platforms the app ships on, its asset catalog or resources (icon, accent, fonts), and its character sheet. Load the matching rule in full and treat its bullets as the checklist: `rules/apple-design.md` for Swift, `rules/windows-design.md` for XAML and C#, `rules/android-design.md` for Kotlin Compose. An app that ships on several platforms is audited per platform, with one finding list. In standalone Codex, the `rules/` and `profiles/` paths in this file are under `$CODEX_HOME/darkroom/source/` (`CODEX_HOME` defaults to `~/.codex`).
 
 ## Checks
 

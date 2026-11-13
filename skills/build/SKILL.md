@@ -12,6 +12,7 @@ Use Context7 only when the user configured that
 MCP. Otherwise consult official library documentation through native browsing
 or inspect the pinned local package, and state which fallback supplied the API
 contract. This package does not auto-run unpinned registry MCP packages.
+Read `~/.claude/profiles/native-apps.md` at `$CODEX_HOME/darkroom/source/profiles/native-apps.md` (`CODEX_HOME` defaults to `~/.codex`).
 
 ## Phase 1: Research (GO/NO-GO Gate)
 
