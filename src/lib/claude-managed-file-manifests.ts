@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 48;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 49;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -967,9 +967,23 @@ const v47 = {
 };
 MANIFESTS.set(47, v47);
 // Version 48: the proof-of-work verify-app template (full profile only).
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v48 = {
   full: [...v47.full, "skills/proof-of-work/references/verify-app-template.md"],
   light: v47.light,
+};
+MANIFESTS.set(48, v48);
+// Version 49: the native-apps profile, the Apple, Windows, and Android design rules, and the
+// /audit Platform checks (full profile only; light installs carry no profiles, rules, or skills).
+const ADDED_IN_V49 = [
+  "profiles/native-apps.md",
+  "skills/audit/references/platform-checks.md",
+  "rules/android-design.md",
+  "rules/apple-design.md",
+  "rules/windows-design.md",
+];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v48.full, ...ADDED_IN_V49],
+  light: v48.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([

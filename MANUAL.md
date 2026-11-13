@@ -141,7 +141,7 @@ when the first pass shows that depth is warranted.
 
 ### Audit a whole repository
 
-`audit` has eleven modes. It reads the repository and writes its full report under `docs/audits/`;
+`audit` has twelve modes. It reads the repository and writes its full report under `docs/audits/`;
 optional GitHub issue filing is a separate external-state action:
 
 - **Full:** "full audit" or "audit everything" runs every mode that applies to the repository in
@@ -157,6 +157,7 @@ optional GitHub issue filing is a separate external-state action:
 - **Threat model:** maps trust boundaries, attacker capabilities, abuse paths, and mitigations.
 - **Motion:** reviews animation leverage, interruption, performance, and accessibility.
 - **SEO:** reviews search and answer-engine discoverability.
+- **Platform:** checks a native iOS, macOS, Windows, or Android app against the platform's design guidelines and the app's written character budget.
 - **Debt:** collects `SHORTCUT:` markers into a ledger, with missing upgrade triggers first.
 
 The substantive modes use stable finding IDs, concrete failure scenarios, and a disproof pass.

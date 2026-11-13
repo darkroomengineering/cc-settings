@@ -16,6 +16,7 @@ documentation only.
 | `tauri` | Tauri desktop apps (Rust + Web) |
 | `webgl` | 3D web (R3F, Three.js, GSAP) |
 | `react-router` | React Router 7+ / Novus projects |
+| `native-apps` | Native iOS, macOS, Windows, and Android apps that follow each platform's design guidelines |
 | `durable-agents` | Agents, bots, and autonomous jobs inside a product that must survive crashes and restarts |
 
 ---
