@@ -93,13 +93,7 @@ A typical sequence: `/audit codebase` produces findings → engineers cherry-pic
 
 **Method.** Per area, state how it SHOULD behave, then read (or run) to confirm or refute; every expectation-vs-reality gap is a finding. Findings follow the finding contract in `references/audit-contract.md` §3 (stable IDs, CONFIRMED/PLAUSIBLE, disprove first, concrete scenario, considered & rejected). CONFIRMED requires one `file:line`; a finding located by a bare file, a glob, or an absence ("no tests") is PLAUSIBLE wherever it is reported, chat included. Performance mode tightens it: PLAUSIBLE does not exist there (see its evidence rule). Where something is sound, say so once and move on; spend effort where it isn't.
 
-**Cross-model + intent passes.** In Claude, run the shared procedures in
-`references/audit-contract.md` (§1 Codex cross-model pass via `codex-verifier`
-on the finding list, §2 team-knowledge reconciliation). Both are gated and fail
-open. Standalone Codex never uses the bridge; it may use a fresh native
-read-only reviewer under the lifecycle above. The one-line invariants: reconcile
-AFTER findings exist, and a documented decision **reclassifies severity, never
-deletes a finding**.
+**Cross-model + intent passes.** In Claude, run the shared procedures in `references/audit-contract.md` (§1 Codex cross-model pass via `codex-verifier` on the finding list, §2 team-knowledge reconciliation). Both are gated and fail open. Standalone Codex never uses the bridge; it may use a fresh native read-only reviewer under the lifecycle above. The one-line invariants: reconcile AFTER findings exist, and a documented decision **reclassifies severity, never deletes a finding**.
 
 **Output.** First grade the findings: write them as JSON lines to a scratch file, one per line with `id`, `status`, `location`, `issue`, `scenario` and `direction`, then run `bun "$HOME/.claude/src/scripts/grade-findings.ts" <file>`. It relabels any CONFIRMED finding with no `file:line` to PLAUSIBLE and gives the reason; the report uses its labels. To win CONFIRMED back, add the `file:line` and rerun; never relabel by hand. Performance's `measured` findings pass through unchanged. If the script is not installed, apply the same rule yourself. Then write the full report to `docs/audits/[mode]-audit-YYYY-MM-DD.md` (create the dir; leave uncommitted — the maintainer owns git). Structure top-heavy:
 1. Summary table: ID | severity | area | one-line issue | file:line | CONFIRMED/PLAUSIBLE.
@@ -144,9 +138,6 @@ fd -t d -d 2 --hidden -E node_modules -E .git -E dist -E build
 fd -t f -E node_modules -E .git -E dist -E build \
   -e ts -e tsx -e js -e jsx -e py -e go -e rs -x wc -l {} \; | sort -rn | head -50
 
-# Direct dependency count
-jq '.dependencies + .devDependencies | length' package.json
-
 # Direct deps with versions
 jq '.dependencies + .devDependencies' package.json
 ```
@@ -173,8 +164,7 @@ It **exits 0 even on errors** — never trust its exit code. Check that stdout p
 that `functions_analyzed > 0`; non-JSON stdout or `functions_analyzed: 0` means the scan did not
 run and must be reported as "scan unavailable", never as "no dead code". **`dead_functions` from
 `tldr-code` is ADVISORY ONLY — confirm every candidate with `Grep` before recording it as a
-finding.** Its MCP path (`tldr-mcp`, not used here) was measured reporting live symbols as dead
-code; the CLI was measured accurate, which is why it's used here instead.
+finding.**
 
 When the project depends on `deslop-cli` (check `package.json` — it's the same advisory probe
 `/proof-of-work` runs), add it as a second dead-code signal: `npx deslop`. Same rule as
