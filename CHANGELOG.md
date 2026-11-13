@@ -19,6 +19,9 @@ Agents building a native app now check it against the platform's own design guid
 - The system accent wins on every platform: controls use the user's accent, and the app's own accent appears only in its branded touches.
 - `profiles/react-native.md` and `profiles/tauri.md` are deprecated: not for new work, kept for existing projects. New native apps use `profiles/native-apps.md`.
 - `src/lib/claude-managed-file-manifests.ts` (v49), `tests/install-e2e.test.ts`, `tests/personal-overrides-manifests.test.ts`, `docs/rules.md`, `docs/profiles.md`, `MANUAL.md`: install and list the new files.
+- `src/lib/codex-runtime-manifests.ts` (v36): standalone Codex installs get the platform checks, the native-apps profile and the three design rules. `/build` and the platform checks give their Codex location.
+- `evals/audit-platform-swift-chrome`: a SwiftUI fixture with a hand-drawn tab bar, fake translucency, an unlisted font and the compatibility opt-out, graded on `/audit platform` findings.
+- `skills/audit/SKILL.md`: trimmed to 687 lines, and its line exemption drops from 690 to 687.
 
 **Deletions / Native-now-redundant:** none.
 
