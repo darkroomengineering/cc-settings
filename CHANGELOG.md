@@ -4,6 +4,27 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [16.2.0] — 2026-11-13
+
+Agents building a native app now check it against the platform's own design guidelines instead of drawing their own chrome. A native app follows the human interface guidelines of the platform it ships on, uses the system's navigation, controls and materials, and keeps its character to a small written budget: one accent color, one motion signature, the app icon, empty states and illustration, copy voice, optional sound, and one signature interaction.
+
+**Added:**
+- `rules/apple-design.md` (loads for `.swift` files): Liquid Glass and system chrome, toolbars and sidebars, type, color, motion and accessibility floors, and the layered app icon.
+- `rules/windows-design.md` (loads for `.xaml` and `.xaml.cs` files): Mica and Acrylic, extended title bar, corner radii, the Segoe UI Variable type ramp, theme resources, and built-in page transitions.
+- `rules/android-design.md` (loads for `.kt` files): Material 3 theme, dynamic color, adaptive navigation, edge-to-edge, and touch targets. It says Material Expressive is not the floor while it is outside a stable `material3` release.
+- `profiles/native-apps.md`: the standard, the character budget, and which rule applies to which platform. `/build` reads it for native UI work.
+- `/audit platform`: checks a native app for custom chrome, hand-built materials, literals the theme owns, character-budget overruns, ignored system settings, and missing accessibility basics.
+
+**Changed:**
+- The system accent wins on every platform: controls use the user's accent, and the app's own accent appears only in its branded touches.
+- `profiles/react-native.md` and `profiles/tauri.md` are deprecated: not for new work, kept for existing projects. New native apps use `profiles/native-apps.md`.
+- `src/lib/claude-managed-file-manifests.ts` (v49), `tests/install-e2e.test.ts`, `tests/personal-overrides-manifests.test.ts`, `docs/rules.md`, `docs/profiles.md`, `MANUAL.md`: install and list the new files.
+- `src/lib/codex-runtime-manifests.ts` (v36): standalone Codex installs get the platform checks, the native-apps profile and the three design rules. `/build` and the platform checks give their Codex location.
+- `evals/audit-platform-swift-chrome`: a SwiftUI fixture with a hand-drawn tab bar, fake translucency, an unlisted font and the compatibility opt-out, graded on `/audit platform` findings.
+- `skills/audit/SKILL.md`: trimmed to 687 lines, and its line exemption drops from 690 to 687.
+
+**Deletions / Native-now-redundant:** none.
+
 ## [16.1.1] — 2026-11-12
 
 Synced with Claude Code v2.1.322 and Codex v0.167.2. This release changes docs and manifests only; installed settings are unchanged.

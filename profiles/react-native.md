@@ -1,9 +1,11 @@
 ---
 name: react-native
-description: Expo mobile apps
+description: "Deprecated: Expo mobile apps; existing projects only"
 ---
 
 # React Native Profile (Expo)
+
+> Deprecated. Not for new work: new native apps follow `profiles/native-apps.md`. This profile stays for existing React Native (Expo) projects only.
 
 > Darkroom conventions for React Native apps with Expo SDK and Expo Router.
 

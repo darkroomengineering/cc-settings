@@ -1,7 +1,7 @@
 ---
 name: audit
-argument-hint: "[full|codebase|docs|process|performance|tests|state|debt|threat-model|motion|seo]"
-description: Repo audits, one mode or all (codebase, docs, process, perf, tests, state, threat-model, motion, SEO, debt). Triggers "audit the codebase", "full audit", "perf audit", "audit the tests", "find the implicit state machines", "threat model", "motion audit", "seo audit", "debt ledger".
+argument-hint: "[full|codebase|docs|process|performance|tests|state|debt|threat-model|motion|seo|platform]"
+description: Repo audits, one mode or all (codebase, docs, process, perf, tests, state, threat-model, motion, SEO, platform guidelines, debt). Triggers "audit the codebase", "full audit", "perf audit", "audit the tests", "find the implicit state machines", "threat model", "motion audit", "seo audit", "platform audit", "does this follow the HIG", "debt ledger".
 context: main
 requires:
   - mcp: context7
@@ -29,7 +29,7 @@ offers isolation, so the main session writes the final report after readers
 finish; any implementer and test-writer phases must be serialized with
 non-overlapping ownership.
 
-One skill, eleven modes. Nine audit modes (Codebase, Docs, Process, Performance, Tests, State, Threat-Model, Motion, SEO) read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report or plan set. **Full** runs every applicable mode and merges the reports (see Mode: Full). **Debt** is a mechanical grep that collects `SHORTCUT:` markers into a ledger and makes no judgement (see Mode: Debt).
+One skill, twelve modes. Ten audit modes (Codebase, Docs, Process, Performance, Tests, State, Threat-Model, Motion, SEO, Platform) read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report or plan set. **Full** runs every applicable mode and merges the reports (see Mode: Full). **Debt** is a mechanical grep that collects `SHORTCUT:` markers into a ledger and makes no judgement (see Mode: Debt).
 
 Codebase mode's structure lens should push to be **ambitious**: do not merely identify local cleanup opportunities, actively search for "code judo" moves. Every adversarial mode holds **no loyalty to the current design** — hunt defects, drift, dead ends, and abuse paths rather than confirm things work.
 
@@ -51,6 +51,7 @@ A request for everything, or one that names two or more verticals ("audit perfor
 | Threat-Model | "threat model", "STRIDE", "attack surface", "abuse paths" |
 | Motion | "motion audit", "audit the animations", "improve the animations" |
 | SEO | "seo audit", "aeo", "ai engine optimization", "answer engine", "discoverability audit", "rank better", "llms.txt" |
+| Platform | "platform audit", "guideline audit", "does this follow the HIG", "Fluent audit", "Material audit", "native audit", "liquid glass audit" |
 | Debt | "debt ledger", "shortcut ledger", "what did we defer", "what corners did we cut" |
 
 Debt mode is a mechanical grep — run it standalone or as a cheap first pass before Codebase mode.
@@ -73,6 +74,7 @@ Each mode answers one question:
 | Threat-Model | What can go wrong, and who would exploit it? | Before a security-sensitive launch or a new internet-facing surface |
 | Motion | Where does the animation work have the highest leverage? | After a UI-heavy sprint, before a client showcase |
 | SEO | Will this site be found, ranked, and cited? | Before a site launch, first pass on any client marketing/content site |
+| Platform | Does this native app use the system's chrome and keep character to its budget? | Before a release of an iOS, macOS, Windows, or Android app; after a UI-heavy sprint; when an app looks out of place next to the system apps |
 | Debt | What did we defer on purpose? | Cheap first pass before Codebase |
 
 A typical sequence: `/audit codebase` produces findings → engineers cherry-pick the highest-leverage ones → the right executor by finding type: dead code and duplication go to the `deslopper` agent (auto-removes what's provably dead, stages consolidations for approval), structural rework to the `implementer` agent, client-runtime perf findings to `/fix`.
@@ -85,19 +87,13 @@ A typical sequence: `/audit codebase` produces findings → engineers cherry-pic
 
 ---
 
-## Shared Contract (Codebase, Docs, Process, Tests, State, Threat-Model, SEO, Performance, and Full modes)
+## Shared Contract (Codebase, Docs, Process, Tests, State, Threat-Model, SEO, Platform, Performance, and Full modes)
 
 **Role.** No loyalty to the current design/structure/flows. Act simultaneously as a senior staff engineer, a skeptical first-time consumer, and an adversarial reviewer. Understand deeply enough to challenge, not merely validate.
 
 **Method.** Per area, state how it SHOULD behave, then read (or run) to confirm or refute; every expectation-vs-reality gap is a finding. Findings follow the finding contract in `references/audit-contract.md` §3 (stable IDs, CONFIRMED/PLAUSIBLE, disprove first, concrete scenario, considered & rejected). CONFIRMED requires one `file:line`; a finding located by a bare file, a glob, or an absence ("no tests") is PLAUSIBLE wherever it is reported, chat included. Performance mode tightens it: PLAUSIBLE does not exist there (see its evidence rule). Where something is sound, say so once and move on; spend effort where it isn't.
 
-**Cross-model + intent passes.** In Claude, run the shared procedures in
-`references/audit-contract.md` (§1 Codex cross-model pass via `codex-verifier`
-on the finding list, §2 team-knowledge reconciliation). Both are gated and fail
-open. Standalone Codex never uses the bridge; it may use a fresh native
-read-only reviewer under the lifecycle above. The one-line invariants: reconcile
-AFTER findings exist, and a documented decision **reclassifies severity, never
-deletes a finding**.
+**Cross-model + intent passes.** In Claude, run the shared procedures in `references/audit-contract.md` (§1 Codex cross-model pass via `codex-verifier` on the finding list, §2 team-knowledge reconciliation). Both are gated and fail open. Standalone Codex never uses the bridge; it may use a fresh native read-only reviewer under the lifecycle above. The one-line invariants: reconcile AFTER findings exist, and a documented decision **reclassifies severity, never deletes a finding**.
 
 **Output.** First grade the findings: write them as JSON lines to a scratch file, one per line with `id`, `status`, `location`, `issue`, `scenario` and `direction`, then run `bun "$HOME/.claude/src/scripts/grade-findings.ts" <file>`. It relabels any CONFIRMED finding with no `file:line` to PLAUSIBLE and gives the reason; the report uses its labels. To win CONFIRMED back, add the `file:line` and rerun; never relabel by hand. Performance's `measured` findings pass through unchanged. If the script is not installed, apply the same rule yourself. Then write the full report to `docs/audits/[mode]-audit-YYYY-MM-DD.md` (create the dir; leave uncommitted — the maintainer owns git). Structure top-heavy:
 1. Summary table: ID | severity | area | one-line issue | file:line | CONFIRMED/PLAUSIBLE.
@@ -142,9 +138,6 @@ fd -t d -d 2 --hidden -E node_modules -E .git -E dist -E build
 fd -t f -E node_modules -E .git -E dist -E build \
   -e ts -e tsx -e js -e jsx -e py -e go -e rs -x wc -l {} \; | sort -rn | head -50
 
-# Direct dependency count
-jq '.dependencies + .devDependencies | length' package.json
-
 # Direct deps with versions
 jq '.dependencies + .devDependencies' package.json
 ```
@@ -171,8 +164,7 @@ It **exits 0 even on errors** — never trust its exit code. Check that stdout p
 that `functions_analyzed > 0`; non-JSON stdout or `functions_analyzed: 0` means the scan did not
 run and must be reported as "scan unavailable", never as "no dead code". **`dead_functions` from
 `tldr-code` is ADVISORY ONLY — confirm every candidate with `Grep` before recording it as a
-finding.** Its MCP path (`tldr-mcp`, not used here) was measured reporting live symbols as dead
-code; the CLI was measured accurate, which is why it's used here instead.
+finding.**
 
 When the project depends on `deslop-cli` (check `package.json` — it's the same advisory probe
 `/proof-of-work` runs), add it as a second dead-code signal: `npx deslop`. Same rule as
@@ -510,6 +502,10 @@ order, dependencies, and status.
 | a category focus (e.g. "audit the animation performance") | Recon + that category only |
 | `plan <description>` | Skip the audit; recon just enough to specify, then write a single plan for the described improvement |
 
+## Mode: Platform
+
+Check a native app against `profiles/native-apps.md`: chrome comes from the platform, and character stays inside the written budget. Rides the Shared Contract; finding IDs use the `N` prefix plus the check number (`N3-2`). Read and follow `references/platform-checks.md` for the role, scope, checks P1 to P8, method, map, and verdict table.
+
 ## Mode: Tests
 
 Find tests that cost maintenance without guarding behavior, and prove each one
@@ -561,7 +557,7 @@ of them ride the Shared Contract.
 A named vertical maps to a mode: code quality, maintainability, dead code, or correctness →
 Codebase; security, vulnerabilities, or attack surface → Threat-Model; speed, bundle, or slowness →
 Performance; test quality → Tests; state machines or impossible states → State; documentation → Docs; animation → Motion; search or
-discoverability → SEO. When the user names verticals, run exactly those. When they say "all" or
+discoverability → SEO; platform guidelines, native look, or Liquid Glass, Fluent, or Material conformance → Platform. When the user names verticals, run exactly those. When they say "all" or
 "everything", select from the signals below.
 
 ### Phase 0 — Map once, select modes, ask once
@@ -581,6 +577,7 @@ discoverability → SEO. When the user names verticals, run exactly those. When 
 | State | The repo holds UI or workflow state: components, hooks, stores, reducers, or lifecycle columns |
    | Docs | Docs exist beyond a README |
    | SEO | The repo is a public website (routes with metadata, sitemap, robots, marketing pages) |
+   | Platform | The repo is a native app (Swift UI code, WinUI XAML, or Jetpack Compose) |
    | Motion | An animation library is a dependency (`gsap`, `motion`, `framer-motion`, `lenis`, `react-spring`) or CSS animation is substantial |
    | Process | Only on request; walking journeys is the most expensive mode. List it as available |
 
@@ -600,7 +597,7 @@ Claude use the Agent tool: `security-reviewer` for Threat-Model, a reader with B
 - the shared map and the user's Phase 0 answers;
 - the path and heading of its mode section in this file, which it reads and follows;
 - the instruction to return findings in the Shared Contract format with its mode prefix
-  (`C` Codebase, `P` Performance, `T` Threat-Model, `X` Tests, `F` State, `D` Docs, `S` SEO, `M` Motion,
+  (`C` Codebase, `P` Performance, `T` Threat-Model, `X` Tests, `F` State, `D` Docs, `S` SEO, `M` Motion, `N` Platform,
   `R` Process), and to write no files.
 
 The coordinator writes the only report. On a large repo the Codebase reader may split by module;
