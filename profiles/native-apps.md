@@ -5,7 +5,7 @@ description: Native apps on iOS, macOS, Windows, and Android that follow each pl
 
 # Native Apps Profile
 
-> Darkroom's design standard for apps that ship on a platform's own UI framework.
+> Darkroom's design standard for apps that ship on a platform's own UI framework. New native apps start here. The `react-native` and `tauri` profiles are deprecated for new work.
 
 ## Posture
 
@@ -53,10 +53,10 @@ not on the list. It needs the user's sign-off and a line on the sheet.
   wrong.
 - Respect the system accessibility settings: Reduce Motion, Reduce Transparency,
   Increase Contrast, and text size.
-- The system accent (the accent color on macOS, `SystemAccentColor` on Windows,
-  dynamic color on Android) is the default. Whether the app's one accent overrides it
-  on a platform is decided on the sheet. On macOS a user-chosen accent replaces the
-  app's regardless.
+- The system accent wins on every platform: the accent color on macOS,
+  `SystemAccentColor` on Windows, dynamic color on Android. Controls use the user's
+  accent. The app's one accent appears only in its own branded touches, within the
+  character budget.
 
 The decision, the sheet template, and a worked example are in the team-knowledge
 note `native-apps-follow-platform-guidelines`.

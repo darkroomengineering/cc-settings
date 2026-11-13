@@ -33,10 +33,11 @@ sheet are in `profiles/native-apps.md`.
   build. Use it only when the project pins a version that has it, and check each
   expressive symbol for an `ExperimentalMaterial3ExpressiveApi` opt-in before
   relying on it.
-- Dynamic color is available on Android 12 and above: use `dynamicLightColorScheme`
-  and `dynamicDarkColorScheme` there, and a custom `lightColorScheme` and
-  `darkColorScheme` on older versions. Whether the brand accent overrides dynamic
-  color is a character-budget decision, recorded on the character sheet.
+- Dynamic color wins. On Android 12 and above, use `dynamicLightColorScheme` and
+  `dynamicDarkColorScheme` for the theme, so controls take the user's palette. Use a
+  custom `lightColorScheme` and `darkColorScheme` only below Android 12. The app's
+  own accent appears only in its branded touches (content, empty states,
+  illustration), inside the character budget.
 - Pair color roles as designed: `onPrimary` on `primary`, `onPrimaryContainer` on
   `primaryContainer`, and so on. Mismatched pairs (a tertiary container with primary
   container text) fail contrast.

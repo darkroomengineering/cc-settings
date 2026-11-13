@@ -79,10 +79,11 @@ character sheet are in `profiles/native-apps.md`.
   styles. High contrast themes override a requested theme, so test them.
 - Leave `RequestedTheme` unset so the app follows the user's light or dark choice,
   and test both.
-- Accent defaults to the user's `SystemAccentColor`. Overriding it in `App.xaml`
-  (`<Color x:Key="SystemAccentColor">`) is a character-budget decision, recorded on
-  the character sheet. When you override it, check text and background contrast for
-  the accent and its `SystemAccentColorLight1..3` and `Dark1..3` shades.
+- The user's `SystemAccentColor` wins. Do not override it in `App.xaml`; controls
+  use the user's accent. The app's own accent appears only in its branded touches
+  (content, empty states, illustration), inside the character budget. Check text
+  and background contrast against the user's accent and its `SystemAccentColorLight1..3`
+  and `Dark1..3` shades, since you do not choose it.
 - Use accent sparingly, to emphasize an important element or show interactive
   state. Choose one color for "this is interactive".
 - Never use red against green as the only difference between two states.

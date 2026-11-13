@@ -1,9 +1,11 @@
 ---
 name: tauri
-description: Tauri desktop apps (Rust + Web)
+description: "Deprecated: Tauri desktop apps (Rust + Web); existing projects only"
 ---
 
 # Tauri Profile (Desktop Apps)
+
+> Deprecated. Not for new work: new native apps follow `profiles/native-apps.md`. This profile stays for existing Tauri projects only.
 
 > Darkroom conventions for Tauri v2 apps with a Rust backend and web frontend.
 

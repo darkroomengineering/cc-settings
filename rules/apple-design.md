@@ -77,8 +77,10 @@ in `rules/swift-animation.md`.
   label or shape.
 - Tint glass only to emphasize a primary action, on the background and not on the
   symbol or text, and never on several neighbouring controls.
-- On macOS the app accent color applies only while the user's accent setting is
-  multicolor; any other choice replaces it. Do not work around that.
+- The system accent wins. Controls, selection, and sidebar icons use the user's
+  accent. On macOS the app accent color applies only while the user's accent setting
+  is multicolor. The app's own accent appears only in its branded touches, inside the
+  character budget.
 - Prefer concentric corners (`ConcentricRectangle`, `Shape.rect(corners:isUniform:)`)
   over fixed radii when a shape sits inside a bar or window.
 

@@ -16,6 +16,8 @@ Agents building a native app now check it against the platform's own design guid
 - `/audit platform`: checks a native app for custom chrome, hand-built materials, literals the theme owns, character-budget overruns, ignored system settings, and missing accessibility basics.
 
 **Changed:**
+- The system accent wins on every platform: controls use the user's accent, and the app's own accent appears only in its branded touches.
+- `profiles/react-native.md` and `profiles/tauri.md` are deprecated: not for new work, kept for existing projects. New native apps use `profiles/native-apps.md`.
 - `src/lib/claude-managed-file-manifests.ts` (v49), `tests/install-e2e.test.ts`, `tests/personal-overrides-manifests.test.ts`, `docs/rules.md`, `docs/profiles.md`, `MANUAL.md`: install and list the new files.
 
 **Deletions / Native-now-redundant:** none.

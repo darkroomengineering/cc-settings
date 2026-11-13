@@ -12,8 +12,8 @@ documentation only.
 | Profile | Use Case |
 |---------|----------|
 | `nextjs` | Next.js web apps |
-| `react-native` | Expo mobile apps |
-| `tauri` | Tauri desktop apps (Rust + Web) |
+| `react-native` | Deprecated, existing Expo mobile projects only; new native apps use `native-apps` |
+| `tauri` | Deprecated, existing Tauri desktop projects only; new native apps use `native-apps` |
 | `webgl` | 3D web (R3F, Three.js, GSAP) |
 | `react-router` | React Router 7+ / Novus projects |
 | `native-apps` | Native iOS, macOS, Windows, and Android apps that follow each platform's design guidelines |
