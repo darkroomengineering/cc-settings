@@ -4,6 +4,13 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [16.3.0] — 2026-11-15
+
+Anyone on the team can ship an app to the App Store or Google Play by merging to `main`, without setting up signing keys on their own machine. Agents working on a release workflow now know where those keys live and how to reach them.
+
+**Added:**
+- `rules/releases.md` (loads for `.github/workflows/`, `ship.json` and `fastlane/` files): signing and store credentials live in each repo's `release` environment, deployable only from `main`; the maintainer keeps the master copies; workflows write credentials to `$RUNNER_TEMP` and delete them afterwards; update signing keys are never replaced. It lists the secret names `ship` expects.
+
 ## [16.2.0] — 2026-11-13
 
 Agents building a native app now check it against the platform's own design guidelines instead of drawing their own chrome. A native app follows the human interface guidelines of the platform it ships on, uses the system's navigation, controls and materials, and keeps its character to a small written budget: one accent color, one motion signature, the app icon, empty states and illustration, copy voice, optional sound, and one signature interaction.

@@ -40,6 +40,7 @@ Claude Code automatically loads relevant rules based on:
 | `apple-design.md` | Working with `.swift` files — Liquid Glass and system chrome, toolbars and sidebars, type, color, app icon (Apple HIG) |
 | `windows-design.md` | Working with `.xaml` or `.xaml.cs` files — Mica and Acrylic, title bar, geometry, type ramp, theme resources, motion (WinUI 3) |
 | `android-design.md` | Working with `.kt` files — Material 3 theme, adaptive navigation, edge-to-edge, touch targets (Jetpack Compose) |
+| `releases.md` | Working with `.github/workflows/`, `ship.json`, or `fastlane/` files — release credentials live in each repo's `release` environment, loaded from the maintainer's vault |
 | `git.md` | Working with `.git/`, `.gitignore`, or `.github/` files; `/ship` and `/dr-review` read it explicitly |
 
 ## Adding New Rules
