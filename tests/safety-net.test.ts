@@ -102,6 +102,11 @@ describe("TS safety-net — rm -rf dangerous → BLOCK", () => {
       "rm -rf /tmp/../../Users/fixture/Documents",
     ],
     ["var temp prefix cannot authorize a parent traversal", "rm -rf /var/tmp/../../etc/fixture"],
+    ["ship cache root itself", `rm -rf ${homedir()}/Library/Caches/shipit`],
+    [
+      "ship cache prefix cannot authorize a parent traversal",
+      `rm -rf ${homedir()}/Library/Caches/shipit/../../Documents`,
+    ],
     [
       "project prefix cannot authorize a parent traversal",
       `rm -rf ${process.cwd()}/../../fixture-victim`,
@@ -138,6 +143,7 @@ describe("TS safety-net — rm -rf safe → ALLOW", () => {
     ["rm -rf dist", "rm -rf dist"],
     ["rm -rf /tmp/test", "rm -rf /tmp/test"],
     ["rm -rf /var/tmp/build", "rm -rf /var/tmp/build"],
+    ["ship cache build output", `rm -rf "${homedir()}/Library/Caches/shipit/app-1a2b/build-1"`],
     ["rm -r mydir", "rm -r mydir"],
     ["rm -f myfile", "rm -f myfile"],
     ["multiple safe operands", "rm -rf node_modules dist /tmp/cache"],
@@ -147,6 +153,32 @@ describe("TS safety-net — rm -rf safe → ALLOW", () => {
   ] as const) {
     test(name, () => expectAllow(cmd));
   }
+});
+
+describe("TS safety-net — ship build cache cleanup", () => {
+  const cache = join(homedir(), "Library", "Caches", "shipit");
+  test("blocks a ship cache rm chained after a symlink is planted", () =>
+    expectBlock(`ln -s ~ ${cache}/h9 && rm -rf ${cache}/h9/Documents`));
+  for (const suffix of ["/link/../victim", "/*/Documents", "/x?", "/{a,b}"]) {
+    test(`blocks an unresolved ship cache target ${suffix}`, () =>
+      expectBlock(`rm -rf ${cache}${suffix}`));
+  }
+  test.skipIf(process.platform !== "darwin")(
+    "blocks symlink components in the ship cache",
+    async () => {
+      mkdirSync(cache, { recursive: true });
+      const fixture = mkdtempSync(join(cache, "cc-safety-symlink-"));
+      try {
+        const link = join(fixture, "outside");
+        symlinkSync(GITCONFIG_DIR, link);
+        await expectBlock(`rm -rf ${link}`);
+        await expectBlock(`rm -rf ${link}/missing/victim`);
+        await expectAllow(`rm -rf ${fixture}/build-1`);
+      } finally {
+        rmSync(fixture, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 describe("TS safety-net — session scratchpad cleanup", () => {

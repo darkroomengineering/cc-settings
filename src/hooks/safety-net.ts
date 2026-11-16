@@ -304,6 +304,31 @@ function analyzeRmTarget(target: string, cmd: string): void {
   // Normalize before checking containment so '..' cannot escape a safe prefix.
   if (within("/tmp") || within("/var/tmp")) return;
 
+  // ALLOW: ship's per-project build cache; it recreates anything it needs.
+  // Like the scratchpad, only a lone rm qualifies, and no component below
+  // home may be a symlink, so the path cannot be redirected out of the cache.
+  const shipCache = join(homedir(), "Library", "Caches", "shipit");
+  if (within(shipCache)) {
+    if (!plainRmInvocation)
+      block(`rm -rf in ship's cache chained with another command: ${target}`, cmd);
+    const parts = target.split("/").filter(Boolean);
+    if (parts.some((part) => part === ".." || /[*?[{()]/.test(part))) {
+      block(`rm -rf with an unresolved ship cache path: ${target}`, cmd);
+    }
+    let componentPath = homedir();
+    try {
+      for (const component of relative(homedir(), absolute).split(sep)) {
+        componentPath = join(componentPath, component);
+        if (lstatSync(componentPath, { throwIfNoEntry: false })?.isSymbolicLink()) {
+          block(`rm -rf through a symlink in ship's cache: ${target}`, cmd);
+        }
+      }
+    } catch {
+      block(`rm -rf with an unreadable ship cache path: ${target}`, cmd);
+    }
+    return;
+  }
+
   // ALLOW: known build-artifact directories.
   const base = basename(absolute);
   if (ALLOWED_RM_BASES.has(base)) return;
