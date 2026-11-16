@@ -155,6 +155,28 @@ describe("TS safety-net — rm -rf safe → ALLOW", () => {
   }
 });
 
+describe("TS safety-net — ship build cache cleanup", () => {
+  const cache = join(homedir(), "Library", "Caches", "shipit");
+  test("blocks a ship cache rm chained after a symlink is planted", () =>
+    expectBlock(`ln -s ~ ${cache}/h9 && rm -rf ${cache}/h9/Documents`));
+  test.skipIf(process.platform !== "darwin")(
+    "blocks symlink components in the ship cache",
+    async () => {
+      mkdirSync(cache, { recursive: true });
+      const fixture = mkdtempSync(join(cache, "cc-safety-symlink-"));
+      try {
+        const link = join(fixture, "outside");
+        symlinkSync(GITCONFIG_DIR, link);
+        await expectBlock(`rm -rf ${link}`);
+        await expectBlock(`rm -rf ${link}/missing/victim`);
+        await expectAllow(`rm -rf ${fixture}/build-1`);
+      } finally {
+        rmSync(fixture, { recursive: true, force: true });
+      }
+    },
+  );
+});
+
 describe("TS safety-net — session scratchpad cleanup", () => {
   if (!process.getuid) return;
   const uid = process.getuid();
