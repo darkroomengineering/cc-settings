@@ -7,7 +7,7 @@ paths:
 
 # Release Credentials
 
-> Releases go through `ship` (shipit). This file covers where its signing and store credentials live and how a workflow reaches them.
+> Releases go through `ship` (shipit). This file covers where its signing and store credentials live, how a workflow reaches them, and how each app ships.
 
 - **Nobody sets up credentials on their own machine to ship.** A merge to `main` releases from CI on the studio Mac release runner (`runs-on: ${{ fromJSON(vars.MAC_RUNNER) }}`). When a teammate asks how to get a key so they can release, the answer is to merge, not to copy the key.
 - **Credentials live in the repo's `release` environment.** It only deploys from `main`. The release job declares `environment: release` and reads `secrets.*` from it. Do not add signing or store secrets at repo level or as org secrets visible to all repositories; a pull request job can read those.
@@ -23,3 +23,21 @@ paths:
 | `SPARKLE_PRIVATE_KEY` | Sparkle EdDSA update key | read by the workflow's appcast step |
 | `ANDROID_UPLOAD_KEYSTORE_BASE64`, `ANDROID_SIGNING_PROPERTIES` | Play upload keystore and its signing properties | the app's Gradle build reads the properties file from a path the job sets |
 | `PLAY_SERVICE_ACCOUNT_JSON` | Google Play service account | `PLAY_KEY_PATH` pointing at the written `.json` |
+
+## How each app ships
+
+| App | Ships through | Notes |
+|---|---|---|
+| Programa, Metricae, Browsee | CI on the studio Mac runner | |
+| Mesinyer | CI on the studio Mac runner | Mac, plus a Windows lane |
+| NoCam | CI on the studio Mac runner | iOS TestFlight and Google Play |
+| Wavecast | CI on the studio Mac runner | iOS TestFlight |
+| NoteTaker | CI on the studio Mac runner | `notetaker-release.yml` in the backbone repo; dispatch it with dry-run first |
+| codigo | CI on the studio Mac runner, being added | Mac App Store |
+| Lazytrack, Atrium | not ready to release | no app CI yet |
+| Pokefolio | not ready to release | Expo app with a `ship.json`; no release workflow yet |
+| Websites | Vercel's git integration on merge to `main` | |
+| theca, curiosus-backend | Railway | |
+
+- **To ship a native app, merge to `main`** or dispatch its release workflow, dry-run first. The job reads credentials from the `release` environment, so they never live on anyone's Mac.
+- **Keep websites and services off the studio Mac runner.** It is CPU-bound; Vercel and Railway run their own builds.
