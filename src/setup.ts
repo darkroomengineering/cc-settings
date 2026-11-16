@@ -119,7 +119,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "16.3.0"; // Release credentials rule.
+const VERSION = "16.3.1"; // Release credentials rule.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
