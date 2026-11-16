@@ -159,6 +159,10 @@ describe("TS safety-net — ship build cache cleanup", () => {
   const cache = join(homedir(), "Library", "Caches", "shipit");
   test("blocks a ship cache rm chained after a symlink is planted", () =>
     expectBlock(`ln -s ~ ${cache}/h9 && rm -rf ${cache}/h9/Documents`));
+  for (const suffix of ["/link/../victim", "/*/Documents", "/x?", "/{a,b}"]) {
+    test(`blocks an unresolved ship cache target ${suffix}`, () =>
+      expectBlock(`rm -rf ${cache}${suffix}`));
+  }
   test.skipIf(process.platform !== "darwin")(
     "blocks symlink components in the ship cache",
     async () => {

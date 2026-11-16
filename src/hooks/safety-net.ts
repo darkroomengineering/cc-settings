@@ -311,6 +311,10 @@ function analyzeRmTarget(target: string, cmd: string): void {
   if (within(shipCache)) {
     if (!plainRmInvocation)
       block(`rm -rf in ship's cache chained with another command: ${target}`, cmd);
+    const parts = target.split("/").filter(Boolean);
+    if (parts.some((part) => part === ".." || /[*?[{()]/.test(part))) {
+      block(`rm -rf with an unresolved ship cache path: ${target}`, cmd);
+    }
     let componentPath = homedir();
     try {
       for (const component of relative(homedir(), absolute).split(sep)) {
