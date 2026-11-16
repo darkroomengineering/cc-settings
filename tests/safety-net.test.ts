@@ -102,6 +102,11 @@ describe("TS safety-net — rm -rf dangerous → BLOCK", () => {
       "rm -rf /tmp/../../Users/fixture/Documents",
     ],
     ["var temp prefix cannot authorize a parent traversal", "rm -rf /var/tmp/../../etc/fixture"],
+    ["ship cache root itself", `rm -rf ${homedir()}/Library/Caches/shipit`],
+    [
+      "ship cache prefix cannot authorize a parent traversal",
+      `rm -rf ${homedir()}/Library/Caches/shipit/../../Documents`,
+    ],
     [
       "project prefix cannot authorize a parent traversal",
       `rm -rf ${process.cwd()}/../../fixture-victim`,
@@ -138,6 +143,7 @@ describe("TS safety-net — rm -rf safe → ALLOW", () => {
     ["rm -rf dist", "rm -rf dist"],
     ["rm -rf /tmp/test", "rm -rf /tmp/test"],
     ["rm -rf /var/tmp/build", "rm -rf /var/tmp/build"],
+    ["ship cache build output", `rm -rf "${homedir()}/Library/Caches/shipit/app-1a2b/build-1"`],
     ["rm -r mydir", "rm -r mydir"],
     ["rm -f myfile", "rm -f myfile"],
     ["multiple safe operands", "rm -rf node_modules dist /tmp/cache"],

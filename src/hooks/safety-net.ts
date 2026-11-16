@@ -304,6 +304,9 @@ function analyzeRmTarget(target: string, cmd: string): void {
   // Normalize before checking containment so '..' cannot escape a safe prefix.
   if (within("/tmp") || within("/var/tmp")) return;
 
+  // ALLOW: ship's per-project build cache; it recreates anything it needs.
+  if (within(join(homedir(), "Library", "Caches", "shipit"))) return;
+
   // ALLOW: known build-artifact directories.
   const base = basename(absolute);
   if (ALLOWED_RM_BASES.has(base)) return;
