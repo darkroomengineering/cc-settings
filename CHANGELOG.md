@@ -4,6 +4,27 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [16.3.1] — 2026-11-16
+
+Synced with Claude Code v2.1.325 and Codex v0.169.0. This release changes docs and manifests only; installed settings are unchanged.
+
+**Adopted:**
+- `CLAUDE_CODE_DISABLE_AGENT_PROGRESS_SUMMARIES` (Claude Code v2.1.323, available since v2.1.318) is tracked in `upstream/claude-code-manifest.json` and documented in `docs/settings-reference.md`. `"1"` stops the progress summaries that re-send each running subagent's context, trading the live progress line for fewer tokens; cc-settings leaves it unset (OSS-238). The `CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES` row now points to it instead of saying no switch exists.
+- `CLAUDE_CODE_RESUME_HINT_COMMAND` (Claude Code v2.1.323) is tracked and documented: a program that launches Claude Code sets it so the exit hint names its own resume command. Unset here (OSS-238).
+- `docs/settings-reference.md` notes that `CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS` accepts up to 300000 (v2.1.323) (OSS-238).
+- `docs/codex-bridge.md` says `codex exec` and `codex review` run without a project's config and MCP servers in a directory Codex does not trust (Codex v0.169.0), and that the bridge never passes `--trust`, which saves trust permanently (OSS-238).
+
+**Deletions / Native-now-redundant:**
+- The `docs/settings-reference.md` paragraph on `subagentStatusLine`: Claude Code v2.1.323 removed the setting. cc-settings never set it.
+
+**Files changed:**
+- `docs/settings-reference.md`
+- `docs/codex-bridge.md`
+- `upstream/claude-code-manifest.json`
+- `upstream/codex-manifest.json`
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts` (version)
+- `CHANGELOG.md`
+
 ## [16.3.0] — 2026-11-15
 
 Anyone on the team can ship an app to the App Store or Google Play by merging to `main`, without setting up signing keys on their own machine. Agents working on a release workflow now know where those keys live and how to reach them.
