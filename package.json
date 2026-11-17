@@ -2,16 +2,18 @@
 	"name": "cc-settings",
 	"version": "16.3.1",
 	"private": true,
+	"packageManager": "bun@1.4.4",
 	"type": "module",
 	"engines": {
 		"bun": ">=1.2.21"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit",
+		"typecheck": "bun check",
 		"typecheck:plugins": "tsc -p plugins/compaction-trigger/tsconfig.json && tsc -p plugins/context-report/tsconfig.json && tsc -p plugins/drift-fuse/tsconfig.json",
 		"test": "bun test --parallel",
 		"test:safety-net": "bun test tests/safety-net.test.ts",
 		"lint": "biome check .",
+	"lint:all": "bun audit && bun run lint && bun run lint:skills && bun run lint:agents && bun run lint:profiles && bun run lint:shortcuts && bun run lint:links && bun run lint:knowledge tests/fixtures/knowledge",
 		"lint:fix": "biome check --write .",
 		"lint:skills": "bun src/scripts/lint-skills.ts",
 		"lint:research": "bun src/scripts/lint-research.ts",
