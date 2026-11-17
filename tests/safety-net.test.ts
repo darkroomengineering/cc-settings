@@ -143,7 +143,6 @@ describe("TS safety-net — rm -rf safe → ALLOW", () => {
     ["rm -rf dist", "rm -rf dist"],
     ["rm -rf /tmp/test", "rm -rf /tmp/test"],
     ["rm -rf /var/tmp/build", "rm -rf /var/tmp/build"],
-    ["ship cache build output", `rm -rf "${homedir()}/Library/Caches/shipit/app-1a2b/build-1"`],
     ["rm -r mydir", "rm -r mydir"],
     ["rm -f myfile", "rm -f myfile"],
     ["multiple safe operands", "rm -rf node_modules dist /tmp/cache"],
@@ -153,6 +152,11 @@ describe("TS safety-net — rm -rf safe → ALLOW", () => {
   ] as const) {
     test(name, () => expectAllow(cmd));
   }
+  // A Windows home has backslashes, which the hook blocks as unresolved shell
+  // escapes before the ship cache rule runs; the cache is macOS-only anyway.
+  test.skipIf(process.platform === "win32")("ship cache build output", () =>
+    expectAllow(`rm -rf "${homedir()}/Library/Caches/shipit/app-1a2b/build-1"`),
+  );
 });
 
 describe("TS safety-net — ship build cache cleanup", () => {
