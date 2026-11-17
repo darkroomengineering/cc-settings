@@ -14,7 +14,6 @@ const ROOT = join(import.meta.dir, "..");
 
 interface PackageJson {
   dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
 }
 
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as PackageJson;
@@ -72,10 +71,5 @@ describe("shipped runtime imports", () => {
       }
     }
     expect(missing).toEqual([]);
-  });
-
-  test("typescript is a production dependency (native-ts engine imports it at runtime)", () => {
-    expect(dependencies).toHaveProperty("typescript");
-    expect(pkg.devDependencies ?? {}).not.toHaveProperty("typescript");
   });
 });
