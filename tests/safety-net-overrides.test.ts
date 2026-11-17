@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -10,6 +10,10 @@ const fixture = mkdtempSync(join(homedir(), ".cc-safety-overrides-"));
 const repo = join(fixture, "repo");
 const subdir = join(repo, "src");
 let nextHome = 0;
+
+// Each test spawns the hook several times, about 1s per spawn on the Windows
+// runner, and the fixture cleanup there takes 7-9s.
+setDefaultTimeout(30_000);
 
 beforeAll(() => {
   mkdirSync(subdir, { recursive: true });
