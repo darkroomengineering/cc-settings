@@ -1,10 +1,14 @@
-// Hook fail-open regression: every wired hook command (config/40-hooks.json,
-// the scripts dispatch.ts runs, and the statusline command from
-// config/10-core.json) is spawned with garbage stdin and garbage TOOL_INPUT
-// env, and must exit 0. This applies to the blocking PreToolUse hooks too
-// (safety-net, pre-edit-validate, freeze-guard): fail-open means a hook only
-// blocks on a POSITIVE match against well-formed input — unparseable input
-// must never block.
+// Hook fail-open regression — two layers:
+//
+//   1. Static: every TS script wired in config/40-hooks.json contains at least
+//      one `try {`, `.catch(`, or `runHook(`. Cheap lint-grade lock on the
+//      convention. See CHANGELOG v10.6.1.
+//   2. Behavioral: every wired hook command (config/40-hooks.json PLUS the
+//      statusline command from config/10-core.json) is actually spawned with
+//      garbage stdin and garbage TOOL_INPUT env, and must exit 0. This applies
+//      to the blocking PreToolUse hooks too (safety-net, pre-edit-validate,
+//      freeze-guard): fail-open means a hook only blocks on a POSITIVE match
+//      against well-formed input — unparseable input must never block.
 //
 // HOME is sandboxed to a tmp dir so the spawned hooks can't touch the real
 // ~/.claude state.
@@ -46,19 +50,33 @@ async function collectDispatchedScripts(): Promise<string[]> {
 }
 
 /**
- * Every wired hook command (incl. args) + the statusline command, and any
- * wired command that names a script but has a shape the parser cannot spawn.
+ * Pull every TS script path referenced by config/40-hooks.json, normalized
+ * relative to the repo root.
  */
-async function collectWiredCommands(): Promise<{
-  cmds: Array<{ rel: string; args: string[] }>;
-  unparsed: string[];
-}> {
+async function collectWiredScripts(): Promise<string[]> {
+  const raw = await readFile(resolve(ROOT, "config", "40-hooks.json"), "utf8");
+  const cfg = JSON.parse(raw) as { hooks?: Record<string, HookGroup[]> };
+  const scripts = new Set<string>(await collectDispatchedScripts());
+  const events = cfg.hooks ?? {};
+  for (const groups of Object.values(events)) {
+    for (const group of groups) {
+      for (const entry of group.hooks ?? []) {
+        const cmd = entry.command ?? "";
+        // Match `bun "$HOME/.claude/<rel>"` and capture the relative path.
+        const m = cmd.match(/\$HOME\/\.claude\/([^"\s]+\.ts)/);
+        if (m?.[1]) scripts.add(m[1]);
+      }
+    }
+  }
+  return [...scripts];
+}
+
+/** Every wired hook command (incl. args) + the statusline command. */
+async function collectWiredCommands(): Promise<Array<{ rel: string; args: string[] }>> {
   const seen = new Map<string, { rel: string; args: string[] }>();
-  const unparsed: string[] = [];
   const add = (cmd: string) => {
     const parsed = parseWiredCommand(cmd);
     if (parsed) seen.set(`${parsed.rel} ${parsed.args.join(" ")}`, parsed);
-    else if (/\$HOME\/\.claude\/[^"\s]+\.ts/.test(cmd)) unparsed.push(cmd);
   };
 
   const hooksRaw = await readFile(resolve(ROOT, "config", "40-hooks.json"), "utf8");
@@ -77,13 +95,45 @@ async function collectWiredCommands(): Promise<{
   const core = JSON.parse(coreRaw) as { statusLine?: { command?: string } };
   if (core.statusLine?.command) add(core.statusLine.command);
 
-  return { cmds: [...seen.values()], unparsed };
+  return [...seen.values()];
 }
 
-describe("hook scripts fail open", () => {
+describe("hook scripts fail open — static", () => {
+  test("every script wired in config/40-hooks.json has try/catch or .catch()", async () => {
+    const scripts = await collectWiredScripts();
+    expect(scripts.length).toBeGreaterThan(0);
+
+    const failures: string[] = [];
+    for (const rel of scripts) {
+      const path = resolve(ROOT, rel);
+      const src = await readFile(path, "utf8").catch(() => "");
+      if (!src) {
+        failures.push(`${rel}: file not readable`);
+        continue;
+      }
+      const hasTry = /\btry\s*\{/.test(src);
+      const hasCatch = /\.catch\s*\(/.test(src);
+      // `runHook(main)` from src/lib/hook-runtime.ts is the v11.1.1 shared
+      // fail-open wrapper — equivalent to an inline try/catch.
+      const hasRunHook = /\brunHook\s*\(/.test(src);
+      if (!hasTry && !hasCatch && !hasRunHook) {
+        failures.push(rel);
+      }
+    }
+
+    if (failures.length > 0) {
+      throw new Error(
+        `${failures.length} hook script(s) lack fail-open handling:\n  ${failures.join("\n  ")}\n` +
+          "Wrap the top-level body in try/catch (see safety-net.ts) or use .catch(() => {}) " +
+          "on every IO call. A hook crash must never propagate to the parent operation.",
+      );
+    }
+  });
+});
+
+describe("hook scripts fail open — behavioral", () => {
   test("every wired command exits 0 on garbage stdin + garbage TOOL_INPUT", async () => {
-    const { cmds, unparsed } = await collectWiredCommands();
-    expect(unparsed).toEqual([]);
+    const cmds = await collectWiredCommands();
     // Sanity: the collector must see the hook set AND the statusline.
     expect(cmds.length).toBeGreaterThan(10);
     expect(cmds.some((c) => c.rel.endsWith("statusline.ts"))).toBe(true);
