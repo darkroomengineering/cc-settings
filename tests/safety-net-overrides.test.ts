@@ -17,7 +17,8 @@ beforeAll(() => {
   const git = Bun.spawnSync(["git", "init", "--initial-branch=feature", repo]);
   expect(git.exitCode).toBe(0);
 });
-afterAll(() => rmSync(fixture, { recursive: true, force: true }));
+// Deleting ~30 throwaway homes and a git repo takes 7-9s on the Windows runner.
+afterAll(() => rmSync(fixture, { recursive: true, force: true }), 30_000);
 
 async function decision(command: string, allow?: string[], cwd = repo): Promise<string> {
   const home = join(fixture, `home-${nextHome++}`);
