@@ -558,9 +558,11 @@ describe("repo-local git hooks gate only cc-settings", () => {
   test("finds where each commit runs", async () => {
     const { gitTargets } = await import("../.claude/hooks/git-target.ts");
     expect(gitTargets(`${G} ${C} -m x`, C, "/a")).toEqual(["/a"]);
-    expect(gitTargets(`${G} -C "/b c" ${C} -m x`, C, "/a")).toEqual(["/b c"]);
-    expect(gitTargets(`${G} -C sub ${C}`, C, "/a")).toEqual(["/a/sub"]);
-    expect(gitTargets(`cd /b && cd d && ${G} add -A && ${G} ${C} -m x`, C, "/a")).toEqual(["/b/d"]);
+    expect(gitTargets(`${G} -C "/b c" ${C} -m x`, C, "/a")).toEqual([resolve("/b c")]);
+    expect(gitTargets(`${G} -C sub ${C}`, C, "/a")).toEqual([resolve("/a/sub")]);
+    expect(gitTargets(`cd /b && cd d && ${G} add -A && ${G} ${C} -m x`, C, "/a")).toEqual([
+      resolve("/b/d"),
+    ]);
     expect(gitTargets(`${G} -C "$W" ${C}`, C, "/a")).toEqual([null]);
     expect(gitTargets(`cd - && ${G} ${C}`, C, "/a")).toEqual([null]);
     expect(gitTargets(`${G} --git-dir=/b/.git ${C}`, C, "/a")).toEqual([null]);
@@ -570,10 +572,13 @@ describe("repo-local git hooks gate only cc-settings", () => {
   test("keeps the gate on where the directory or command is hidden", async () => {
     const { gitTargets } = await import("../.claude/hooks/git-target.ts");
     expect(gitTargets(`(cd /b && ${G} status); ${G} ${C}`, C, "/a")).toEqual(["/a"]);
-    expect(gitTargets(`(cd /b && ${G} ${C})`, C, "/a")).toEqual(["/b"]);
+    expect(gitTargets(`(cd /b && ${G} ${C})`, C, "/a")).toEqual([resolve("/b")]);
     expect(gitTargets(`cd /b | cat; ${G} ${C}`, C, "/a")).toEqual([null]);
-    expect(gitTargets(`${G} -C/b ${C}`, C, "/a")).toEqual(["/b"]);
-    expect(gitTargets(`${G} -C /b ${C} && bash -c '${G} ${C}'`, C, "/a")).toEqual(["/b", null]);
+    expect(gitTargets(`${G} -C/b ${C}`, C, "/a")).toEqual([resolve("/b")]);
+    expect(gitTargets(`${G} -C /b ${C} && bash -c '${G} ${C}'`, C, "/a")).toEqual([
+      resolve("/b"),
+      null,
+    ]);
     expect(gitTargets(`pushd /b && popd && ${G} ${C}`, C, "/a")).toEqual([null]);
   });
 
