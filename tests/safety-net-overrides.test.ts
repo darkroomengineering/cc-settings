@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -11,14 +11,17 @@ const repo = join(fixture, "repo");
 const subdir = join(repo, "src");
 let nextHome = 0;
 
+// Each test spawns the hook several times, about 1s per spawn on the Windows
+// runner, and the fixture cleanup there takes 7-9s.
+setDefaultTimeout(30_000);
+
 beforeAll(() => {
   mkdirSync(subdir, { recursive: true });
   symlinkSync(fixture, join(repo, "outside"));
   const git = Bun.spawnSync(["git", "init", "--initial-branch=feature", repo]);
   expect(git.exitCode).toBe(0);
 });
-// Deleting ~30 throwaway homes and a git repo takes 7-9s on the Windows runner.
-afterAll(() => rmSync(fixture, { recursive: true, force: true }), 30_000);
+afterAll(() => rmSync(fixture, { recursive: true, force: true }));
 
 async function decision(command: string, allow?: string[], cwd = repo): Promise<string> {
   const home = join(fixture, `home-${nextHome++}`);
