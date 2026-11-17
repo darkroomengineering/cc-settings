@@ -76,27 +76,31 @@ describe("personal overrides file", () => {
   });
 
   for (const kind of ["symlink", "FIFO", "oversize"] as const) {
-    test(`a ${kind} fails closed with one warning`, async () => {
-      const dir = await fixture();
-      const path = join(dir, "personal-overrides.json");
-      if (kind === "symlink") {
-        const target = join(dir, "target.json");
-        await writeFile(target, '{"safetyNet":{"allow":["git-stash-clear"]}}');
-        await symlink(target, path);
-      } else if (kind === "FIFO") {
-        const process = Bun.spawn(["mkfifo", path], { stdout: "pipe", stderr: "pipe" });
-        expect(await process.exited).toBe(0);
-      } else {
-        await writeFile(path, `${" ".repeat(64 * 1024)}{}`);
-      }
-      const warning = spyOn(console, "error").mockImplementation(() => {});
-      try {
-        expect(readPersonalOverrides(dir)).toEqual({});
-        expect(warning).toHaveBeenCalledTimes(1);
-      } finally {
-        warning.mockRestore();
-      }
-    });
+    // Windows has no FIFOs; Git for Windows' mkfifo exits 0 without making one.
+    test.skipIf(kind === "FIFO" && process.platform === "win32")(
+      `a ${kind} fails closed with one warning`,
+      async () => {
+        const dir = await fixture();
+        const path = join(dir, "personal-overrides.json");
+        if (kind === "symlink") {
+          const target = join(dir, "target.json");
+          await writeFile(target, '{"safetyNet":{"allow":["git-stash-clear"]}}');
+          await symlink(target, path);
+        } else if (kind === "FIFO") {
+          const process = Bun.spawn(["mkfifo", path], { stdout: "pipe", stderr: "pipe" });
+          expect(await process.exited).toBe(0);
+        } else {
+          await writeFile(path, `${" ".repeat(64 * 1024)}{}`);
+        }
+        const warning = spyOn(console, "error").mockImplementation(() => {});
+        try {
+          expect(readPersonalOverrides(dir)).toEqual({});
+          expect(warning).toHaveBeenCalledTimes(1);
+        } finally {
+          warning.mockRestore();
+        }
+      },
+    );
   }
 
   test("a regular file of exactly 64 KiB is accepted", async () => {
