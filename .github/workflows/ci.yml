@@ -24,8 +24,8 @@ jobs:
       runs-on: '"ubuntu-latest"'
       lint: bun run lint:all
       # bun-ci checks out one commit on a push; install-e2e reads historical
-      # commits with git, so the tests need the full history.
-      setup: if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --quiet --unshallow; fi
+      # commits with git, so the tests need the full history and its file contents.
+      setup: if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --quiet --unshallow --refetch --no-filter; fi
       shards: 4
       # Tests read the repo's own files and run its scripts, which
       # `bun test --changed` cannot see through imports.
