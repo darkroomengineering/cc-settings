@@ -16,26 +16,60 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  typecheck:
-    # tsc output does not depend on the OS, so one runner is enough.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ">=1.1.30"
-      - run: bun install --frozen-lockfile
-      - run: bun run typecheck
+  bun:
+    # Lint, typecheck and the Linux tests, from the org's shared workflow. The
+    # lint step also runs bun audit and the fixture knowledge lint.
+    uses: darkroomengineering/.github/.github/workflows/bun-ci.yml@main
+    with:
+      runs-on: '"ubuntu-latest"'
+      lint: bun run lint:all
+      shards: 4
+      # Tests read the repo's own files and run its scripts, which
+      # `bun test --changed` cannot see through imports.
+      full-test-paths: |
+        .claude
+        .claude-plugin
+        .codex
+        .context
+        .mcp.json
+        agents
+        codex
+        config
+        docs
+        evals
+        hooks
+        mcp-configs
+        mcp.json
+        npm-installer
+        output-styles
+        plugin.json
+        plugins
+        profiles
+        rules
+        schemas
+        setup.ps1
+        setup.sh
+        site
+        skills
+        src
+        tests/fixtures
+        upstream
+        AGENTS.md
+        CHANGELOG.md
+        CLAUDE-FULL.md
+        MANUAL.md
+        README.md
+        SECURITY.md
 
   test:
-    # The full Windows suite takes ~23 minutes, so it runs only on pushes to
-    # main. PRs get Windows coverage from install-e2e and install-ps1-bootstrap.
+    # Linux tests run in the bun job above. The full Windows suite takes ~23
+    # minutes, so it runs only on pushes to main. PRs get Windows coverage from install-e2e and install-ps1-bootstrap.
     # Draft PRs skip it; it runs when the PR is marked ready for review.
     if: github.event_name == 'push' || !github.event.pull_request.draft
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ github.event_name == 'push' && fromJSON('["ubuntu-latest","macos-latest","windows-latest"]') || fromJSON('["ubuntu-latest","macos-latest"]') }}
+        os: ${{ github.event_name == 'push' && fromJSON('["macos-latest","windows-latest"]') || fromJSON('["macos-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -46,29 +80,6 @@ jobs:
           bun-version: ">=1.1.30"
       - run: bun install --frozen-lockfile
       - run: bun test --parallel
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ">=1.1.30"
-      - run: bun install --frozen-lockfile
-      - run: bun audit
-      - run: bun run lint
-      - run: bun run lint:skills
-      - run: bun run lint:agents
-      - run: bun run lint:profiles
-      - run: bun run lint:shortcuts
-      - run: bun run lint:links
-      - name: lint:knowledge (fixture dir, not the real team-knowledge repo)
-        # No team-knowledge repo checkout lives in this CI job, so this lints
-        # tests/fixtures/knowledge/ instead — a small schema-valid note kept
-        # in-repo so the linting logic (schema checks, name/filename
-        # mismatch, supersedes-unknown warning) actually runs in CI rather
-        # than short-circuiting on "no directory specified".
-        run: bun run lint:knowledge tests/fixtures/knowledge
 
   schemas:
     # Fails if `bun run schemas:emit` would produce a diff — enforces that the
