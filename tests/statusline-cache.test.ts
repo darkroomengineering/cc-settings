@@ -6,12 +6,17 @@
 // sandboxed HOME anyway, matching statusline-quota.test.ts's pattern, so a
 // crash mid-render can't leak into the real ~/.claude/tmp.
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const HOOK = resolve(import.meta.dir, "../src/hooks/statusline.ts");
+
+// Each test spawns a cold `bun` for the statusline. On the Windows runner under
+// `bun test --parallel` that spawn takes about 0.8s at the median and passes 5s
+// in the tail, which is bun's default per-test timeout.
+setDefaultTimeout(30_000);
 
 type Payload = Record<string, unknown>;
 

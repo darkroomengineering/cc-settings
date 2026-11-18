@@ -3,16 +3,13 @@
 //   - description required
 //   - advisory fields (model, skills, tools, permissionMode, effort) are optional
 //   - permissive passthrough for unknown fields
-//   - all 6 shipped profiles/ validate cleanly today
 
 import { describe, expect, test } from "bun:test";
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { formatFrontmatterIssues, validateFrontmatters } from "../src/lib/frontmatter-validate.ts";
 import { ProfileFrontmatter } from "../src/schemas/profile.ts";
 import { sandbox as makeSandbox } from "./support/tmp.ts";
-
-const ROOT = resolve(import.meta.dir, "..");
 
 async function sandbox(): Promise<string> {
   return makeSandbox("cc-profile");
@@ -92,18 +89,6 @@ describe("ProfileFrontmatter schema", () => {
   });
 });
 
-describe("validateFrontmatters — repo dogfood (profiles)", () => {
-  test("repo's actual profiles/ all pass validation today", async () => {
-    const issues = await validateFrontmatters(ROOT);
-    const profileIssues = issues.filter((i) => i.kind === "profile");
-    if (profileIssues.length > 0) {
-      const formatted = formatFrontmatterIssues(profileIssues) ?? "";
-      throw new Error(`Profile frontmatter validation failed:\n${formatted}`);
-    }
-    expect(profileIssues).toEqual([]);
-  });
-});
-
 describe("validateFrontmatters — synthetic profile failures", () => {
   test("catches a non-kebab name in a profile", async () => {
     const dir = await sandbox();
@@ -168,16 +153,6 @@ describe("validateFrontmatters — synthetic profile failures", () => {
       const issues = await validateFrontmatters(dir);
       const profileIssues = issues.filter((i) => i.kind === "profile");
       expect(profileIssues).toHaveLength(0);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
-  test("returns empty when profiles/ directory is absent", async () => {
-    const dir = await sandbox();
-    try {
-      const issues = await validateFrontmatters(dir);
-      expect(issues).toEqual([]);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

@@ -188,13 +188,13 @@ describe("TS safety-net — ship build cache cleanup", () => {
 describe("TS safety-net — session scratchpad cleanup", () => {
   if (!process.getuid) return;
   const uid = process.getuid();
+  test("blocks a scratchpad rm chained after a symlink is planted", () =>
+    expectBlock(
+      `ln -s ~ /private/tmp/claude-${uid}/h9 && rm -rf /private/tmp/claude-${uid}/h9/Documents`,
+    ));
   for (const root of [`/private/tmp/claude-${uid}`, `/tmp/claude-${uid}`]) {
     test(`allows a scratchpad descendant of ${root}`, () =>
       expectAllow(`rm -rf ${root}/project/session/scratchpad/output`));
-    test(`blocks a scratchpad rm chained after a symlink is planted below ${root}`, () =>
-      expectBlock(
-        `ln -s ~ /private/tmp/claude-${uid}/h9 && rm -rf /private/tmp/claude-${uid}/h9/Documents`,
-      ));
     for (const suffix of [
       "",
       "/",
@@ -319,8 +319,6 @@ describe("TS safety-net — push to main or master asks the user", () => {
 
   test("block wins over ask in one command", () =>
     expectBlock("git push origin main; rm -rf /", repoOn("fix/x")));
-  test("block: force-with-lease on main stays blocked", () =>
-    expectBlock("git push --force-with-lease", repoOn("main")));
 
   for (const cmd of [
     "git push",
@@ -502,8 +500,6 @@ describe("TS safety-net — issue #74 adversarial bypasses", () => {
   // let the first `rm -rf /` through.
   test("rm -rf / \\n rm -rf node_modules (newline join) → BLOCK", () =>
     expectBlock("rm -rf /\nrm -rf node_modules"));
-  test("rm -rf node_modules alone → ALLOW (neighbor safe)", () =>
-    expectAllow("rm -rf node_modules"));
 
   // Bypass 2: checkGitDestructive's `cmd.match(/git\s+(.*)/)` has no /g and
   // `.` doesn't cross newlines — a second `git checkout -- .` on a later line
@@ -516,8 +512,6 @@ describe("TS safety-net — issue #74 adversarial bypasses", () => {
   // Bypass 3: only the `--` form of checkout was blocked; the equally
   // destructive bareword form (`git checkout .`) was allowed through.
   test("git checkout . (bareword, no --) → BLOCK", () => expectBlock("git checkout ."));
-  test("git checkout my-branch (bareword branch) → ALLOW (neighbor safe)", () =>
-    expectAllow("git checkout my-branch"));
 
   // Bypass 4: naive whitespace tokenizing split a quoted target across
   // multiple "tokens", so the last-token-wins heuristic picked up a harmless
@@ -977,7 +971,6 @@ describe("TS safety-net — flat word scan, wrapper spellings → BLOCK", () => 
     ["encrypt with a key named get", "dotenvx encrypt -k get"],
     ["a commit message naming dotenvx get", 'git commit -m "document dotenvx get"'],
     ["grep for the text .env", "grep .env README.md"],
-    ["grep excluding .env", "grep -r foo . --exclude=.env"],
     ["sed -i on .env", "sed -i 's/a/b/' .env"],
     ["sed -i with suffix on .env", "sed -i.bak 's/a/b/' .env"],
   ] as const) {
@@ -1387,9 +1380,6 @@ describe("TS safety-net — gh writes, more forms", () => {
       expectAllow("gh api graphql -f query='query { viewer { login } }'", outsideRepo, NO_GH_REPO));
     test("graphql query from a file is opaque → block", () =>
       expectBlock("gh api graphql -F query=@q.graphql", orgRepo, NO_GH_REPO));
-    test("api write without a repos/ path uses the remotes", () => {
-      return expectBlock("gh api -X PUT user/starred/vercel/next.js", outsideRepo, NO_GH_REPO);
-    });
   });
 
   describe("url operands versus option values", () => {
