@@ -7,7 +7,7 @@ import { readCodexVerdict } from "../lib/codex.ts";
 import { type HookIO, processIO, runHook } from "../lib/hook-runtime.ts";
 import {
   buildSteerMessage,
-  computeBand,
+  effectiveBand,
   readQuotaSteerState,
   readRateLimitsCache,
   resolveRateLimits,
@@ -37,7 +37,7 @@ export async function main(io: HookIO = processIO): Promise<void> {
 
   const fiveHourPct = resolved.five_hour?.used_percentage;
   const sevenDayPct = resolved.seven_day?.used_percentage;
-  const band = computeBand(fiveHourPct, sevenDayPct);
+  const band = await effectiveBand(fiveHourPct, sevenDayPct);
   const prev = await readQuotaSteerState();
 
   if (band === "normal") {

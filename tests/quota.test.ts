@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   buildSteerMessage,
   CACHE_STALE_MS,
@@ -6,6 +9,7 @@ import {
   computeBand,
   formatTimeToReset,
   mergeSessionRateLimits,
+  planLimitsBind,
   RATE_LIMITS_SESSION_CAP,
   resolveRateLimits,
   type SessionRateLimits,
@@ -461,5 +465,45 @@ describe("formatTimeToReset", () => {
   test("epoch-seconds string 3 days in the future formats as DdHh", () => {
     const future = String(Math.floor(Date.now() / 1000) + 3 * 24 * 60 * 60);
     expect(formatTimeToReset(future)).toMatch(/^\d+d\d+h$/);
+  });
+});
+
+describe("planLimitsBind", () => {
+  const writeConfig = async (config: unknown): Promise<string> => {
+    const dir = await mkdtemp(join(tmpdir(), "quota-plan-"));
+    const path = join(dir, ".claude.json");
+    await writeFile(path, JSON.stringify(config));
+    return path;
+  };
+
+  test("extra usage with credit (reason null) lifts the plan limit", async () => {
+    const path = await writeConfig({ cachedExtraUsageDisabledReason: null });
+    expect(await planLimitsBind({}, path)).toBe(false);
+  });
+
+  test("extra usage out of credits keeps the plan limit", async () => {
+    const path = await writeConfig({ cachedExtraUsageDisabledReason: "out_of_credits" });
+    expect(await planLimitsBind({}, path)).toBe(true);
+  });
+
+  test("missing key or missing file keeps the plan limit", async () => {
+    expect(await planLimitsBind({}, await writeConfig({}))).toBe(true);
+    expect(await planLimitsBind({}, join(tmpdir(), "no-such-dir-quota", ".claude.json"))).toBe(
+      true,
+    );
+  });
+
+  test("corrupt config fails toward the plan limit", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "quota-plan-"));
+    const path = join(dir, ".claude.json");
+    await writeFile(path, "{not json");
+    expect(await planLimitsBind({}, path)).toBe(true);
+  });
+
+  test("pay-per-token sessions and the opt-out skip the plan limit", async () => {
+    const path = await writeConfig({ cachedExtraUsageDisabledReason: "out_of_credits" });
+    expect(await planLimitsBind({ ANTHROPIC_API_KEY: "x" }, path)).toBe(false);
+    expect(await planLimitsBind({ CLAUDE_CODE_USE_BEDROCK: "1" }, path)).toBe(false);
+    expect(await planLimitsBind({ CC_QUOTA_STEER: "off" }, path)).toBe(false);
   });
 });
