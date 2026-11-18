@@ -284,9 +284,10 @@ function analyzeRmTarget(target: string, cmd: string): void {
       // lstat ran, so only a lone rm gets the scratchpad allowance.
       if (!plainRmInvocation) break;
       if (within(root)) {
-        let componentPath = root;
+        // /tmp is world-writable, so the session root itself is checked too.
+        let componentPath = dirname(root);
         try {
-          for (const component of relative(root, absolute).split(sep)) {
+          for (const component of relative(dirname(root), absolute).split(sep)) {
             componentPath = join(componentPath, component);
             if (lstatSync(componentPath, { throwIfNoEntry: false })?.isSymbolicLink()) {
               block(`rm -rf through a scratchpad symlink: ${target}`, cmd);
