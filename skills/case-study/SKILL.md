@@ -12,7 +12,8 @@ requires:
 
 The goal is raw material a designer can build a case study from: many separate, clean, 16:9 videos and images that show **how the work
 is made**, not one showreel. Everything comes from the project itself: the live site rendered by its own code, its own GLB models and
-bakes, its own stems and SVGs. Nothing is invented, and each item says how it was made.
+bakes, its own stems and SVGs. Nothing is invented, and each item says how it was made. Two outputs are made on purpose and labelled as
+such: fake data in place of private data, and faux UI pieces rebuilt with Stageshow (see "The pack").
 
 ## Fit the pipeline to the project
 Every project is different; run the phases that apply and say which you skipped and why.
@@ -26,7 +27,25 @@ Every project is different; run the phases that apply and say which you skipped 
 | No sound / no Theatre keyframes | — | skip phase 6, or place stems by section from the code's triggers |
 | Games and app-like flows (keyboard play, timers, forms) | layers, sound, assets, tokens, board | boot with `TIMERS=1` and a network guard; the film is a scripted playthrough (`examples/play-template.js`), cut by its logged events; 2D sprite games skip Blender and rebuild the level from their atlases instead |
 
+## The pack
+This skill is the entry point of a pack: it decides which parts run for a project, and a new skill joins the pack as a row here.
+Canvas sites (WebGL, games on a canvas) use this skill's own capture and 3D phases. DOM sites and app UI use the same capture phases
+plus the faux UI pieces.
+
+| Part | Where it lives | Runs for |
+|---|---|---|
+| Capture rig, layers, clips, sound, image assets, colours and typography, board | this skill | every project |
+| 3D passes, solo, instances, Blender turntables | this skill | canvas sites with three.js or model files |
+| Fake data layer (`fakedata.js`) and leak check (`leakcheck.js`) | this skill | any project that shows private data: customers, people, amounts, emails |
+| Faux UI pieces: stills, cursor demos, bento grids | the [Stageshow](https://benji.org/stageshow) skill, installed from its own source | DOM product UI (phase 4b) |
+
+Outside skills stay installed from their own sources so they keep their authors' updates; never copy them into this skill. A part that
+is not installed is skipped and named in the final message.
+
 ## What the user expects (learned the hard way)
+- **No private data in any output.** A project that shows client or customer data is captured with fake but convincing data from the
+  first take (phase 2), and every output passes `leakcheck.js` before it leaves the machine (phase 10). Both only know the values in
+  the map: a name nobody listed passes both. Look at every contact sheet for names, amounts and faces the map missed.
 - **16:9, 1920×1080 masters for everything**, including stills, grids and Blender renders. Re-render instead of cropping.
 - **A list of separate videos and images, never just one film.** Cut long captures into per-chapter and per-transition clips, plus stills.
 - **Every chapter gets the same depth.** Each one is decomposed layer by layer and gets a 3D turntable. Don't stop at the most obvious scene.
@@ -52,6 +71,7 @@ NN_type/            reveal on black, cursor response, stills
 NN_sound/           stems_original/ stems_normalized/ stills_per_sound/ clip_soundtracks/ mixes/
 NN_image_assets/    svg/<glyphs|logos|frames|ui>/ (svg + 2048 png + png on dark), glyph sheet 16:9, textures/<scene>/, cms/<site|blog|unreferenced>/
 NN_colors_typography/ colors_palette.png, colors_<theme>.png, type_<family>.png, type_scale.png, type_in_use.png
+NN_faux_ui/         Stageshow pieces (phase 4b): stills/, video/, each file name starting with faux_ so nobody mistakes it for a capture
 _toolkit/           this project's recipes, capture scripts, Blender sets, board source (kept private, next to the masters)
 ```
 Project-specific code (recipes, shader names, board copy) belongs in `_toolkit/`, never in this skill. Before starting, look for a previous
@@ -77,6 +97,14 @@ independent work to background subagents too (image and sound export, a second p
   differ from production (one project was 9 commits behind; production matched origin/main). Read source from origin when it is what shipped.
 - **Side effects:** list every request the site makes that writes somewhere (`grep -rnE "fetch\(|axios|supabase|insert|/api/|hubspot|mailchimp|gtag|analytics"`):
   score uploads, sign-up and contact forms, anonymous auth, analytics. They become the `BLOCK` / `FAKE_OK` patterns for every boot.
+- **Private data:** does the site or app show real people, customers, amounts, emails or photos of people (dashboards, CRMs, admin
+  views, anything behind a login)? If so, write `<WORK>/map.json` for `fakedata.js` before the first capture: each real value with a
+  fake of the same length and format ("Jane Doe" → "Mia Lund", "$48,213.90" → "$31,870.40"), a pattern for each family of values (every
+  email on the client's domain), and a stand-in image for each photo. List the values from the live app with the user, then keep
+  the fakes the same for the whole case study. List every form a value takes: the raw number the API sends (`48213.9`) as well as the
+  formatted one, and short forms such as a first name alone, as a word-bounded pattern (`\bJane\b`) so "Janet" stays. The map only works
+  for values a person can list: when the app shows more (a CRM with hundreds of contacts), ask for a demo account or a local build
+  seeded with fake data first, and keep `fakedata.js` for what is left. The map lists the real values: it stays in `<WORK>`, never in `_toolkit/`, Drive or the board.
 - **Production URL:** find it (grep for the domain, or ask). Then decide where to capture from: run the local dev server and production
   side by side in the rig and compare. Prefer whichever renders correctly and matches what shipped. Usually that's production.
   If production is down, run locally. Common local blockers, all fixable without touching the repo: a stale CMS token (if the dataset is
@@ -93,7 +121,12 @@ cd <SKILL>/scripts/browser && node cdp.js boot.js <url> [gateX,gateY]   # fresh 
 # TIMERS=1 …                                   also freezes setTimeout/setInterval (games, countdowns, app flows: anything that runs on JS timers)
 # BLOCK="supabase\.co|analytics" FAKE_OK="/api/signup" …   fail / locally answer requests that would write to production (netguard.js)
 # a page loaded before the guard: BLOCK=… FAKE_OK=… node cdp.js netguard.js /api/signup   installs it live and proves the stub answers
+node fakedata.js <WORK>/map.json   # run_in_background, BEFORE boot.js: fake data in every response (HTML, JSON, scripts) and image
+node cdp.js leakcheck.js <WORK>/map.json   # after each boot: exits 1 and names each real value still on the live page
 ```
+With private data, start Chrome with a fresh profile folder: a profile that has seen the real app keeps cached data and service workers
+that never reach the network, so the fake data layer cannot replace them. WebSocket and WebRTC messages also pass through unchanged; if
+the app streams its data that way, fake it in the app's own seed or a local build instead.
 `hook.js` is injected before the page's own scripts. It grabs every three.js Scene, the renderer and the postprocessing passes (pmndrs
 `postprocessing` and three's own `EffectComposer`) as they are constructed (no source edits, works on minified production; `boot.js` reports
 `webgl: false` on sites without three.js), and installs a **virtual clock**: `__vt.start()` freezes rAF,
@@ -142,6 +175,24 @@ screenshot, so captures are frame-perfect at any resolution and identical on eve
   object a full turn with the site's own shaders, which stands in for the Blender turntable. Say which it is.
 - Check every capture with `media/sheet.sh` + Read before moving on.
 
+### 4b. Faux UI pieces (DOM product UI)
+Real footage can't always show a feature cleanly: it sits behind a login, needs data the account doesn't have, or is buried in other
+UI. A faux UI piece rebuilds just that moment as a still or a short cursor demo, in the product's own look. Use the
+[Stageshow](https://benji.org/stageshow) skill for it; if it is not installed, ask the user before installing it
+(`bunx skills add benjitaylor/skills --skill stageshow`), or skip this phase and say so.
+- **Pick the moments:** one per feature the case study must explain, plus a bento grid if the page needs one. Name each in the plan.
+- **Build outside the client repo,** in `<WORK>/faux-ui/` (Stageshow's own preview, or a scratch Vite app). Keep the source in
+  `_toolkit/faux-ui/` afterwards. The repo stays clean.
+- **Its look comes from phase 8:** map `design.json` and the live tokens onto Stageshow's tokens (its `references/looks.md`), and use
+  the project's own icons, logos and fonts from phase 7.
+- **Its content uses the fake side of `map.json`,** never real values, so the faux UI and the captures show the same fake people.
+- **Masters are 1920×1080 like everything else:** keep the stage at Stageshow's own design size (its framing rules depend on it) and
+  frame it on the project's ground in a 1920×1080 page. Record that page with this skill's rig: `boot.js` on the preview URL, then
+  `interact.js` with no actions (or `hold.js` with `clean=0`; its default hides the DOM and records a blank frame). Use Stageshow's
+  `film.mjs` for its review sheets. Not yet tried: whether the virtual clock steps Stageshow's playback frame by frame; check the first take's contact sheet.
+- **Label it:** files start with `faux_` in `NN_faux_ui/`, and the board says "rebuilt with Stageshow, not a capture" on each piece.
+- Run Stageshow's own rehearsal (`--gate`) and look at the contact sheet before recording the master.
+
 ### 5. Blender (delegate early)
 Follow `references/blender.md`. Most sets need no code: `scripts/blender/turntable.py -- --glb <file> [--glb …] --name <set> --job probe|stills|turntable`
 gives a seamless auto-framed 360° turntable plus clay / wire / look stills for any glTF, using its own materials (lit sites) or baked textures
@@ -183,6 +234,12 @@ Dated animation-state exports (Theatre `config/*.json`) tell a growth story: `me
 (one project went from 4 to 377 in six weeks). The same data also gives the sound automation lanes.
 
 ### 10. Drive, board and hand-off
+- **Leak check first (projects with private data):** `node scripts/browser/leakcheck.js <WORK>/map.json <out> <WORK>/<each take's frame folder> <WORK>/tokens.json <board source>`.
+  It searches every text file (including `tokens.json` samples and the board's copy) and reads stills and frames with tesseract OCR. It
+  skips videos, so name the frame folder of every take you encoded; never point it at the Chrome profile. Exit 1 names
+  each output with a real value: redo it with `fakedata.js` running. Exit 2 means images were not read (no tesseract): not a pass.
+  Nothing goes to Drive or the board until it exits 0. OCR misses some type, so this backs up the live check of phase 2; it does not replace it.
+  Exit 0 proves only that the listed values are gone: the contact sheet review for unlisted names and faces still applies.
 - **Upload the masters to Drive:** `media/drive_upload.sh <out> "<Client - Project>"` copies everything except `_toolkit/` into the
   project's folder under the studio's case-study root ("Website - Case Study - Assets", whose URL `CASE_STUDY_DRIVE_ROOT` must hold; ask the user for it, it is not in this public repo), reusing a
   folder that already has the project's name (look at the root's folder names first and match their "Client - Project" style), and prints
@@ -197,7 +254,7 @@ Dated animation-state exports (Theatre `config/*.json`) tell a growth story: `me
   bake flaws, perf oddities, unused assets, a local build that doesn't match production.
 
 ## Bundled files
-- `scripts/browser/`: `chrome.sh`, `cdp.js`, `hook.js`, `timers.js` (TIMERS=1), `netguard.js` (BLOCK / FAKE_OK), `rec.js`, `prelude.js`, `goto.js` (scroll like a visitor, never jump; `SCROLLER` for inner scrollers), `boot.js`, `cold.js`, `map.js`, `solo.js`, `layers.js`, `film.js`, `hold.js`, `click.js`, `interact.js`, `spin.js`, `instances.js`, `tokens.js`, `specimens.js`, `origin-swap.js`
+- `scripts/browser/`: `chrome.sh`, `cdp.js`, `hook.js`, `timers.js` (TIMERS=1), `netguard.js` (BLOCK / FAKE_OK), `fakedata.js` (fake data in every response), `leakcheck.js` (finds real values on the live page or in outputs), `rec.js`, `prelude.js`, `goto.js` (scroll like a visitor, never jump; `SCROLLER` for inner scrollers), `boot.js`, `cold.js`, `map.js`, `solo.js`, `layers.js`, `film.js`, `hold.js`, `click.js`, `interact.js`, `spin.js`, `instances.js`, `tokens.js`, `specimens.js`, `origin-swap.js`
 - `scripts/media/`: `frames2mp4.sh`, `cut_film.sh`, `enc_web.sh`, `sheet.sh`, `export_sounds.sh`, `soundtrack.py`, `export_svgs.js`, `theatre_history.py`, `drive_upload.sh`, `join_takes.py`
 - `scripts/blender/`: `turntable.py` (generic runner), `common.py`, `chapters_lib.py`, `encode.sh`
 - `references/`: `gotchas.md` (read first), `blender.md`, `board.md`
