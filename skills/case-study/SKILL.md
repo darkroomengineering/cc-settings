@@ -187,11 +187,15 @@ UI. A faux UI piece rebuilds just that moment as a still or a short cursor demo,
   the project's own icons, logos and fonts from phase 7.
 - **Its content uses the fake side of `map.json`,** never real values, so the faux UI and the captures show the same fake people.
 - **Masters are 1920×1080 like everything else:** keep the stage at Stageshow's own design size (its framing rules depend on it) and
-  frame it on the project's ground in a 1920×1080 page. Record that page with this skill's rig: `boot.js` on the preview URL, then
-  `interact.js` with no actions (or `hold.js` with `clean=0`; its default hides the DOM and records a blank frame). Use Stageshow's
-  `film.mjs` for its review sheets. Not yet tried: whether the virtual clock steps Stageshow's playback frame by frame; check the first take's contact sheet.
+  frame it on the project's ground in a 1920×1080 page; give the stage's container `data-ss-fill` so it grows past its design size.
+  Record that page with this skill's rig: `TIMERS=1 boot.js` on the preview URL (Stageshow's script waits on timers, and without
+  `TIMERS=1` the loop plays about three times too fast), then `interact.js` with no actions (or `hold.js` with `clean=0`; its
+  default hides the DOM and records a blank frame). The take starts wherever the loop is after the rig's settle wait: record one and a
+  half loops and cut one whole loop. The stage's crop shows as a hard line on the ground, so nothing may cross the stage edge
+  unless it fades there. Use Stageshow's `film.mjs` for its review sheets, and check the first take's contact sheet.
 - **Label it:** files start with `faux_` in `NN_faux_ui/`, and the board says "rebuilt with Stageshow, not a capture" on each piece.
-- Run Stageshow's own rehearsal (`--gate`) and look at the contact sheet before recording the master.
+- Run Stageshow's own rehearsal (`--gate`) and look at the contact sheet before recording the master. Its gold examples also fail
+  some gate lines, so report every line that remains; never clear one by hiding or marking the element it names.
 
 ### 5. Blender (delegate early)
 Follow `references/blender.md`. Most sets need no code: `scripts/blender/turntable.py -- --glb <file> [--glb …] --name <set> --job probe|stills|turntable`
