@@ -284,6 +284,8 @@ describe("TS safety-net — shared temp dir cleanup", () => {
         await expectBlock(`rm -rf ${link}/Documents`);
         await expectBlock(`rm -rf ${link}`);
         await expectBlock(`ln -s ${FAKE_HOME} h10 && rm -rf h10/Documents`, fixture);
+        await expectBlock(`ln -s ${FAKE_HOME} h10 && rm -rf h10/`, fixture);
+        await expectAllow("echo hi && rm -rf dist", fixture);
         // Only the short spelling carries the shared temp allowance.
         if (root === "/tmp") {
           mkdirSync(join(fixture, "real"));

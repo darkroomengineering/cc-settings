@@ -307,9 +307,10 @@ function analyzeRmTarget(target: string, cmd: string): void {
   // allowance itself stays on the short spellings.
   const tempRoot = ["/tmp", "/var/tmp", "/private/tmp", "/private/var/tmp"].find(within);
   if (tempRoot !== undefined) {
-    // An earlier part of the command can plant a symlink, and '..' or a glob
-    // can step through one the lstat walk below never sees.
-    if (!plainRmInvocation)
+    // An earlier part of the command can plant a symlink that rm then walks
+    // through; a bare name has no inner component to plant one in. '..' or a
+    // glob can step through a symlink the lstat walk below never sees.
+    if (!plainRmInvocation && target.includes("/"))
       block(`rm -rf in a temp dir chained with another command: ${target}`, cmd);
     if (target.split("/").some((part) => part === ".." || /[*?[{()]/.test(part))) {
       block(`rm -rf with an unresolved temp path: ${target}`, cmd);
