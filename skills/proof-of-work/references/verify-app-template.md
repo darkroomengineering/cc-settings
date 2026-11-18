@@ -80,6 +80,10 @@ Run before the first drive, and again after any failed step:
 Use the Playwright MCP, or the chrome-devtools MCP through the `tester` agent.
 Prefer roles and accessible names (`getByRole("link", { name: "About" })`) over
 CSS selectors. Wait for an element or a network response, never a fixed sleep.
+Use an isolated browser session for the run. Refresh the accessibility snapshot
+after navigation or UI changes before interacting by reference. If the MCP
+tools are unavailable and `agent-browser` is installed, load its matching
+workflow with `agent-browser skills get core`.
 
 ### Feature map
 
@@ -101,6 +105,15 @@ Example for a Next.js App Router site:
 | Dynamic page | `/work/{{real slug}}` | Open a slug from the `/work` list | The page `h1` matches the list item's title |
 | Not found | `/does-not-exist` | Open the page | The 404 page renders with a link back home |
 
+Extend the feature map with checks for the behavior the change touches:
+
+- Modal dialog: verify initial focus, blocked background input, Escape dismissal,
+  and focus return to the trigger.
+- Motion or theme: emulate both values of the relevant browser preference and
+  check the computed style or visible behavior the change should affect.
+- Layout shift: capture the baseline before editing or from the unchanged
+  revision. Compare the same route, viewport, and load conditions after the edit.
+
 ## Evidence
 
 - Save to `.verify-app/evidence/<run-id>/`, which is gitignored and which
@@ -113,6 +126,8 @@ Example for a Next.js App Router site:
   route than the map lists.
 
 ## Cleanup
+
+- Close the browser session created for this run even if a flow failed.
 
 - `kill -- -"$(cat .verify-app/run/app.pgid)"` stops the launcher and every
   process it forked. Kill only the process group this run started, never by

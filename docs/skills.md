@@ -86,6 +86,14 @@ The closest review tools answer different questions:
 | What is visibly risky in an unfamiliar repository? | `triage` |
 | What is wrong across an entire repository or journey? | `audit` |
 
+For browser defects, [`fix`](../skills/fix/SKILL.md) links captures to the
+reproduction steps and uses video for timing or motion. [`triage`](../skills/triage/SKILL.md)
+can explore primary journeys on an already running target and reports the
+coverage. The [`verify-app` template](../skills/proof-of-work/references/verify-app-template.md)
+shows how to verify dialog focus, motion and theme preferences, and layout
+shift. For a protected Vercel preview, use `agent-browser skills list` to find
+the installed guide for authorized preview access.
+
 ## Coordinate and preserve work
 
 | Skill and what to say | Value and output | Effects and approval | Run style and host notes |
