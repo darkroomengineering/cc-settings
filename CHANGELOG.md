@@ -4,6 +4,12 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [16.4.0] — 2026-11-18
+
+- `fix` records browser evidence matched to the defect and links captures to replayable steps.
+- `triage` adds an exploratory pass for already running browser targets and reports the journeys exercised.
+- The `verify-app` template adds isolated browser sessions, an optional `agent-browser` fallback, and checks for modal focus, media preferences, and layout shift.
+
 ## [16.3.1] — 2026-11-16
 
 Synced with Claude Code v2.1.325 and Codex v0.169.0. This release changes docs and manifests only; installed settings are unchanged.
