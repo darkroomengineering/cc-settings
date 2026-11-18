@@ -6,7 +6,7 @@
 
 import { afterAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseShellCommand, type ShellScan, scanShell } from "../src/lib/hook-command.ts";
@@ -296,6 +296,85 @@ describe("TS safety-net — shared temp dir cleanup", () => {
       }
     });
   }
+});
+
+describe("TS safety-net — rm resolves relative targets against the payload cwd", () => {
+  // Same relative target, two folders: a symlink to home in one, a real
+  // directory in the other. The verdict must follow the payload's cwd.
+  test.skipIf(process.platform === "win32")(
+    "a relative temp target is judged in the payload cwd, not the process cwd",
+    async () => {
+      const linked = mkdtempSync(join("/tmp", "cc-safety-payload-linked-"));
+      const real = mkdtempSync(join("/tmp", "cc-safety-payload-real-"));
+      try {
+        symlinkSync(FAKE_HOME, join(linked, "h9"));
+        mkdirSync(join(real, "h9", "Documents"), { recursive: true });
+        await expectBlock("rm -rf h9/Documents", real, {}, linked);
+        await expectAllow("rm -rf h9/Documents", linked, {}, real);
+        // A symlinked payload cwd is judged where it points.
+        symlinkSync(real, join(linked, "alias"));
+        await expectAllow("rm -rf h9/Documents", linked, {}, join(linked, "alias"));
+      } finally {
+        rmSync(linked, { recursive: true, force: true });
+        rmSync(real, { recursive: true, force: true });
+      }
+    },
+  );
+
+  test("a payload cwd that does not exist still has its relative targets checked", async () => {
+    const gone = join(FAKE_HOME, "gone");
+    await expectBlock("rm -rf a/../../victim", undefined, {}, gone);
+    await expectAllow("rm -rf foo", undefined, {}, gone);
+  });
+
+  // The rm-repo-target override only applies to a target inside the repo the
+  // payload cwd is in. A temp-dir fixture gets the temp rules first, so this
+  // runs only where tmpdir() is outside the temp roots (macOS).
+  const tempRoots = ["/tmp", "/var/tmp", "/private/tmp", "/private/var/tmp"];
+  const tmp = realpathSync(tmpdir());
+  const tmpInTempRoot = tempRoots.some((root) => tmp === root || tmp.startsWith(`${root}/`));
+  test.skipIf(process.platform === "win32" || tmpInTempRoot)(
+    "the rm-repo-target override follows the payload cwd's repo",
+    async () => {
+      const fixture = realpathSync(mkdtempSync(join(tmpdir(), "cc-safety-payload-repo-")));
+      const subdir = join(fixture, "repo", "src");
+      const outside = join(fixture, "outside");
+      mkdirSync(subdir, { recursive: true });
+      mkdirSync(outside);
+      spawnSync("git", ["init", "-q", join(fixture, "repo")]);
+      const decide = async (cwd: string, payloadCwd: string): Promise<number> => {
+        const proc = Bun.spawn(["bun", SAFETY_NET_TS, "--safety-net-allow=rm-repo-target"], {
+          cwd,
+          env: {
+            ...process.env,
+            GIT_CONFIG_GLOBAL: EMPTY_GITCONFIG,
+            GIT_CONFIG_NOSYSTEM: "1",
+          },
+          stdin: new Blob([
+            JSON.stringify({
+              tool_name: "Bash",
+              tool_input: { command: "rm -rf ../scratch" },
+              cwd: payloadCwd,
+            }),
+          ]),
+          stdout: "ignore",
+          stderr: "ignore",
+        });
+        return proc.exited;
+      };
+      try {
+        expect(await decide(outside, subdir)).toBe(0);
+        expect(await decide(subdir, outside)).toBe(2);
+        // A symlinked payload cwd: `..` leaves the link's target, not the repo.
+        const deep = join(outside, "deep");
+        mkdirSync(deep);
+        symlinkSync(deep, join(fixture, "repo", "link"));
+        expect(await decide(outside, join(fixture, "repo", "link"))).toBe(2);
+      } finally {
+        rmSync(fixture, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 describe("TS safety-net — git destructive → BLOCK", () => {
