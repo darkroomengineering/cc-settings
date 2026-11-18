@@ -301,8 +301,34 @@ function analyzeRmTarget(target: string, cmd: string): void {
     }
   }
 
-  // Normalize before checking containment so '..' cannot escape a safe prefix.
-  if (within("/tmp") || within("/var/tmp")) return;
+  // macOS links /tmp to /private/tmp and /var to /private/var, and cwd reports
+  // the /private spelling, so both spellings get the same symlink checks; the
+  // allowance itself stays on the short spellings.
+  const tempRoot = ["/tmp", "/var/tmp", "/private/tmp", "/private/var/tmp"].find(within);
+  if (tempRoot !== undefined) {
+    // An earlier part of the command can plant a symlink, and '..' or a glob
+    // can step through one the lstat walk below never sees.
+    if (!plainRmInvocation)
+      block(`rm -rf in a temp dir chained with another command: ${target}`, cmd);
+    if (target.split("/").some((part) => part === ".." || /[*?[{()]/.test(part))) {
+      block(`rm -rf with an unresolved temp path: ${target}`, cmd);
+    }
+    const rootPath = resolve(pwd ?? "/", tempRoot);
+    let componentPath = rootPath;
+    let symlinked: boolean;
+    try {
+      symlinked = relative(rootPath, absolute)
+        .split(sep)
+        .some((component) => {
+          componentPath = join(componentPath, component);
+          return lstatSync(componentPath, { throwIfNoEntry: false })?.isSymbolicLink() === true;
+        });
+    } catch {
+      block(`rm -rf with an unreadable temp path: ${target}`, cmd);
+    }
+    if (symlinked) block(`rm -rf through a temp dir symlink: ${target}`, cmd);
+    if (!tempRoot.startsWith("/private/")) return;
+  }
 
   // ALLOW: ship's per-project build cache; it recreates anything it needs.
   // Like the scratchpad, only a lone rm qualifies, and no component below

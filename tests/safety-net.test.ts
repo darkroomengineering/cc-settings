@@ -15,7 +15,13 @@ const SAFETY_NET_TS = resolve(import.meta.dir, "..", "src", "hooks", "safety-net
 const GITCONFIG_DIR = mkdtempSync(join(tmpdir(), "cc-safety-gitconfig-"));
 const EMPTY_GITCONFIG = join(GITCONFIG_DIR, "gitconfig");
 writeFileSync(EMPTY_GITCONFIG, "");
-afterAll(() => rmSync(GITCONFIG_DIR, { recursive: true, force: true }));
+// A stand-in home for symlink cases, so no test points a link at the real one.
+const FAKE_HOME = mkdtempSync(join(tmpdir(), "cc-safety-fakehome-"));
+mkdirSync(join(FAKE_HOME, "Documents"));
+afterAll(() => {
+  rmSync(GITCONFIG_DIR, { recursive: true, force: true });
+  rmSync(FAKE_HOME, { recursive: true, force: true });
+});
 
 type Decision = "allow" | "ask" | "block";
 
@@ -235,6 +241,59 @@ describe("TS safety-net — session scratchpad cleanup", () => {
   }
   test("blocks qualifiers below a private temp root with repeated separators", () =>
     expectBlock(`rm -rf /private/tmp//claude-${uid}/x(:h:h:h)`));
+  for (const root of [`/tmp/claude-${uid}`, `/private/tmp/claude-${uid}`]) {
+    test(`blocks an rm chained after a symlink to home is planted in ${root}`, () =>
+      expectBlock(`ln -s ${FAKE_HOME} ${root}/h9 && rm -rf ${root}/h9/Documents`));
+  }
+  test.skipIf(process.platform === "win32")(
+    "allows a lone rm of a real directory in the scratchpad",
+    async () => {
+      const root = `/tmp/claude-${uid}`;
+      mkdirSync(root, { recursive: true });
+      const fixture = mkdtempSync(join(root, "cc-safety-real-"));
+      try {
+        mkdirSync(join(fixture, "output", "nested"), { recursive: true });
+        await expectAllow(`rm -rf ${fixture}/output`);
+      } finally {
+        rmSync(fixture, { recursive: true, force: true });
+      }
+    },
+  );
+});
+
+describe("TS safety-net — shared temp dir cleanup", () => {
+  for (const root of ["/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp"]) {
+    test(`blocks an rm chained after a symlink to home is planted in ${root}`, () =>
+      expectBlock(`ln -s ${FAKE_HOME} ${root}/h9 && rm -rf ${root}/h9/Documents`));
+    test(`blocks an rm through a parent traversal below ${root}`, () =>
+      expectBlock(`rm -rf ${root}/h9/../x`));
+    test(`blocks qualifiers below ${root}`, () => expectBlock(`rm -rf ${root}/x(:h:h)`));
+  }
+  test("blocks a glob that could expand through a symlink", () =>
+    expectBlock("rm -rf /tmp/*/Documents"));
+  // /tmp exists on macOS and Linux; /private/tmp only on macOS.
+  for (const root of ["/tmp", "/private/tmp"]) {
+    test.skipIf(
+      process.platform === "win32" ||
+        (root.startsWith("/private") && process.platform !== "darwin"),
+    )(`blocks a lone rm through a symlink already planted in ${root}`, async () => {
+      const fixture = mkdtempSync(join(root, "cc-safety-symlink-"));
+      try {
+        const link = join(fixture, "h9");
+        symlinkSync(FAKE_HOME, link);
+        await expectBlock(`rm -rf ${link}/Documents`);
+        await expectBlock(`rm -rf ${link}`);
+        await expectBlock(`ln -s ${FAKE_HOME} h10 && rm -rf h10/Documents`, fixture);
+        // Only the short spelling carries the shared temp allowance.
+        if (root === "/tmp") {
+          mkdirSync(join(fixture, "real"));
+          await expectAllow(`rm -rf ${fixture}/real`);
+        }
+      } finally {
+        rmSync(fixture, { recursive: true, force: true });
+      }
+    });
+  }
 });
 
 describe("TS safety-net — git destructive → BLOCK", () => {
