@@ -311,6 +311,9 @@ describe("TS safety-net — rm resolves relative targets against the payload cwd
         mkdirSync(join(real, "h9", "Documents"), { recursive: true });
         await expectBlock("rm -rf h9/Documents", real, {}, linked);
         await expectAllow("rm -rf h9/Documents", linked, {}, real);
+        // A symlinked payload cwd is judged where it points.
+        symlinkSync(real, join(linked, "alias"));
+        await expectAllow("rm -rf h9/Documents", linked, {}, join(linked, "alias"));
       } finally {
         rmSync(linked, { recursive: true, force: true });
         rmSync(real, { recursive: true, force: true });
