@@ -377,6 +377,106 @@ describe("TS safety-net — rm resolves relative targets against the payload cwd
   );
 });
 
+describe("TS safety-net — chained rm -rf inside the payload cwd's repo", () => {
+  const repo = realpathSync(resolve(import.meta.dir, ".."));
+  const tempRoots = ["/tmp", "/var/tmp", "/private/tmp", "/private/var/tmp"];
+  const inTemp = (path: string) =>
+    tempRoots.some((root) => path === root || path.startsWith(`${root}/`));
+
+  test("allows chained cleanup after a plain cd", async () => {
+    await expectAllow("cd src && rm -rf build", FAKE_HOME, { CDPATH: undefined }, repo);
+    await expectAllow("cd -P src && rm -rf build", FAKE_HOME, { CDPATH: undefined }, repo);
+    await expectAllow("CC_TEST=1 cd src && rm -rf build", FAKE_HOME, { CDPATH: undefined }, repo);
+  });
+
+  test("blocks chained cleanup when any preceding command can change the filesystem", async () => {
+    await expectBlock("bun run x && rm -rf dist", FAKE_HOME, {}, repo);
+    await expectBlock(
+      "bun run x && cd src && rm -rf build",
+      FAKE_HOME,
+      { CDPATH: undefined },
+      repo,
+    );
+  });
+
+  test("blocks relative cd cleanup when CDPATH is set", async () => {
+    await expectBlock("cd src && rm -rf build", FAKE_HOME, { CDPATH: FAKE_HOME }, repo);
+  });
+
+  test.skipIf(inTemp(repo))(
+    "resolves relative parent paths from the tracked directory",
+    async () => {
+      const env = { CDPATH: undefined };
+      await expectAllow("cd . && rm -rf ../generated", FAKE_HOME, env, join(repo, "src"));
+      await expectAllow("cd src && rm -rf ../generated", FAKE_HOME, env, repo);
+      await expectAllow("cd hooks && rm -rf ../src", FAKE_HOME, env, join(repo, "src"));
+    },
+  );
+
+  test.skipIf(inTemp(repo))(
+    "keeps the standalone rm policy for a path-qualified invocation",
+    async () => {
+      await expectBlock("/bin/rm -rf ../generated", FAKE_HOME, {}, join(repo, "src"));
+    },
+  );
+
+  test("protects repo metadata, boundaries, and unresolved paths in chains", async () => {
+    const tmp = realpathSync(tmpdir());
+    const parent = inTemp(tmp) ? join(repo, "node_modules") : tmp;
+    mkdirSync(parent, { recursive: true });
+    const fixture = mkdtempSync(join(parent, "cc-safety-rm-"));
+    try {
+      const env = { CDPATH: undefined };
+      const worktree = join(fixture, "repo");
+      mkdirSync(join(worktree, "sub"), { recursive: true });
+      expect(spawnSync("git", ["init", "-q", worktree]).status).toBe(0);
+      await expectAllow("cd sub && rm -rf build", FAKE_HOME, env, worktree);
+      symlinkSync(FAKE_HOME, join(worktree, "link"), "junction");
+      if (process.platform !== "win32") {
+        symlinkSync(FAKE_HOME, join(worktree, "spaced "));
+        await expectBlock('cd . && rm -rf "spaced "', FAKE_HOME, env, worktree);
+      }
+
+      for (const command of [
+        "cd sub && rm -rf ../.",
+        "cd sub && rm -rf ../.git",
+        "cd . && rm -rf .git/objects",
+        "cd . && rm -rf ../dist",
+        "cd .. && rm -rf dist",
+        "cd . && rm -rf link/Documents",
+        "cd . && rm -rf link/../dist",
+        "cd link && rm -rf Documents",
+        "cd -P link/.. && rm -rf dist",
+        "cd . && rm -rf */dist",
+      ]) {
+        await expectBlock(command, FAKE_HOME, env, worktree);
+      }
+
+      const linked = join(fixture, "linked");
+      const gitDir = join(linked, "metadata", "git");
+      mkdirSync(join(linked, "metadata"), { recursive: true });
+      expect(spawnSync("git", ["init", "-q", "--separate-git-dir", gitDir, linked]).status).toBe(0);
+      await expectBlock("cd . && rm -rf metadata", FAKE_HOME, env, linked);
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  test.skipIf(process.platform === "win32")(
+    "retains temp restrictions after cd inside a temp repo",
+    async () => {
+      const fixture = realpathSync(mkdtempSync(join("/tmp", "cc-safety-rm-")));
+      try {
+        mkdirSync(join(fixture, "a", "b", "c"), { recursive: true });
+        expect(spawnSync("git", ["init", "-q", fixture]).status).toBe(0);
+        await expectBlock("cd a/b/c && rm -rf ../../../dist", FAKE_HOME, {}, fixture);
+      } finally {
+        rmSync(fixture, { recursive: true, force: true });
+      }
+    },
+  );
+});
+
 describe("TS safety-net — git destructive → BLOCK", () => {
   for (const [name, cmd] of [
     ["git checkout -- .", "git checkout -- ."],

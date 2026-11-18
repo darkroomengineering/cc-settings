@@ -139,11 +139,11 @@ function tokenizeArgs(args: string): string[] {
   return tokens;
 }
 
-function extractRmTargets(args: string): string[] {
+function extractRmTargets(args: string, literal = false): string[] {
   const targets: string[] = [];
   let optionsEnded = false;
   for (const raw of tokenizeArgs(args)) {
-    const token = raw.trim();
+    const token = literal ? raw : raw.trim();
     if (!token) continue;
     if (optionsEnded) {
       targets.push(token);
@@ -199,7 +199,7 @@ const ALLOWED_RM_BASES = new Set([
   "coverage",
 ]);
 
-function analyzeRmPortion(rmPortion: string, cmd: string): void {
+function analyzeRmPortion(rmPortion: string, cmd: string, dirs?: readonly (string | null)[]): void {
   // Need to detect recursive + force. The flags may be combined (-rf), split
   // (-r -f), or long (--recursive / --force).
   const hasRecursive =
@@ -209,9 +209,17 @@ function analyzeRmPortion(rmPortion: string, cmd: string): void {
 
   if (!hasRecursive || !hasForce) return;
 
-  const targets = extractRmTargets(rmPortion);
+  const cwd = rmBaseDir();
+  const repo = !plainRmInvocation && cwd !== null && dirs ? repoLocation(cwd) : null;
+  if (repo && dirs?.includes(null)) {
+    block("rm -rf with an unsafe chained repo command or directory", cmd);
+  }
+  const chain = repo && dirs ? { repo, dirs } : undefined;
+  if (chain && !/^(?:[^'"\\]|'[^']*'|"[^"]*")*$/.test(rmPortion))
+    block("rm -rf with unresolved chained repo arguments", cmd);
+  const targets = extractRmTargets(rmPortion, chain !== undefined);
   if (targets.length === 0) block("rm -rf with no clear target path", cmd);
-  for (const target of targets) analyzeRmTarget(target, cmd);
+  for (const target of targets) analyzeRmTarget(target, cmd, cwd, chain);
 }
 
 function repoRmCheckId(target: string): string | undefined {
@@ -243,7 +251,54 @@ function repoRmCheckId(target: string): string | undefined {
   return "rm-repo-target";
 }
 
-function analyzeRmTarget(target: string, cmd: string): void {
+function chainedRepoRmPath(
+  target: string,
+  dir: string | null,
+  repo: NonNullable<ReturnType<typeof repoLocation>>,
+): string | null {
+  if (/[*?[{()<>]/.test(target)) return null;
+  const prefix = `${repo.top}${sep}`;
+  const literal = sep === "/" ? target : target.replaceAll("/", sep);
+  const path = isAbsolute(literal) ? literal : dir === null ? "" : `${dir}${sep}${literal}`;
+  if (!path.startsWith(prefix)) return null;
+  let componentPath = repo.top;
+  const dotGit = join(repo.top, ".git");
+  try {
+    for (const component of path.slice(prefix.length).split(sep)) {
+      if (!component || component === ".") continue;
+      if (component === "..") {
+        if (componentPath === repo.top) return null;
+        componentPath = dirname(componentPath);
+        continue;
+      }
+      componentPath = join(componentPath, component);
+      if (
+        componentPath.toLowerCase() === dotGit.toLowerCase() ||
+        componentPath.toLowerCase() === repo.gitDir.toLowerCase()
+      )
+        return null;
+      if (lstatSync(componentPath, { throwIfNoEntry: false })?.isSymbolicLink()) return null;
+    }
+  } catch {
+    return null;
+  }
+  if (
+    componentPath === repo.top ||
+    repo.gitDir.toLowerCase().startsWith(`${componentPath.toLowerCase()}${sep}`)
+  )
+    return null;
+  return componentPath;
+}
+
+function analyzeRmTarget(
+  target: string,
+  cmd: string,
+  cwd: string | null,
+  chain?: {
+    repo: NonNullable<ReturnType<typeof repoLocation>>;
+    dirs: readonly (string | null)[];
+  },
+): void {
   // ALWAYS BLOCK: dangerous root/home/cwd paths.
   if (target === "/" || target === "/*") block("rm -rf targeting root filesystem", cmd);
   if (target === "~" || target === "~/" || target === "~/*")
@@ -261,10 +316,26 @@ function analyzeRmTarget(target: string, cmd: string): void {
 
   // A removed cwd leaves relative paths meaningless (nothing to delete) and
   // absolute paths with no "under PWD" allowance.
-  const cwd = rmBaseDir();
   if (cwd === null && !isAbsolute(target)) return;
   const pwd = cwd === null ? null : resolve(cwd);
-  const absolute = resolve(pwd ?? "/", target);
+  if (chain) {
+    for (const dir of chain.dirs) {
+      const path = chainedRepoRmPath(target, dir === baseDir ? cwd : dir, chain.repo);
+      if (path === null) block(`rm -rf with an unsafe chained repo target: ${target}`, cmd);
+      checkRmPath(target, cmd, pwd, path, true);
+    }
+    return;
+  }
+  checkRmPath(target, cmd, pwd, resolve(pwd ?? "/", target), false);
+}
+
+function checkRmPath(
+  target: string,
+  cmd: string,
+  pwd: string | null,
+  absolute: string,
+  insideChainedRepo: boolean,
+): void {
   if (absolute === pwd || absolute === resolve("/")) {
     block("rm -rf targeting current directory or root filesystem", cmd);
   }
@@ -357,6 +428,8 @@ function analyzeRmTarget(target: string, cmd: string): void {
     return;
   }
 
+  if (insideChainedRepo) return;
+
   // ALLOW: known build-artifact directories.
   const base = basename(absolute);
   if (ALLOWED_RM_BASES.has(base)) return;
@@ -367,7 +440,7 @@ function analyzeRmTarget(target: string, cmd: string): void {
   block(`rm -rf with unrecognized target path: ${target}`, cmd, repoRmCheckId(target));
 }
 
-function checkRmRf(cmd: string, scratchpadQualifiersOnly = false): void {
+function checkRmRf(cmd: string, qualifiersOnly = false, dirs?: readonly (string | null)[]): void {
   // Evaluate EVERY 'rm' occurrence in the string, not just the first — a
   // single-match `cmd.match(...)` latches onto the first invocation and lets
   // a second `rm -rf /` later in the same (unsplit) string ride along
@@ -386,12 +459,21 @@ function checkRmRf(cmd: string, scratchpadQualifiersOnly = false): void {
   // biome-ignore lint/suspicious/noAssignInExpressions: regex exec loop idiom
   while ((m = re.exec(cmd))) {
     const rmPortion = (m[2] ?? "").trim();
-    if (scratchpadQualifiersOnly) {
+    if (qualifiersOnly) {
+      const cwd = rmBaseDir();
+      if (
+        !plainRmInvocation &&
+        /[^\s]\(/.test(rmPortion) &&
+        cwd !== null &&
+        repoLocation(cwd) !== null
+      ) {
+        analyzeRmPortion(rmPortion, cmd, [cwd]);
+      }
       const targets = extractRmTargets(rmPortion).map((target) => resolve(target));
       if (!targets.some((target) => /^\/(?:private\/)?tmp\/claude-\d+\/.*[()]/.test(target)))
         continue;
     }
-    if (rmPortion) analyzeRmPortion(rmPortion, cmd);
+    if (rmPortion) analyzeRmPortion(rmPortion, cmd, dirs);
   }
 }
 
@@ -1204,15 +1286,29 @@ function trackState(c: Command, ctx: ShellCtx, seg: ShellSegment): void {
       ctx.guesses.set(name, c.hereStrings[0]);
     }
   } else if (c.typed === "cd" || c.typed === "pushd" || c.typed === "popd") {
-    const target = c.args.find((t) => !t.startsWith("-"));
+    const target = c.args.find((t) => t === "-" || !t.startsWith("-"));
     // Where the command leaves a shell that was in `dir`.
     const move = (dir: string | null): string | null => {
       if (c.typed === "popd") return null;
       if (target === undefined) return homedir();
       if (target === "~" || target.startsWith("~/")) return join(homedir(), target.slice(1));
+      if (
+        c.typed === "cd" &&
+        !isAbsolute(target) &&
+        (c.env.CDPATH ?? ctx.env.CDPATH ?? ctx.vars.CDPATH ?? process.env.CDPATH) !== undefined
+      )
+        return null;
       // Bash expands `~` only at the start of a word; Windows short names (`RUNNER~1`) carry one mid-path.
       if (/[$`*?[]/.test(target) || target.startsWith("~") || target === "-" || !dir) return null;
-      return resolve(dir, target);
+      const destination = resolve(dir, target);
+      if (!c.args.some((arg) => /^-[LP]*P[LP]*$/.test(arg))) return destination;
+      if (target.split(/[\\/]/).includes("..")) return null;
+      try {
+        const physical = realpathSync(isAbsolute(target) ? target : `${dir}${sep}${target}`);
+        return physical === destination ? destination : null;
+      } catch {
+        return null;
+      }
     };
     const before = [ctx.dir, ...ctx.elseDirs];
     ctx.dir = move(ctx.dir);
@@ -3124,17 +3220,32 @@ function unwrapShellStage(
   }
 }
 
-function checkSegmentText(text: string, subs: string[]): void {
-  checkRmRf(text);
+function checkSegmentText(text: string, subs: string[], dirs?: readonly (string | null)[]): void {
+  checkRmRf(text, false, dirs);
   checkGitDestructive(text);
   checkGhApiRepoDelete(text);
   checkProcessKill(text, subs);
 }
 
-function analyzeSegment(seg: ShellSegment, ctx: ShellCtx, depth: number): void {
+function analyzeSegment(
+  seg: ShellSegment,
+  ctx: ShellCtx,
+  depth: number,
+  chained: boolean,
+  plainCdPrefix: boolean,
+): void {
   const text = seg.clean;
-  checkSegmentText(text, seg.subs);
   const stages = splitPipes(text).map(parseCommand);
+  const rmDirs = !chained
+    ? undefined
+    : plainCdPrefix && stages.length === 1
+      ? dirReadings(ctx).map((at) => at.dir)
+      : [null];
+  checkSegmentText(
+    text,
+    seg.subs,
+    chained && stages.some((stage) => stage.chdirs.length > 0) ? [null] : rmDirs,
+  );
   stages.forEach((typed, i) => {
     if (i > 0) invalidateCheckoutBranches(ctx);
     const forms = commandForms(typed, ctx, seg);
@@ -3142,7 +3253,12 @@ function analyzeSegment(seg: ShellSegment, ctx: ShellCtx, depth: number): void {
     for (const c of forms) {
       // The rules that read text have seen the segment as typed, which is not
       // this command when its words were filled in or split out of a string.
-      if (c !== typed || c.resplit) checkSegmentText([c.word, ...c.args].join(" "), seg.subs);
+      if (c !== typed || c.resplit)
+        checkSegmentText(
+          [c.word, ...c.args].join(" "),
+          seg.subs,
+          chained && c.chdirs.length > 0 ? [null] : rmDirs,
+        );
       for (const at of dirs) {
         checkSecretReaders(c, at, text);
         checkGhWrites(c, at, text);
@@ -3198,6 +3314,8 @@ function analyzeReading(cmd: string, scan: ShellScan, depth: number, inherited: 
     return ctx;
   };
   const pipelines = new Map<number, ShellSegment>();
+  const chained = scan.segments.length > 1;
+  let plainCdPrefix = !base.unterminated;
   for (const scanned of scan.segments) {
     const first = pipelines.get(scanned.scope);
     const seg = first
@@ -3209,6 +3327,7 @@ function analyzeReading(cmd: string, scan: ShellScan, depth: number, inherited: 
         }
       : scanned;
     if (seg.joiner === "|") {
+      plainCdPrefix = false;
       const ctx = ctxOf(scanned.scope);
       trackRepo(parseCommand(scanned.clean), ctx);
       invalidateCheckoutBranches(ctx);
@@ -3217,13 +3336,19 @@ function analyzeReading(cmd: string, scan: ShellScan, depth: number, inherited: 
     }
     pipelines.delete(seg.scope);
     const ctx = ctxOf(seg.scope);
-    analyzeSegment(seg, ctx, depth);
+    analyzeSegment(seg, ctx, depth, chained, plainCdPrefix);
+    // The parser strips wrappers and quotes, which can hide a non-cd command.
+    plainCdPrefix &&=
+      seg.joiner !== "&" &&
+      seg.subs.length === 0 &&
+      !/[<>]/.test(seg.clean) &&
+      /^\s*(?:[A-Za-z_]\w*=(?:[^\s"'\\$]|"[^"\\$]*"|'[^']*')*\s+)*cd(?:\s|$)/.test(seg.clean);
     endCommand(ctx, seg.joiner);
     if (seg.joiner !== "&&") invalidateCheckoutBranches(ctx);
   }
   for (const seg of pipelines.values()) {
     const ctx = ctxOf(seg.scope);
-    analyzeSegment(seg, ctx, depth);
+    analyzeSegment(seg, ctx, depth, chained, false);
     endCommand(ctx, null);
     invalidateCheckoutBranches(ctx);
   }
