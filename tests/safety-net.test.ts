@@ -318,6 +318,12 @@ describe("TS safety-net — rm resolves relative targets against the payload cwd
     },
   );
 
+  test("a payload cwd that does not exist still has its relative targets checked", async () => {
+    const gone = join(FAKE_HOME, "gone");
+    await expectBlock("rm -rf a/../../victim", undefined, {}, gone);
+    await expectAllow("rm -rf foo", undefined, {}, gone);
+  });
+
   // The rm-repo-target override only applies to a target inside the repo the
   // payload cwd is in. A temp-dir fixture gets the temp rules first, so this
   // runs only where tmpdir() is outside the temp roots (macOS).
@@ -356,6 +362,11 @@ describe("TS safety-net — rm resolves relative targets against the payload cwd
       try {
         expect(await decide(outside, subdir)).toBe(0);
         expect(await decide(subdir, outside)).toBe(2);
+        // A symlinked payload cwd: `..` leaves the link's target, not the repo.
+        const deep = join(outside, "deep");
+        mkdirSync(deep);
+        symlinkSync(deep, join(fixture, "repo", "link"));
+        expect(await decide(outside, join(fixture, "repo", "link"))).toBe(2);
       } finally {
         rmSync(fixture, { recursive: true, force: true });
       }
