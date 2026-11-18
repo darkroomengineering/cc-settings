@@ -377,6 +377,83 @@ describe("TS safety-net — rm resolves relative targets against the payload cwd
   );
 });
 
+describe("TS safety-net — chained rm -rf inside the payload cwd's repo", () => {
+  const repo = realpathSync(resolve(import.meta.dir, ".."));
+  const tempRoots = ["/tmp", "/var/tmp", "/private/tmp", "/private/var/tmp"];
+  const inTemp = (path: string) =>
+    tempRoots.some((root) => path === root || path.startsWith(`${root}/`));
+
+  test("allows chained cleanup in the repo, including after cd", async () => {
+    await expectAllow("cd src && rm -rf build", FAKE_HOME, {}, repo);
+    await expectAllow("cd -P src && rm -rf build", FAKE_HOME, {}, repo);
+    await expectAllow("bun run x && rm -rf dist", FAKE_HOME, {}, repo);
+  });
+
+  test.skipIf(inTemp(repo))(
+    "resolves relative parent paths from the tracked directory",
+    async () => {
+      await expectAllow("echo ready && rm -rf ../generated", FAKE_HOME, {}, join(repo, "src"));
+      await expectAllow("cd src && rm -rf ../generated", FAKE_HOME, {}, repo);
+      await expectAllow("cd hooks && rm -rf ../src", FAKE_HOME, {}, join(repo, "src"));
+    },
+  );
+
+  test.skipIf(inTemp(repo))(
+    "keeps the standalone rm policy for a path-qualified invocation",
+    async () => {
+      await expectBlock("/bin/rm -rf ../generated", FAKE_HOME, {}, join(repo, "src"));
+    },
+  );
+
+  test("protects repo metadata, boundaries, and unresolved paths in chains", async () => {
+    const tmp = realpathSync(tmpdir());
+    const parent = inTemp(tmp) ? join(repo, "node_modules") : tmp;
+    mkdirSync(parent, { recursive: true });
+    const fixture = mkdtempSync(join(parent, "cc-safety-rm-"));
+    try {
+      const worktree = join(fixture, "repo");
+      mkdirSync(join(worktree, "src"), { recursive: true });
+      expect(spawnSync("git", ["init", "-q", worktree]).status).toBe(0);
+      symlinkSync(FAKE_HOME, join(worktree, "link"), "junction");
+      if (process.platform !== "win32") {
+        symlinkSync(FAKE_HOME, join(worktree, "spaced "));
+        await expectBlock('echo ready && rm -rf "spaced "', FAKE_HOME, {}, worktree);
+      }
+
+      for (const command of [
+        "cd src && rm -rf ../.",
+        "cd src && rm -rf ../.git",
+        "echo ready && rm -rf .git/objects",
+        "echo ready && rm -rf ../dist",
+        "cd .. && rm -rf dist",
+        "echo ready && rm -rf link/Documents",
+        "echo ready && rm -rf link/../dist",
+        "cd link && rm -rf Documents",
+        "cd -P link/.. && rm -rf dist",
+        "echo ready && rm -rf */dist",
+      ]) {
+        await expectBlock(command, FAKE_HOME, {}, worktree);
+      }
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  test.skipIf(process.platform === "win32")(
+    "retains temp restrictions after cd inside a temp repo",
+    async () => {
+      const fixture = realpathSync(mkdtempSync(join("/tmp", "cc-safety-rm-")));
+      try {
+        mkdirSync(join(fixture, "a", "b", "c"), { recursive: true });
+        expect(spawnSync("git", ["init", "-q", fixture]).status).toBe(0);
+        await expectBlock("cd a/b/c && rm -rf ../../../dist", FAKE_HOME, {}, fixture);
+      } finally {
+        rmSync(fixture, { recursive: true, force: true });
+      }
+    },
+  );
+});
+
 describe("TS safety-net — git destructive → BLOCK", () => {
   for (const [name, cmd] of [
     ["git checkout -- .", "git checkout -- ."],
