@@ -211,6 +211,9 @@ function analyzeRmPortion(rmPortion: string, cmd: string, dirs?: readonly (strin
 
   const cwd = rmBaseDir();
   const repo = !plainRmInvocation && cwd !== null && dirs ? repoLocation(cwd) : null;
+  if (repo && dirs?.includes(null)) {
+    block("rm -rf with an unsafe chained repo command or directory", cmd);
+  }
   const chain = repo && dirs ? { repo, dirs } : undefined;
   if (chain && !/^(?:[^'"\\]|'[^']*'|"[^"]*")*$/.test(rmPortion))
     block("rm -rf with unresolved chained repo arguments", cmd);
@@ -279,7 +282,12 @@ function chainedRepoRmPath(
   } catch {
     return null;
   }
-  return componentPath === repo.top ? null : componentPath;
+  if (
+    componentPath === repo.top ||
+    repo.gitDir.toLowerCase().startsWith(`${componentPath.toLowerCase()}${sep}`)
+  )
+    return null;
+  return componentPath;
 }
 
 function analyzeRmTarget(
@@ -1278,12 +1286,18 @@ function trackState(c: Command, ctx: ShellCtx, seg: ShellSegment): void {
       ctx.guesses.set(name, c.hereStrings[0]);
     }
   } else if (c.typed === "cd" || c.typed === "pushd" || c.typed === "popd") {
-    const target = c.args.find((t) => !t.startsWith("-"));
+    const target = c.args.find((t) => t === "-" || !t.startsWith("-"));
     // Where the command leaves a shell that was in `dir`.
     const move = (dir: string | null): string | null => {
       if (c.typed === "popd") return null;
       if (target === undefined) return homedir();
       if (target === "~" || target.startsWith("~/")) return join(homedir(), target.slice(1));
+      if (
+        c.typed === "cd" &&
+        !isAbsolute(target) &&
+        (c.env.CDPATH ?? ctx.env.CDPATH ?? ctx.vars.CDPATH ?? process.env.CDPATH) !== undefined
+      )
+        return null;
       // Bash expands `~` only at the start of a word; Windows short names (`RUNNER~1`) carry one mid-path.
       if (/[$`*?[]/.test(target) || target.startsWith("~") || target === "-" || !dir) return null;
       const destination = resolve(dir, target);
@@ -3213,10 +3227,20 @@ function checkSegmentText(text: string, subs: string[], dirs?: readonly (string 
   checkProcessKill(text, subs);
 }
 
-function analyzeSegment(seg: ShellSegment, ctx: ShellCtx, depth: number, chained: boolean): void {
+function analyzeSegment(
+  seg: ShellSegment,
+  ctx: ShellCtx,
+  depth: number,
+  chained: boolean,
+  plainCdPrefix: boolean,
+): void {
   const text = seg.clean;
   const stages = splitPipes(text).map(parseCommand);
-  const rmDirs = chained ? dirReadings(ctx).map((at) => at.dir) : undefined;
+  const rmDirs = !chained
+    ? undefined
+    : plainCdPrefix && stages.length === 1
+      ? dirReadings(ctx).map((at) => at.dir)
+      : [null];
   checkSegmentText(
     text,
     seg.subs,
@@ -3291,6 +3315,7 @@ function analyzeReading(cmd: string, scan: ShellScan, depth: number, inherited: 
   };
   const pipelines = new Map<number, ShellSegment>();
   const chained = scan.segments.length > 1;
+  let plainCdPrefix = !base.unterminated;
   for (const scanned of scan.segments) {
     const first = pipelines.get(scanned.scope);
     const seg = first
@@ -3302,6 +3327,7 @@ function analyzeReading(cmd: string, scan: ShellScan, depth: number, inherited: 
         }
       : scanned;
     if (seg.joiner === "|") {
+      plainCdPrefix = false;
       const ctx = ctxOf(scanned.scope);
       trackRepo(parseCommand(scanned.clean), ctx);
       invalidateCheckoutBranches(ctx);
@@ -3310,13 +3336,19 @@ function analyzeReading(cmd: string, scan: ShellScan, depth: number, inherited: 
     }
     pipelines.delete(seg.scope);
     const ctx = ctxOf(seg.scope);
-    analyzeSegment(seg, ctx, depth, chained);
+    analyzeSegment(seg, ctx, depth, chained, plainCdPrefix);
+    // The parser strips wrappers and quotes, which can hide a non-cd command.
+    plainCdPrefix &&=
+      seg.joiner !== "&" &&
+      seg.subs.length === 0 &&
+      !/[<>]/.test(seg.clean) &&
+      /^\s*(?:[A-Za-z_]\w*=(?:[^\s"'\\$]|"[^"\\$]*"|'[^']*')*\s+)*cd(?:\s|$)/.test(seg.clean);
     endCommand(ctx, seg.joiner);
     if (seg.joiner !== "&&") invalidateCheckoutBranches(ctx);
   }
   for (const seg of pipelines.values()) {
     const ctx = ctxOf(seg.scope);
-    analyzeSegment(seg, ctx, depth, chained);
+    analyzeSegment(seg, ctx, depth, chained, false);
     endCommand(ctx, null);
     invalidateCheckoutBranches(ctx);
   }
