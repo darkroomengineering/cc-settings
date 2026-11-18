@@ -1,6 +1,9 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { z } from "zod";
 import type { CodexState } from "./codex.ts";
 import { readValidatedState, writeState } from "./hook-runtime.ts";
+import { readJsonOrNull } from "./json-io.ts";
 
 export type QuotaBand = "normal" | "elevated" | "critical" | "exhausted";
 
@@ -322,6 +325,54 @@ export function resolveRateLimits(
     seven_day,
     updated_at: Math.max(...notStale.map((s) => s.updated_at)),
   };
+}
+
+const PAY_PER_TOKEN_ENV = [
+  "ANTHROPIC_API_KEY",
+  "CLAUDE_CODE_USE_BEDROCK",
+  "CLAUDE_CODE_USE_VERTEX",
+  "CLAUDE_CODE_USE_FOUNDRY",
+] as const;
+
+/**
+ * Whether the plan's 5h/7d windows can actually stop this session. The cache
+ * those windows come from is account-wide, so without this check a session
+ * that bills per token, or an account with extra-usage credit, gets steered
+ * off Claude for a limit it will never hit.
+ *
+ * `cachedExtraUsageDisabledReason` in ~/.claude.json is Claude Code's copy of
+ * the `anthropic-ratelimit-unified-overage-disabled-reason` header, rewritten
+ * on every API response: `null` means extra usage is on and has credit; a
+ * string ("out_of_credits", "org_level_disabled", ...) or a missing key means
+ * the plan limit is the hard stop.
+ */
+export async function planLimitsBind(
+  env: Record<string, string | undefined> = process.env,
+  claudeJsonPath: string = join(homedir(), ".claude.json"),
+): Promise<boolean> {
+  if (env.CC_QUOTA_STEER === "off") return false;
+  if (PAY_PER_TOKEN_ENV.some((key) => env[key])) return false;
+  try {
+    const config = (await readJsonOrNull(claudeJsonPath)) as Record<string, unknown> | null;
+    return !(
+      config !== null &&
+      "cachedExtraUsageDisabledReason" in config &&
+      config.cachedExtraUsageDisabledReason === null
+    );
+  } catch {
+    return true;
+  }
+}
+
+/** computeBand, reported as "normal" when the plan limits cannot stop this
+ *  session (see planLimitsBind). Reads ~/.claude.json only off the normal path. */
+export async function effectiveBand(
+  fiveHourPct: number | undefined,
+  sevenDayPct: number | undefined,
+): Promise<QuotaBand> {
+  const band = computeBand(fiveHourPct, sevenDayPct);
+  if (band === "normal") return band;
+  return (await planLimitsBind()) ? band : "normal";
 }
 
 export async function readQuotaSteerState(): Promise<QuotaSteerState | null> {

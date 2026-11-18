@@ -45,7 +45,7 @@ import { type HookIO, processIO, readState, runHook, writeState } from "../lib/h
 import { isoNow } from "../lib/platform.ts";
 import type { SignatureMap } from "../lib/problem-signature.ts";
 import {
-  computeBand,
+  effectiveBand,
   type QuotaBand,
   readRateLimitsCache,
   resolveRateLimits,
@@ -92,7 +92,7 @@ async function resolveBand(): Promise<QuotaBand | "unknown"> {
   const cache = await readRateLimitsCache();
   const resolved = resolveRateLimits(cache?.sessions, Date.now());
   if (!resolved) return "unknown";
-  return computeBand(resolved.five_hour?.used_percentage, resolved.seven_day?.used_percentage);
+  return effectiveBand(resolved.five_hour?.used_percentage, resolved.seven_day?.used_percentage);
 }
 
 export async function main(io: HookIO = processIO): Promise<void> {
