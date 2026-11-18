@@ -219,7 +219,7 @@ function repoRmCheckId(target: string): string | undefined {
   if (/[$`*?[{]/.test(target) || target.startsWith("~")) return undefined;
   const words = shellWords(target);
   if (words.length !== 1) return undefined;
-  const cwd = safeCwd();
+  const cwd = baseDir ?? safeCwd();
   const repo = cwd === null ? null : repoLocation(cwd);
   if (repo === null || cwd === null) return undefined;
   const absolute = resolve(cwd, words[0] as string);
@@ -261,7 +261,7 @@ function analyzeRmTarget(target: string, cmd: string): void {
 
   // A removed cwd leaves relative paths meaningless (nothing to delete) and
   // absolute paths with no "under PWD" allowance.
-  const cwd = safeCwd();
+  const cwd = baseDir ?? safeCwd();
   if (cwd === null && !isAbsolute(target)) return;
   const pwd = cwd === null ? null : resolve(cwd);
   const absolute = resolve(pwd ?? "/", target);
