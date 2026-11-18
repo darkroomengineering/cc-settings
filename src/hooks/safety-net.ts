@@ -25,7 +25,7 @@
 // is allowed. Hooks run as `bun --no-env-file`, so a project .env cannot set it.
 // CC_SAFETY_TEST_CRASH makes the hook throw, to exercise the fail-closed path.
 
-import { existsSync, lstatSync, readFileSync, writeSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, realpathSync, writeSync } from "node:fs";
 import { appendFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
@@ -219,7 +219,7 @@ function repoRmCheckId(target: string): string | undefined {
   if (/[$`*?[{]/.test(target) || target.startsWith("~")) return undefined;
   const words = shellWords(target);
   if (words.length !== 1) return undefined;
-  const cwd = baseDir ?? safeCwd();
+  const cwd = rmBaseDir();
   const repo = cwd === null ? null : repoLocation(cwd);
   if (repo === null || cwd === null) return undefined;
   const absolute = resolve(cwd, words[0] as string);
@@ -261,7 +261,7 @@ function analyzeRmTarget(target: string, cmd: string): void {
 
   // A removed cwd leaves relative paths meaningless (nothing to delete) and
   // absolute paths with no "under PWD" allowance.
-  const cwd = baseDir ?? safeCwd();
+  const cwd = rmBaseDir();
   if (cwd === null && !isAbsolute(target)) return;
   const pwd = cwd === null ? null : resolve(cwd);
   const absolute = resolve(pwd ?? "/", target);
@@ -873,6 +873,18 @@ function safeCwd(): string | null {
     return process.cwd();
   } catch {
     return null; // the directory was removed
+  }
+}
+
+// The rm checks compare paths by spelling, which only matches what rm reaches
+// when the directory has no symlink in it, as process.cwd() reports it.
+function rmBaseDir(): string | null {
+  if (baseDir === null) return safeCwd();
+  try {
+    return realpathSync(baseDir);
+  } catch {
+    // Unresolvable: judge by its spelling rather than skip relative targets.
+    return baseDir;
   }
 }
 
