@@ -191,8 +191,12 @@ UI. A faux UI piece rebuilds just that moment as a still or a short cursor demo,
   Record that page with this skill's rig: `TIMERS=1 boot.js` on the preview URL (Stageshow's script waits on timers, and without
   `TIMERS=1` the loop plays about three times too fast), then `interact.js` with no actions (or `hold.js` with `clean=0`; its
   default hides the DOM and records a blank frame). The take starts wherever the loop is after the rig's settle wait: record one and a
-  half loops and cut one whole loop. The stage's crop shows as a hard line on the ground, so nothing may cross the stage edge
-  unless it fades there. Use Stageshow's `film.mjs` for its review sheets, and check the first take's contact sheet.
+  half loops and cut one whole loop. To find the cut, read `data-mark` on `.ss-stage` every frame (`rec()`'s `hook` option) and
+  cut from the first beat's onset to its next onset; the first and last frames must match (`magick compare -metric RMSE` gives 0).
+  The stage's crop shows as a hard line on the ground, so nothing may cross the stage edge unless it fades there. Fade it from the
+  host page, not the piece: a CSS mask on `.ss-fit` with one `linear-gradient` per side that runs off, joined by
+  `mask-composite: intersect`. Where the real window stops at that side (a canvas that ends at a panel), cut it hard at that line
+  instead of fading. Use Stageshow's `film.mjs` for its review sheets, and check the first take's contact sheet.
 - **Label it:** files start with `faux_` in `NN_faux_ui/`, and the board says "rebuilt with Stageshow, not a capture" on each piece.
 - Run Stageshow's own rehearsal (`--gate`) and look at the contact sheet before recording the master. Its gold examples also fail
   some gate lines, so report every line that remains; never clear one by hiding or marking the element it names.
