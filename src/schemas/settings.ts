@@ -244,6 +244,7 @@ export const Settings = z.looseObject({
   // 2.1.281 — `false` hides all commit and PR attribution. Older CLIs skip a
   // settings file that holds the boolean, so shipped config keeps the object.
   attribution: z.union([z.literal(false), Attribution]).optional(),
+  attributionProject: z.string().optional(),
   // 2.1.224 cross-session messaging (macOS/Linux; not on Bedrock/Vertex/
   // Foundry). What this session does with messages arriving from your OTHER
   // sessions: "accept" delivers, "hold" shows a notice and waits for approval,

@@ -145,6 +145,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_DISABLE_MOUSE` | `"1"` or unset | Disable mouse capture entirely (including wheel scroll) in the fullscreen renderer; the full-disable companion to `CLAUDE_CODE_DISABLE_MOUSE_CLICKS`. Honored in attached background sessions as of v2.1.203 |
 | `CLAUDE_CODE_DISABLE_MOUSE_CLICKS` | `"1"` or unset | Disable mouse click/drag/hover actions while keeping wheel scroll and mouse capture; this does not restore native terminal selection. Use `CLAUDE_CODE_DISABLE_MOUSE=1` to release capture, with wheel scrolling disabled (v2.1.195). |
 | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `"0"` to disable, unset for default | Disable the attribution header on direct Anthropic API connections; v2.1.229 fixed auto mode failing on every tool call when this is set |
+| `CLAUDE_CODE_DISABLE_DEFERRED_TOOL_RESUME` | `"1"` or unset | Prevents `claude -p --resume` and `--continue` from executing a tool call deferred by a hook (v2.1.328). Unset here |
 | `CLAUDE_CODE_WORKFLOW_PREFIX_STAGGER_MS` | milliseconds (string), `"0"` to disable | Dynamic-workflow fan-outs stagger same-prefix sibling agents so later agents read the cached prompt prefix instead of re-paying it (v2.1.229) |
 | `CLAUDE_CODE_ENABLE_TODO_TOOLS` | `"1"` or unset | Restore TodoWrite and TaskCreate/Get/Update/List on Opus 4.8+, Sonnet 5, Fable 5, and Mythos 5, where v2.1.233 removed them. cc-settings strips these tools from its agents instead of setting this |
 | `CLAUDE_CODE_TOOL_MEMORY_LIMIT` | bytes (string) | Linux only, opt-in: run Bash tool commands under a memory cgroup so a runaway build can't stall the session (v2.1.233) |
@@ -262,6 +263,11 @@ Controls AI attribution in git commits and PRs. Replaces the deprecated `coautho
 Empty strings suppress the `commit`/`pr` attribution text. `sessionUrl` (boolean, added 2.1.183) controls the claude.ai session link appended to commits and PRs — empty strings do **not** suppress it, so `false` is required to omit it. Darkroom policy: **no AI attribution** — all three off.
 
 Since v2.1.281, `"attribution": false` hides all of it in one value. cc-settings keeps the object form because older CLI versions skip a settings file that holds the boolean.
+
+### `attributionProject`
+
+Names the session's billing group when a Claude apps gateway configures
+`admin.billing_group_tag` (v2.1.327). cc-settings leaves this string unset.
 
 ### `statusLine`
 
@@ -794,6 +800,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `alwaysThinkingEnabled` | boolean | G | Always show extended thinking even on short turns |
 | `apiKeyHelper` | string | A | Shell command that emits an Anthropic API key |
 | `attribution` | object \| `false` | G | AI attribution in git commits/PRs (`commit`, `pr` string fields; `sessionUrl` boolean — `false` omits the claude.ai session link, v2.1.183); `false` hides all attribution (v2.1.281) |
+| `attributionProject` | string | G | Session billing group for Claude apps gateways that configure `admin.billing_group_tag` (v2.1.327) |
 | `autoMemoryDirectory` | string | G | Custom directory for auto-memory storage (v2.1.101) |
 | `autoMemoryEnabled` | boolean | G | Enable/disable the auto-memory system |
 | `autoMode` | object | G | Auto-mode classifier rules: `environment`, `allow`, `soft_deny`, `hard_deny` prose arrays (see [`autoMode`](#automode)) |

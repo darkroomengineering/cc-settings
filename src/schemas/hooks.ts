@@ -60,7 +60,7 @@ const HookCommon = {
   // v2.1.139 — PostToolUse only. When the hook returns a block signal, the
   // turn continues anyway (the block surfaces in context but doesn't abort).
   continueOnBlock: z.boolean().optional(),
-  // v2.1.295 — command and http hooks. "block" turns a hook that cannot start,
+  // Command, HTTP (v2.1.295) and MCP tool hooks (v2.1.328). "block" turns a hook that cannot start,
   // times out, or exits with an unexpected code into a block instead of a pass.
   onFailure: z.literal("block").optional(),
 };
