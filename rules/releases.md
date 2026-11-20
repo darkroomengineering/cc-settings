@@ -7,10 +7,11 @@ paths:
 
 # Release Credentials
 
-> Releases go through `ship` (shipit). This file covers where its signing and store credentials live, how a workflow reaches them, and how each app ships.
+> Native releases go through `ship` (Shipit). Start a new native app with one `ship.json` and the [Shipit Apple build workflow](https://github.com/darkroomengineering/shipit#build-a-new-apple-app-in-ci).
 
-- **Nobody sets up credentials on their own machine to ship.** A merge to `main` releases from CI on the studio Mac release runner (`runs-on: ${{ fromJSON(vars.MAC_RUNNER) }}`). When a teammate asks how to get a key so they can release, the answer is to merge, not to copy the key.
-- **Credentials live in the repo's `release` environment.** It only deploys from `main`. The release job declares `environment: release` and reads `secrets.*` from it. Do not add signing or store secrets at repo level or as org secrets visible to all repositories; a pull request job can read those.
+- **Release from CI.** Merge to `main` for an automatic release or dispatch the app's protected release workflow. A maintainer provisions signing and store access once so contributors can ship without local keys.
+- **Build previews on GitHub-hosted runners.** Upload an unsigned artifact without release credentials. Run reviewed builds on darky-body only through a runner group restricted to approved workflow refs and isolated from release credentials.
+- **Scope credentials to the release lane.** The release job declares `environment: release`, restricted to `main`. Keep app-specific credentials there. Apple store lanes can use the selected-repository App Store Connect org secrets provisioned by `ship setup`. Keep access narrow and reference those secrets only in the protected release job.
 - **The maintainer holds the master copies.** They sit in a vault on the release runner, readable by its admin account and not by CI jobs, with a backup in the team's 1Password. Adding or rotating a credential means updating the vault and reloading the environment from it; ask the maintainer rather than generating a replacement.
 - **Never read or print a secret value.** Load a file with `gh secret set NAME --env release -R org/repo < file`. In a job, write each credential to `$RUNNER_TEMP`, pass its path through an env var, and delete it in an `if: always()` step.
 - **Fail with the name of what is missing:** `[[ -n "$ASC_KEY_P8" ]] || { echo "::error::missing secret ASC_KEY_P8"; exit 1; }`.
@@ -28,7 +29,8 @@ paths:
 
 | App | Ships through | Notes |
 |---|---|---|
-| Programa, Metricae, Browsee | CI on the studio Mac runner | |
+| Metricae, Browsee | CI on the studio Mac runner | |
+| Programa | CI on GitHub-hosted runners | Public repository |
 | Mesinyer | CI on the studio Mac runner | Mac, plus a Windows lane |
 | NoCam | CI on the studio Mac runner | iOS TestFlight and Google Play |
 | Wavecast | CI on the studio Mac runner | iOS TestFlight |
