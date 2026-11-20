@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [16.5.0] — 2026-11-20
+
+Synced with Claude Code v2.1.329 and Codex v0.171.0 (OSS-246).
+
+- The Claude Code settings schema accepts optional `attributionProject` for gateway billing groups.
+- The Claude reference covers fail-closed MCP tool hooks, hook errors in Code Mode, and the headless deferred tool resume opt-out.
+- The Codex reference covers opt-in MCP status lines and the upstream GPT-6.2 Sol catalog default.
+
 ## [16.4.0] — 2026-11-18
 
 - `fix` records browser evidence matched to the defect and links captures to replayable steps.
