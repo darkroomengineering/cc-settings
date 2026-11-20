@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0b0b0b" />
+    <title>Privacy policy · cc-settings</title>
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link
+      rel="canonical"
+      href="https://cc-settings.darkroom.engineering/privacy"
+    />
+    <meta property="og:title" content="Privacy policy · cc-settings" />
+    <meta property="og:site_name" content="cc-settings" />
+    <meta property="og:locale" content="en_US" />
+    <meta
+      name="description"
+      content="cc-settings has no analytics and no server of its own. It installs configuration on your machine; the services it connects to are the ones you choose."
+    />
+    <meta
+      property="og:description"
+      content="cc-settings has no analytics and no server of its own. It installs configuration on your machine; the services it connects to are the ones you choose."
+    />
+    <meta
+      property="og:url"
+      content="https://cc-settings.darkroom.engineering/privacy"
+    />
+    <meta
+      property="og:image"
+      content="https://cc-settings.darkroom.engineering/og.png"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="A green terminal prompt next to the name cc-settings, the line Darkroom's setup for Claude Code and Codex, and the command npx darkroom-settings"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="stylesheet" href="/assets/site.css" />
+  </head>
+  <body>
+    <main tabindex="-1" style="outline: none">
+      <div
+        class="max-inline-size-frame mis-auto mie-auto pbs-dp20 pbe-dp72 pis-safe pie-safe"
+      >
+        <a
+          class="ff-sans fs-max-calc-17-dp-0-75rem lh-1_2 ls-n0_01em fw-600 d-inline-flex ai-center min-block-size-44px hover-c-accent active-c-accent"
+          href="/"
+          >cc-settings</a
+        >
+        <article
+          class="d-grid rg-dp20 max-inline-size-measure mbs-dp40 desktop-mbs-dp72"
+        >
+          <h1
+            class="ff-sans fs-max-calc-28-dp-0-75rem lh-1_1 ls-n0_025em fw-700 desktop-fs-max-calc-36-dp-0-75rem mbe-dp8"
+          >
+            cc-settings privacy policy
+          </h1>
+          <p>
+            cc-settings is configuration that runs on your machine. It has no
+            analytics, and Darkroom Engineering runs no server for it and
+            receives nothing from it.
+          </p>
+          <p>
+            <strong>Installing and updating.</strong> The installer downloads
+            cc-settings from its GitHub repository, and <code>npx</code> first
+            downloads the small installer package from the npm registry. If you
+            turn on auto-update on macOS, a daily job does the same check
+            against GitHub.
+          </p>
+          <p>
+            <strong>On your machine.</strong> Hooks keep logs, backups and
+            install state under your home folder, such as
+            <code>~/.claude</code>. They stay there.
+          </p>
+          <p>
+            <strong>Claude Code and Codex.</strong> Your prompts and code go to
+            Anthropic or OpenAI through those products, under their own terms.
+            cc-settings does not change where they send data.
+          </p>
+          <p>
+            <strong>Connected tools.</strong> cc-settings configures MCP servers
+            that you sign in to: Context7 receives the library documentation
+            questions an agent asks, and Figma receives requests for the files
+            you point it at. Team notes you share with
+            <code>/share-learning</code> go to a GitHub repository through your
+            own GitHub CLI sign-in.
+          </p>
+          <p>
+            <strong>Optional services.</strong> If you add a TypeSafe key,
+            verbatim compaction and the drift check send session content to
+            TypeSafe's API to score it; without a key nothing goes there. The
+            Codex bridge hands work to your own Codex CLI only when you have
+            installed and signed in to it.
+          </p>
+          <p>
+            Questions:
+            <a
+              class="text-decoration-line-underline text-underline-offset-0_2em hover-c-accent active-c-accent"
+              href="https://github.com/darkroomengineering/cc-settings/issues"
+              >open an issue on GitHub</a
+            >.
+          </p>
+          <p>Last updated: November 12, 2026.</p>
+        </article>
+      </div>
+    </main>
+    <footer
+      class="border-block-start-width-1px border-block-start-style-solid border-block-start-color-rule"
+    >
+      <div
+        class="ff-sans fs-max-calc-15-dp-0-75rem lh-1_4 ls-0em fw-400 d-flex flex-wrap-wrap ai-center jc-space-between cg-dp24 max-inline-size-frame mis-auto mie-auto pbs-dp16 pbe-dp16 pis-safe pie-safe c-dim"
+      >
+        <nav class="d-flex cg-dp24" aria-label="Footer">
+          <a
+            class="d-inline-flex ai-center min-block-size-44px text-decoration-line-underline text-underline-offset-0_2em hover-c-ink active-c-ink"
+            href="/privacy"
+            data-active
+            aria-current="page"
+            >Privacy</a
+          ><a
+            class="d-inline-flex ai-center min-block-size-44px text-decoration-line-underline text-underline-offset-0_2em hover-c-ink active-c-ink"
+            href="/support"
+            >Support</a
+          >
+        </nav>
+        <a
+          class="d-inline-flex ai-center min-block-size-44px text-decoration-line-underline text-underline-offset-0_2em hover-c-ink active-c-ink"
+          href="https://darkroom.engineering/incubator"
+          >A sidequest by Darkroom Engineering Incubator</a
+        >
+      </div>
+    </footer>
+  </body>
+</html>

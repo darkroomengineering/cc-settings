@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0b0b0b" />
+    <title>cc-settings: Darkroom's setup for Claude Code and Codex</title>
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="canonical" href="https://cc-settings.darkroom.engineering/" />
+    <meta property="og:title" content="cc-settings" />
+    <meta name="twitter:title" content="cc-settings" />
+    <meta property="og:site_name" content="cc-settings" />
+    <meta property="og:locale" content="en_US" />
+    <meta
+      name="description"
+      content="cc-settings gives Claude Code and Codex the Darkroom engineering team's standards, task workflows, safety checks and proof gates. Install it with npx darkroom-settings."
+    />
+    <meta
+      property="og:description"
+      content="The Darkroom engineering team's standards, workflows and safety checks for Claude Code and Codex."
+    />
+    <meta
+      name="twitter:description"
+      content="The Darkroom engineering team's standards, workflows and safety checks for Claude Code and Codex."
+    />
+    <meta property="og:url" content="https://cc-settings.darkroom.engineering/" />
+    <meta property="og:image" content="https://cc-settings.darkroom.engineering/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="A green terminal prompt next to the name cc-settings, the line Darkroom's setup for Claude Code and Codex, and the command npx darkroom-settings"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "cc-settings",
+        "url": "https://cc-settings.darkroom.engineering/",
+        "description": "cc-settings gives Claude Code and Codex the Darkroom engineering team's standards, task workflows, safety checks and proof gates. Install it with npx darkroom-settings.",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "macOS, Linux, Windows",
+        "softwareRequirements": "Claude Code or Codex CLI",
+        "installUrl": "https://github.com/darkroomengineering/cc-settings/blob/main/docs/install.md",
+        "image": "https://cc-settings.darkroom.engineering/og.png",
+        "license": "https://opensource.org/licenses/MIT",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "featureList": [
+          "Coding standards and guardrails every tool reads",
+          "23 skills: fix, build, review, ship, audit and more",
+          "9 role agents",
+          "22 hooks that block destructive commands and inject context",
+          "Rollback and uninstall that leave your own configuration alone"
+        ],
+        "publisher": {
+          "@type": "Organization",
+          "name": "Darkroom Engineering",
+          "url": "https://darkroom.engineering"
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "cc-settings",
+        "url": "https://cc-settings.darkroom.engineering/"
+      }
+    </script>
+    <link rel="stylesheet" href="/assets/site.css" />
+  </head>
+  <body>
+    <main tabindex="-1" style="outline: none">
+      <header class="max-inline-size-frame mis-auto mie-auto pis-safe pie-safe">
+        <div
+          class="d-grid rg-dp20 pbs-dp48 pbe-dp48 desktop-rg-dp28 desktop-pbs-dp96 desktop-pbe-dp72"
+        >
+          <h1
+            class="ff-sans fs-max-calc-44-dp-0-75rem lh-1 ls-n0_035em fw-700 desktop-fs-max-calc-72-dp-0-75rem"
+          >
+            cc-settings
+          </h1>
+          <p
+            class="ff-sans fs-max-calc-20-dp-0-75rem lh-1_35 ls-n0_01em fw-400 desktop-fs-max-calc-24-dp-0-75rem max-inline-size-measure c-dim"
+          >
+            cc-settings gives Claude Code and Codex the Darkroom engineering team's standards, task
+            workflows, safety checks, and proof gates. One installer makes a new machine behave like
+            the rest of the team without replacing personal configuration that cc-settings does not
+            own.
+          </p>
+          <div class="d-grid rg-dp16 max-inline-size-dp760">
+            <div class="d-grid rg-dp8">
+              <h2 class="ff-sans fs-max-calc-15-dp-0-75rem lh-1_4 ls-0em fw-400 c-dim">
+                Any platform (Node 18+)
+              </h2>
+              <div
+                class="pos-relative d-flex ai-stretch cg-dp8 max-inline-size-100% bg-well border-top-width-1px border-right-width-1px border-bottom-width-1px border-left-width-1px border-top-style-solid border-right-style-solid border-bottom-style-solid border-left-style-solid border-top-color-rule border-right-color-rule border-bottom-color-rule border-left-color-rule rtl-8px rtr-8px rbr-8px rbl-8px"
+              >
+                <code
+                  class="ff-mono fs-max-calc-15-dp-0-75rem lh-1_5 ls-0em fw-400 flex-grow-1 min-inline-size-0 pbs-dp12 pbe-dp12 pis-dp16 pie-dp8 white-space-pre-wrap overflow-wrap-anywhere c-ink"
+                  ><span class="c-accent user-select-none" aria-hidden="true">$ </span
+                  ><span data-install-command>npx darkroom-settings</span></code
+                ><button
+                  type="button"
+                  data-copy-command
+                  disabled
+                  class="ff-sans fs-max-calc-15-dp-0-75rem lh-1_4 ls-0em fw-400 flex-shrink-0 min-inline-size-72px min-block-size-44px pis-dp12 pie-dp12 c-ink border-inline-start-width-1px border-inline-start-style-solid border-inline-start-color-rule cur-pointer hover-c-accent active-c-accent focus-visible-outline-color-accent focus-visible-outline-offset-n3px"
+                  aria-label="Copy the npx command"
+                >
+                  Copy</button
+                ><span
+                  class="pos-absolute inline-size-1px block-size-1px ovx-clip ovy-clip clip-path-inset-50 white-space-nowrap"
+                  role="status"
+                ></span>
+              </div>
+            </div>
+            <div class="d-grid rg-dp8">
+              <h2 class="ff-sans fs-max-calc-15-dp-0-75rem lh-1_4 ls-0em fw-400 c-dim">
+                macOS or Linux, without Node
+              </h2>
+              <div
+                class="pos-relative d-flex ai-stretch cg-dp8 max-inline-size-100% bg-well border-top-width-1px border-right-width-1px border-bottom-width-1px border-left-width-1px border-top-style-solid border-right-style-solid border-bottom-style-solid border-left-style-solid border-top-color-rule border-right-color-rule border-bottom-color-rule border-left-color-rule rtl-8px rtr-8px rbr-8px rbl-8px"
+              >
+                <code
+                  class="ff-mono fs-max-calc-15-dp-0-75rem lh-1_5 ls-0em fw-400 flex-grow-1 min-inline-size-0 pbs-dp12 pbe-dp12 pis-dp16 pie-dp8 white-space-pre-wrap overflow-wrap-anywhere c-ink"
+                  ><span class="c-accent user-select-none" aria-hidden="true">$ </span
+                  ><span data-install-command>curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh | bash</span></code
+                ><button
+                  type="button"
+                  data-copy-command
+                  disabled
+                  class="ff-sans fs-max-calc-15-dp-0-75rem lh-1_4 ls-0em fw-400 flex-shrink-0 min-inline-size-72px min-block-size-44px pis-dp12 pie-dp12 c-ink border-inline-start-width-1px border-inline-start-style-solid border-inline-start-color-rule cur-pointer hover-c-accent active-c-accent focus-visible-outline-color-accent focus-visible-outline-offset-n3px"
+                  aria-label="Copy the curl command"
+                >
+                  Copy</button
+                ><span
+                  class="pos-absolute inline-size-1px block-size-1px ovx-clip ovy-clip clip-path-inset-50 white-space-nowrap"
+                  role="status"
+                ></span>
+              </div>
+            </div>
+          </div>
+          <p
+            class="ff-sans fs-max-calc-15-dp-0-75rem lh-1_4 ls-0em fw-400 max-inline-size-measure c-dim"
+          >
+            Install and sign in to Claude Code, Codex CLI, or both first: cc-settings configures
+            them and does not include a subscription. Restart them after the install. Windows
+            PowerShell, every installer flag and how to undo it are in the
+            <a
+              class="c-ink text-decoration-line-underline text-underline-offset-0_2em hover-c-accent active-c-accent"
+              href="https://github.com/darkroomengineering/cc-settings/blob/main/docs/install.md"
+              >installation reference</a
+            >. Free and open source under MIT,
+            <a
+              class="c-ink text-decoration-line-underline text-underline-offset-0_2em hover-c-accent active-c-accent"
+              href="https://github.com/darkroomengineering/cc-settings"
+              >on GitHub</a
+            >.
+          </p>
+        </div>
+      </header>
+      <div class="max-inline-size-frame mis-auto mie-auto pis-safe pie-safe">
+        <div class="pbe-dp40">
+          <section
+            class="d-grid rg-dp16 pbs-dp32 pbe-dp32 border-block-start-width-1px border-block-start-style-solid border-block-start-color-rule desktop-d-grid desktop-gtc-xf3lv9 desktop-cg-gap desktop-pbs-dp48 desktop-pbe-dp48"
+          >
+            <h2
+              class="ff-sans fs-max-calc-28-dp-0-75rem lh-1_1 ls-n0_025em fw-700 desktop-fs-max-calc-36-dp-0-75rem desktop-gc-span-5"
+            >
+              The same request, done the team's way
+            </h2>
+            <ul class="d-grid rg-dp8 pis-dp20 c-dim desktop-gc-span-7">
+              <li>
+                <span class="c-ink">"Fix this bug"</span> reproduces first, names the cause before
+                the fix, keeps the change inside the bug's scope, and runs the real tests
+                afterwards.
+              </li>
+              <li>
+                <span class="c-ink">"Review my changes"</span> stays read-only, checks the diff
+                against the team checklist, and reports by severity.
+              </li>
+              <li>
+                <span class="c-ink">"Ship it"</span> runs the repository's own type check, build,
+                tests and lint, opens the PR in the house style, and watches CI.
+              </li>
+            </ul>
+          </section>
+          <section
+            class="d-grid rg-dp16 pbs-dp32 pbe-dp32 border-block-start-width-1px border-block-start-style-solid border-block-start-color-rule desktop-d-grid desktop-gtc-xf3lv9 desktop-cg-gap desktop-pbs-dp48 desktop-pbe-dp48"
+          >
+            <h2
+              class="ff-sans fs-max-calc-28-dp-0-75rem lh-1_1 ls-n0_025em fw-700 desktop-fs-max-calc-36-dp-0-75rem desktop-gc-span-5"
+            >
+              What it installs
+            </h2>
+            <ul class="d-grid rg-dp8 pis-dp20 c-dim desktop-gc-span-7">
+              <li>
+                Coding standards and guardrails every tool reads, twelve topic rules, and six stack
+                profiles.
+              </li>
+              <li>
+                23 skills, named workflows picked from plain language: fix, build, review, ship,
+                audit, handoff and the rest.
+              </li>
+              <li>
+                9 role agents, so big work is split between a planner, explorer, implementer,
+                tester, reviewer and others.
+              </li>
+              <li>
+                22 hooks on 16 lifecycle events. They block destructive commands such as
+                <code>rm -rf</code>, and a permission rule denies a force push to main.
+              </li>
+            </ul>
+          </section>
+          <section
+            class="d-grid rg-dp16 pbs-dp32 pbe-dp32 border-block-start-width-1px border-block-start-style-solid border-block-start-color-rule desktop-d-grid desktop-gtc-xf3lv9 desktop-cg-gap desktop-pbs-dp48 desktop-pbe-dp48"
+          >
+            <h2
+              class="ff-sans fs-max-calc-28-dp-0-75rem lh-1_1 ls-n0_025em fw-700 desktop-fs-max-calc-36-dp-0-75rem desktop-gc-span-5"
+            >
+              What it leaves alone
+            </h2>
+            <ul class="d-grid rg-dp8 pis-dp20 c-dim desktop-gc-span-7">
+              <li>
+                Your login and subscription, your permission mode, your personal memory, and any
+                setting the installer does not own.
+              </li>
+              <li>
+                Your own global instructions in <code>~/.claude/personal.md</code>, which setup
+                never replaces.
+              </li>
+              <li>
+                The installer records what it owns and keeps a backup per product, so it can
+                preview, roll back or uninstall.
+              </li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </main>
+    <footer
+      class="border-block-start-width-1px border-block-start-style-solid border-block-start-color-rule"
+    >
+      <div
+        class="ff-sans fs-max-calc-15-dp-0-75rem lh-1_4 ls-0em fw-400 d-flex flex-wrap-wrap ai-center jc-space-between cg-dp24 max-inline-size-frame mis-auto mie-auto pbs-dp16 pbe-dp16 pis-safe pie-safe c-dim"
+      >
+        <nav class="d-flex cg-dp24" aria-label="Footer">
+          <a
+            class="d-inline-flex ai-center min-block-size-44px text-decoration-line-underline text-underline-offset-0_2em hover-c-ink active-c-ink"
+            href="/privacy"
+            >Privacy</a
+          ><a
+            class="d-inline-flex ai-center min-block-size-44px text-decoration-line-underline text-underline-offset-0_2em hover-c-ink active-c-ink"
+            href="/support"
+            >Support</a
+          >
+        </nav>
+        <a
+          class="d-inline-flex ai-center min-block-size-44px text-decoration-line-underline text-underline-offset-0_2em hover-c-ink active-c-ink"
+          href="https://darkroom.engineering/incubator"
+          >A sidequest by Darkroom Engineering Incubator</a
+        >
+      </div>
+    </footer>
+    <script type="module" src="/assets/clipboard.js"></script>
+  </body>
+</html>

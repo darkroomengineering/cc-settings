@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Content-Signal: search=yes, ai-input=yes
+
+Sitemap: https://cc-settings.darkroom.engineering/sitemap.xml
