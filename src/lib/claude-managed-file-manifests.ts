@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 49;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 50;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -981,9 +981,19 @@ const ADDED_IN_V49 = [
   "rules/apple-design.md",
   "rules/windows-design.md",
 ];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v49 = {
   full: [...v48.full, ...ADDED_IN_V49],
   light: v48.light,
+};
+MANIFESTS.set(49, v49);
+// Version 50: the case-study fake data layer and its leak check (full profile only).
+const ADDED_IN_V50 = [
+  "skills/case-study/scripts/browser/fakedata.js",
+  "skills/case-study/scripts/browser/leakcheck.js",
+];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v49.full, ...ADDED_IN_V50],
+  light: v49.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([

@@ -302,7 +302,12 @@ const ADDED_IN_V36 = [
   "rules/windows-design.md",
   "skills/audit/references/platform-checks.md",
 ];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 36;
+// Version 37: the case-study fake data layer and its leak check.
+const ADDED_IN_V37 = [
+  "skills/case-study/scripts/browser/fakedata.js",
+  "skills/case-study/scripts/browser/leakcheck.js",
+];
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 37;
 // Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
 // CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.
 const REMOVED_IN_V20 = [
@@ -480,9 +485,10 @@ const RUNTIME_SOURCE_FILES_V33: readonly string[] = RUNTIME_SOURCE_FILES_V32.fil
 );
 const RUNTIME_SOURCE_FILES_V34: readonly string[] = [...RUNTIME_SOURCE_FILES_V33, ...ADDED_IN_V34];
 const RUNTIME_SOURCE_FILES_V35: readonly string[] = [...RUNTIME_SOURCE_FILES_V34, ...ADDED_IN_V35];
+const RUNTIME_SOURCE_FILES_V36: readonly string[] = [...RUNTIME_SOURCE_FILES_V35, ...ADDED_IN_V36];
 export const RUNTIME_SOURCE_FILES: readonly string[] = [
-  ...RUNTIME_SOURCE_FILES_V35,
-  ...ADDED_IN_V36,
+  ...RUNTIME_SOURCE_FILES_V36,
+  ...ADDED_IN_V37,
 ];
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
@@ -536,6 +542,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [33, RUNTIME_SOURCE_FILES_V33],
   [34, RUNTIME_SOURCE_FILES_V34],
   [35, RUNTIME_SOURCE_FILES_V35],
+  [36, RUNTIME_SOURCE_FILES_V36],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 
