@@ -310,9 +310,12 @@ Codex session.
 
 ## Platform boundaries
 
-Codex CLI does not expose an arbitrary custom statusline API. Claude's custom statusline and its
-quota chips therefore have no Codex equivalent. Codex `/status` shows native session status, while
+Codex CLI 0.171.0 adds opt-in MCP status line providers through `/statusline` when
+`tui_extensions_statusline` is enabled. The quota chips used by cc-settings' Claude hooks
+come from its Claude status line. Codex `/status` shows session status, while
 `bash setup.sh --target=codex --status` reports the cc-settings installation.
+
+The upstream 0.171.0 model catalog defaults to GPT-6.2 Sol and also includes GPT-6.2 Astra.
 
 Installed plugins are available in Codex CLI and desktop surfaces that support plugins. The Codex
 IDE extension can use standalone skills, but it does not load installed plugins. IDE users need a
@@ -323,7 +326,7 @@ Several shared workflows have narrower Codex branches:
 - The `tldr` code-map MCP server is not bundled. Shared workflows use `rg` and Codex native search instead.
 - `$freeze` cannot enforce a directory edit lock in Codex.
 - `$autoresearch` cannot run its Claude subprocess evaluation loop in Codex.
-- Claude agent teams, dynamic workflows, and the custom statusline remain Claude-only.
+- Claude agent teams and dynamic workflows are specific to Claude Code.
 
 ## When to use `/import`
 

@@ -178,6 +178,9 @@
         }
       ]
     },
+    "attributionProject": {
+      "type": "string"
+    },
     "crossSessionInbound": {
       "type": "string",
       "enum": [

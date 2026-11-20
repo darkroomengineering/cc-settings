@@ -1,7 +1,7 @@
 {
-  "lastScan": "2026-11-16T00:00:00.000Z",
-  "codexVersion": "0.169.0",
-  "appChangelogLastScan": "2026-11-16",
+  "lastScan": "2026-11-20T00:00:00.000Z",
+  "codexVersion": "0.171.0",
+  "appChangelogLastScan": "2026-11-20",
   "knownConfigSurfaces": [
     "AGENTS.md managed block ($CODEX_HOME/AGENTS.md)",
     "agents/*.toml: name, description, developer_instructions, model, model_reasoning_effort, sandbox_mode",
@@ -37,6 +37,7 @@
     "appChangelogLastScan is the date /cc sync last triaged https://learn.chatgpt.com/docs/changelog for Codex app and IDE extension entries. That page has its own version numbers (Codex app 26.x) and no npm package to diff, so upstream:scan reads its RSS feed (https://learn.chatgpt.com/codex/changelog/rss.xml) and reports non-iOS entries (guid not ending in -mobile) dated after this date as drift. Baseline set 2026-10-12: the entries from 2026-09-14 through 2026-10-08 are model launches and retirements (already handled by the CLI syncs and the bridge model pins), iOS releases, and a macOS security update; none touches a knownConfigSurfaces entry. Older app entries (hook trust review in app 26.506, primary-folder discovery of AGENTS.md, skills and config.toml on 2026-07-23) predate the baseline and were not re-triaged.",
     "v0.167.0 sync (2026-11-06). No adoption, dedupe or docs change. Skipped: decision = \"prompt-user\" (#58045) works only in managed requirements.toml, and codex/rules/darkroom.rules is a user rules file; codex agents --no-daemon command center, backend switching, image previews and other TUI changes; Sign in another way, the Vertex AI wizard and system proxy opt-in (codex login --device-auth is unchanged); session plugin overrides on MCP config refresh and per-chat MCP connection leases (fixes that reach us with no change); new memory-extraction default models (the bridge pins none); compaction, saved chats, realtime, Guardian, musl and build chores. The one new app changelog entry (2026-11-06) is this CLI release.",
     "v0.167.2 sync (2026-11-12). No adoption, dedupe or docs change. 0.167.1 has no notes. Skipped: incremental tool updates on Google Cloud Vertex AI and the incremental_tools_legacy_gcp feature flag (Vertex only). The two app changelog entries (2026-11-10, 2026-11-11) are these CLI releases.",
-    "v0.169.0 sync (2026-11-16). Docs only: codex exec and codex review keep project config and MCP servers off in untrusted directories even with --sandbox workspace-write, and --trust saves trust (0.169.0, #60041); docs/codex-bridge.md says the bridge never passes --trust. Skipped: features.multi_agent warning pointing to agents.enabled (the installer never writes features.multi_agent), tui.notification_method, features.tui_workspace and side-chat tabs, features.image_generation_animation, model provider management, Cloud connection and other TUI changes. The two app changelog entries (2026-11-13) are the 0.168.0 and 0.169.0 CLI releases."
+    "v0.169.0 sync (2026-11-16). Docs only: codex exec and codex review keep project config and MCP servers off in untrusted directories even with --sandbox workspace-write, and --trust saves trust (0.169.0, #60041); docs/codex-bridge.md says the bridge never passes --trust. Skipped: features.multi_agent warning pointing to agents.enabled (the installer never writes features.multi_agent), tui.notification_method, features.tui_workspace and side-chat tabs, features.image_generation_animation, model provider management, Cloud connection and other TUI changes. The two app changelog entries (2026-11-13) are the 0.168.0 and 0.169.0 CLI releases.",
+    "v0.169.1–0.171.0 sync (2026-11-20). Documented opt-in MCP status line providers and GPT-6.2 Sol as the upstream catalog default. The app feed includes three CLI releases and the GPT-6.2 Sol and Astra announcement. Skipped experimental same-name MCP servers, remote execution, and upstream runtime fixes."
   ]
 }
