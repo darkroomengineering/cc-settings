@@ -1,0 +1,9 @@
+# cc-settings
+
+> cc-settings gives Claude Code and Codex the Darkroom engineering team's standards, task workflows, safety checks and proof gates. Install it with npx darkroom-settings.
+
+## Pages
+
+- [cc-settings: Darkroom's setup for Claude Code and Codex](https://cc-settings.darkroom.engineering/index.md): cc-settings gives Claude Code and Codex the Darkroom engineering team's standards, task workflows, safety checks and proof gates. Install it with npx darkroom-settings.
+- [Privacy policy · cc-settings](https://cc-settings.darkroom.engineering/privacy.md): cc-settings has no analytics and no server of its own. It installs configuration on your machine; the services it connects to are the ones you choose.
+- [Support · cc-settings](https://cc-settings.darkroom.engineering/support.md): Get help with cc-settings on GitHub. Include your operating system, which product you use it with, and what happened.
