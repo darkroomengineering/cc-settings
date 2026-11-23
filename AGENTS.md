@@ -159,7 +159,7 @@ Fix reported bugs immediately without asking whether to proceed.
 
 These defaults apply to Darkroom web clients. A project's config and lockfile win; departures in new work say why in the PR. Tooling and non-web repositories, including this one, inherit only Bun, Biome, and TypeScript unless their profiles say otherwise. Framework details live in `profiles/`.
 
-In a repository whose `AGENTS.md` names Nulla, follow Nulla's `DECISIONS.md` and `RULES.md` instead of this section, External Libraries, and the Laziness Ladder's preference for less code: code volume is not a cost there. Every other section still applies.
+In a repository whose `AGENTS.md` names Nulla, follow Nulla's `README.md` instead of this section, External Libraries, and the Laziness Ladder's preference for less code: code volume is not a cost there. Every other section still applies.
 
 ### Core
 
