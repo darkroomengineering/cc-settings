@@ -112,6 +112,7 @@ Skills define slash commands (e.g., `/handoff`, `/dr-review`) that users invoke 
 | `description` | string | (required) | Purpose description. Also used for auto-invocation pattern matching |
 | `context` | string | omitted = inline | Context behavior: `fork` (isolated, backgrounded context) or `main` (runs inline in the main session — omitting the field resolves the same way) |
 | `agent` | string | -- | Route execution to a specific agent (e.g., `explore`, `reviewer`, `maestro`) |
+| `model` | string | session model | Model the skill runs on. Since v2.1.330 it applies to the skill only: subagents and forks it starts, compaction and `/recap` stay on the session's model. A `context: fork` skill runs entirely on it |
 | `allowed-tools` | list | -- | Tools available when the skill is active. Overrides default tool set |
 | `disable-model-invocation` | boolean | `false` | When `true`, prevents the model from auto-invoking this skill |
 | `user-invocable` | boolean | `true` | When `false`, hides from `/` command menu |
