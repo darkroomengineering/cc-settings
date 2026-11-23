@@ -9,8 +9,8 @@ import {
 } from "../src/lib/codex-runtime-manifests.ts";
 
 test("personal overrides runtime sources belong only to the new manifest versions", () => {
-  expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBe(49);
-  expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBe(36);
+  expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBe(50);
+  expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBe(37);
   for (const path of ["src/lib/personal-overrides.ts", "src/schemas/personal-overrides.ts"]) {
     expect(runtimePathsForVersion(33, "test")).not.toContain(path);
     expect(runtimePathsForVersion(34, "test")).toContain(path);
@@ -42,6 +42,19 @@ test("the native-apps profile and platform design rules belong only to the new m
     expect(claudeManagedManifestPaths(48, "full", "test")).not.toContain(path);
     expect(claudeManagedManifestPaths(49, "full", "test")).toContain(path);
     expect(claudeManagedManifestPaths(49, "light", "test")).not.toContain(path);
+  }
+});
+
+test("the case-study fake data layer and leak check belong only to the new manifest versions", () => {
+  for (const path of [
+    "skills/case-study/scripts/browser/fakedata.js",
+    "skills/case-study/scripts/browser/leakcheck.js",
+  ]) {
+    expect(runtimePathsForVersion(36, "test")).not.toContain(path);
+    expect(runtimePathsForVersion(37, "test")).toContain(path);
+    expect(claudeManagedManifestPaths(49, "full", "test")).not.toContain(path);
+    expect(claudeManagedManifestPaths(50, "full", "test")).toContain(path);
+    expect(claudeManagedManifestPaths(50, "light", "test")).not.toContain(path);
   }
 });
 
