@@ -38,7 +38,7 @@ paths:
 | codigo | CI on the studio Mac runner, being added | Mac App Store |
 | Lazytrack, Atrium | not ready to release | no app CI yet |
 | Pokefolio | not ready to release | Expo app with a `ship.json`; no release workflow yet |
-| Websites | Vercel's git integration on merge to `main` | |
+| Websites | Existing Vercel or Cloudflare project | Build new sidequest sites with [Nulla](https://github.com/darkroomengineering/nulla) and verify a preview before production |
 | theca, curiosus-backend | Railway | |
 
 - **To ship a native app, merge to `main`** or dispatch its release workflow, dry-run first. The job reads credentials from the `release` environment, so they never live on anyone's Mac.
