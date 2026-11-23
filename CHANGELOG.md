@@ -9,8 +9,8 @@ All notable changes to cc-settings are documented here.
 Synced with Claude Code v2.1.330. Codex v0.171.0 had no new release.
 
 - The env var reference covers `CLAUDE_CODE_FULL_SIGN_IN_LINK`, and `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT` now covering unrecognized sonnet and haiku names.
-- The skill frontmatter table documents `model`, which now leaves a skill's subagents, forks and compaction on the session model.
-- The hook reference documents the prompt hook `model` field, which accepts aliases such as `haiku`.
+- The skill frontmatter table documents `model`, which now leaves an inline skill's subagents, forks and compaction on the session model; `context: fork` skills are excepted.
+- The hook reference documents the `model` field of prompt and agent hooks; prompt hooks accept aliases such as `haiku`.
 - The `deniedMcpServers` notes say a name entry hides only the connector with that name.
 
 ## [16.5.0] — 2026-11-20
