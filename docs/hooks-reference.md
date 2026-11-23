@@ -264,6 +264,7 @@ echo "Edited file: $FILE_PATH"
 |-------|------|---------|-------------|
 | `type` | string | (required) | `"command"` (shell), `"prompt"` (LLM yes/no), `"agent"` (subagent with tools), or `"http"` (webhook) |
 | `command` | string | (required for command type) | Shell command to execute |
+| `model` | string | -- | (`prompt` and `agent` types) Model that runs the hook. Prompt hooks accept aliases such as `haiku` or `sonnet` as well as full model IDs since v2.1.330 |
 | `args` | string[] | -- | (v2.1.139, `command` type) Exec form. When set, CC spawns `command` directly with this argv — no shell. Safer for paths with spaces; no quoting needed in `command`. |
 | `async` | boolean | `false` | Run in background without blocking Claude |
 | `timeout` | number | `600` | Timeout in seconds (max: 600) |
