@@ -290,7 +290,7 @@ describe("eval-changed gate", () => {
       ["fix-old-name", ["fix", "critical"]],
       ["fix-untagged", ["fix"]],
       ["fix-kept", ["fix"]],
-      ["ship-deleted", ["ship"]],
+      ["land-deleted", ["land"]],
     ];
     const current = new Map([
       ["fix-new-name", ["fix", "critical"]],

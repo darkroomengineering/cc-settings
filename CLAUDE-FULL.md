@@ -60,13 +60,13 @@ of work: `start` at kickoff, once the ask is clarified and before research,
 with the goal, why it matters, the plan and what done means (wait for the ID
 and put it in the branch name); `update` when the plan is agreed, the scope
 changes, a blocker appears or a decision is made; `pr-opened` and `ci` after
-`/ship` reports; `review-ready` with a closing comment per
+`/land` reports; `review-ready` with a closing comment per
 `skills/stories/references/closing-comment.md` (`/build` drafts it for ticket
 builds; write it yourself otherwise); `merged` after landing; and `follow-up`
 for work you defer (`/stories` spawns it with `tickets` to create approved
 tickets). Milestones only: never a comment per step. Pass the event, repo,
-branch, issue ID, PR URL and CI result you already have. `/ship` and `/build`
-run as forks and cannot spawn it; ship's "Linear issue" step is their
+branch, issue ID, PR URL and CI result you already have. `/land` and `/build`
+run as forks and cannot spawn it; land's "Linear issue" step is their
 fallback. The `linear-gate` hook reminds on a commit whose branch names no
 issue and blocks a PR that has none. A repo that tracks work in GitHub Issues
 instead gets the same milestones from the main session: `gh issue create` at
@@ -111,7 +111,7 @@ after a merge; scoped CI fixes on an approved PR; doc-only commits; one rerun
 of a flaky check. This is a floor, not a whitelist.
 
 Watching a PR until its checks pass ("merge when green", "babysit CI") goes
-through the `ship` skill, Step 9 or land mode. Never write a polling loop,
+through the `land` skill, Step 9 or merge mode. Never write a polling loop,
 watcher script, or merge script for it; those re-read the whole context per
 poll and have merged before checks finished.
 

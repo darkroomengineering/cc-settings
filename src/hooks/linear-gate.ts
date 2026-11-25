@@ -3,12 +3,12 @@
 // `gh pr edit` that sets a title, when the repo maps to a Linear team and no
 // issue of a known team appears in the title, the body or the branch name.
 // A known team is the mapped one or any other team the mapping names, since a
-// repo can ship another team's issues. The ship skill's "Linear issue" step
+// repo can ship another team's issues. The land skill's "Linear issue" step
 // finds or creates the issue; this hook catches PRs opened any other way. A
 // `git commit` on a branch that names no issue gets a reminder, never a block,
 // so the ticket exists from kickoff.
 //
-// The mapping is read in the ship skill's order: ~/.claude/linear-teams.json,
+// The mapping is read in the land skill's order: ~/.claude/linear-teams.json,
 // then the linear-map.json cache SessionStart keeps from team-knowledge. An
 // unmapped repo, a repo mapped to null, and a cache older than a week
 // (readLinearMap returns null) all pass. `CC_SKIP_LINEAR=1` in front of the
@@ -210,7 +210,7 @@ export async function gateReason(
     const fill = pr.fill ? " Drop --fill and write the title and body yourself." : "";
     return (
       `[Linear Gate] ${slug} maps to Linear team ${target.team}${project}, and this PR names no ${target.team} issue. ` +
-      `Find or create one per the ship skill's "Linear issue" step, then retry with " (${target.team}-123)" at the end of the title and "Fixes ${target.team}-123" in the body.${fill} ` +
+      `Find or create one per the land skill's "Linear issue" step, then retry with " (${target.team}-123)" at the end of the title and "Fixes ${target.team}-123" in the body.${fill} ` +
       `If Linear is unreachable, prefix the command with ${SKIP_VAR}=1 and tell the user the PR has no issue.`
     );
   }
@@ -230,7 +230,7 @@ export async function commitReminder(
   const target = lookup(slug, teams, map);
   if (!target) return null;
   const branch = await deps.branch(cwd);
-  // main and master are /ship's to branch off; a detached HEAD has no name to fix.
+  // main and master are /land's to branch off; a detached HEAD has no name to fix.
   if (!branch || branch === "main" || branch === "master") return null;
   if (hasIssueId(branch, acceptedKeys(target, teams, map))) return null;
   return (

@@ -36,7 +36,7 @@ Before any implementation, complete this research phase:
 
 **GO/ASK/NO-GO Verdict**: After research, state one of:
 - **GO** — requirements are clear, every cold-reader question is answered in the spec, approach is viable, proceed to implementation.
-- **ASK** — requirements have more than one plausible reading. Run clarifying rounds (AskUserQuestion in Claude, Plan mode `request_user_input` in Codex; up to 4 questions each, recommendation first) until no fork is left, then re-issue the verdict. If the user named no Linear issue, the first round also asks whether to create one now (recommended: yes); create it per the `ship` skill's "Linear issue" step and put its ID in the branch name. Never open a round only for this: `/ship` creates the issue anyway.
+- **ASK** — requirements have more than one plausible reading. Run clarifying rounds (AskUserQuestion in Claude, Plan mode `request_user_input` in Codex; up to 4 questions each, recommendation first) until no fork is left, then re-issue the verdict. If the user named no Linear issue, the first round also asks whether to create one now (recommended: yes); create it per the `land` skill's "Linear issue" step and put its ID in the branch name. Never open a round only for this: `/land` creates the issue anyway.
 - **NO-GO** — approach has blockers or scope is too large. Report findings and stop.
 
 Do not proceed past this gate without an explicit GO verdict.
@@ -67,7 +67,7 @@ Screen the approach against this table before listing files. The next contributo
 
 ## Phase 3: Implement
 
-**Linear.** When the session has a Linear project (a `Linear: team ..., project ...` line at startup, or a mapping found by the `ship` skill's "Linear issue" step 2), the work needs an issue before the first commit: use the one the user named, or create it per that step. Start the branch from it (`feat/DR-123-newsletter-form`) so Linear links the PR; `/ship` then adds the ID to the PR title and `Fixes DR-123` to the body. No Linear project for the repo: skip this.
+**Linear.** When the session has a Linear project (a `Linear: team ..., project ...` line at startup, or a mapping found by the `land` skill's "Linear issue" step 2), the work needs an issue before the first commit: use the one the user named, or create it per that step. Start the branch from it (`feat/DR-123-newsletter-form`) so Linear links the PR; `/land` then adds the ID to the PR title and `Fixes DR-123` to the body. No Linear project for the repo: skip this.
 
 Follow standard Maestro workflow: scaffold → implement → test → review.
 

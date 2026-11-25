@@ -36,7 +36,7 @@ You are in **Maestro orchestration mode**. Delegate immediately to specialized a
 
 ## Workflow
 
-0. **Clarify** - If the report admits more than one reading (which surface, which environment, what "fixed" looks like), run clarifying rounds through the host's question tool until no fork is left, before exploring; a report that names the file, the symptom, and the expected behaviour skips this. When a round runs and the user named no Linear issue, add one question: create one now (recommended: yes)? Create it per the `ship` skill's "Linear issue" step and put its ID in the branch name. Never open a round only for this: `/ship` creates the issue anyway
+0. **Clarify** - If the report admits more than one reading (which surface, which environment, what "fixed" looks like), run clarifying rounds through the host's question tool until no fork is left, before exploring; a report that names the file, the symptom, and the expected behaviour skips this. When a round runs and the user named no Linear issue, add one question: create one now (recommended: yes)? Create it per the `land` skill's "Linear issue" step and put its ID in the branch name. Never open a round only for this: `/land` creates the issue anyway
 1. **Explore** - Spawn `explore` agent to understand the affected codebase area
 2. **Reproduce** - Spawn `tester` agent to create a failing test if possible
    - For browser defects, retry from a known starting state before collecting final evidence. Capture one screenshot for a static defect and annotate the affected control when helpful. For interaction defects, link numbered reproduction steps to captures of the setup, action, and result. Record a short clip when timing or motion is part of the symptom.
@@ -151,7 +151,7 @@ If the failure is on a pushed branch with an open PR (not a local bug), use `gh 
    - GitHub Actions: `gh run view RUN_ID --log-failed`.
    - External services: follow the check `link` to the provider.
 4. Extract the first actionable error. Apply the smallest safe fix.
-5. Push and re-check. The check set can change between runs — re-read `gh pr checks` after every push. To wait for the result, use the `ship` skill's Step 9 watch; do not write a polling loop.
+5. Push and re-check. The check set can change between runs — re-read `gh pr checks` after every push. To wait for the result, use the `land` skill's Step 9 watch; do not write a polling loop.
 
 Guardrails:
 

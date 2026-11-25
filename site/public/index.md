@@ -27,7 +27,7 @@ Install and sign in to Claude Code, Codex CLI, or both first: cc-settings config
 ## What it installs
 
 - Coding standards and guardrails every tool reads, twelve topic rules, and six stack profiles.
-- 23 skills, named workflows picked from plain language: fix, build, review, ship, audit, handoff and the rest.
+- 23 skills, named workflows picked from plain language: fix, build, review, land, audit, handoff and the rest.
 - 9 role agents, so big work is split between a planner, explorer, implementer, tester, reviewer and others.
 - 22 hooks on 16 lifecycle events. They block destructive commands such as `rm -rf`, and a permission rule denies a force push to main.
 

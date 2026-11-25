@@ -110,7 +110,7 @@ Most days are some path through these steps:
 | Build | "add a stats dashboard to the admin page" | `/build` | A GO/NO-GO check, a plan, the implementation, tests, and a review |
 | Check | "review my changes" | `/dr-review` | Findings on the current diff by severity, with no edits |
 | Prove | "is this review-ready?" | `/proof-of-work` | The project's real typecheck, tests, lint, and a screenshot for UI work |
-| Ship | "ship it" | `/ship` | A pushed branch, a PR in the house format, and CI watched until it settles |
+| Land | "ship it" | `/land` | A pushed branch, a PR in the house format, and CI watched until it settles |
 | Pause | "done for today" | `/handoff` | Saved state; "continue where we left off" resumes it in a new session |
 
 Claude Code's built-in `/code-review` reviews a diff without the Darkroom checklist. `/dr-review`
@@ -224,7 +224,7 @@ on every machine. The same request behaves differently once it is installed:
   cover, and six stack profiles (Next.js, React Router, React Native, Tauri, WebGL, durable agents)
   add the specifics of each stack.
 - **23 skills.** Named workflows selected from ordinary language or pinned with `/name` in Claude
-  and `$name` in Codex: fix, build, review, ship, audit, poke-holes, handoff, and the
+  and `$name` in Codex: fix, build, review, land, audit, poke-holes, handoff, and the
   rest. The [skill guide](./docs/skills.md) lists what each one changes and when it asks.
 - **9 role agents.** Planner, explorer, implementer, tester, reviewer, security reviewer,
   deslopper, orchestrator, and a cross-model verifier. Big work is divided instead of

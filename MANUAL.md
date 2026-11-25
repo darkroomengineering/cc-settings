@@ -84,9 +84,9 @@ These workflows inspect `package.json` and visible imports. Profile files docume
 there is no supported `settings.json` switch that activates a profile. See
 [profiles](./docs/profiles.md).
 
-### Ship
+### Land
 
-Say "ship it", "create a PR", or "land this PR". The `ship` workflow runs type checking, build,
+Say "ship it", "create a PR", or "land this PR", or type `/land`. Claude Code's own `/ship` is a separate command that never merges. The `land` workflow runs type checking, build,
 one configured full test suite, lint, relevant web checks, review, and then the requested GitHub
 operation. A real test failure cannot fall through to a narrower runner.
 

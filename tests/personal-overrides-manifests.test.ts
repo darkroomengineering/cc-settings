@@ -9,8 +9,8 @@ import {
 } from "../src/lib/codex-runtime-manifests.ts";
 
 test("personal overrides runtime sources belong only to the new manifest versions", () => {
-  expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBe(50);
-  expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBe(37);
+  expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBe(51);
+  expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBe(38);
   for (const path of ["src/lib/personal-overrides.ts", "src/schemas/personal-overrides.ts"]) {
     expect(runtimePathsForVersion(33, "test")).not.toContain(path);
     expect(runtimePathsForVersion(34, "test")).toContain(path);
@@ -62,4 +62,18 @@ test("the platform audit checks belong only to the new runtime manifest version"
   const path = "skills/audit/references/platform-checks.md";
   expect(runtimePathsForVersion(35, "test")).not.toContain(path);
   expect(runtimePathsForVersion(36, "test")).toContain(path);
+});
+
+test("the ship skill installs as land from the new manifest versions", () => {
+  const before = "skills/ship/SKILL.md";
+  const after = "skills/land/SKILL.md";
+  expect(runtimePathsForVersion(37, "test")).toContain(before);
+  expect(runtimePathsForVersion(38, "test")).not.toContain(before);
+  expect(runtimePathsForVersion(38, "test")).toContain(after);
+  for (const profile of ["full", "light"] as const) {
+    const old = claudeManagedManifestPaths(50, profile, "test");
+    const next = claudeManagedManifestPaths(51, profile, "test");
+    expect(next).not.toContain(before);
+    expect(next.includes(after)).toBe(old.includes(before));
+  }
 });

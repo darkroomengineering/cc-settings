@@ -317,6 +317,24 @@ describe("legacy Codex skill migration", () => {
 describe("retired cc-settings skills", () => {
   const shippedEffort = join(REPO, "tests", "fixtures", "retired-skills", "effort-SKILL.md");
 
+  test("flags a shipped copy of the renamed ship skill and keeps an edited one", async () => {
+    const shippedShip = join(REPO, "tests", "fixtures", "retired-skills", "ship-SKILL.md");
+    for (const [bytes, expected] of [
+      [await readFile(shippedShip), ["ship"]],
+      [Buffer.from("---\nname: ship\n---\nmine\n"), []],
+    ] as const) {
+      const root = await mkdtemp(join(tmpdir(), "cc-retired-ship-"));
+      try {
+        const skills = join(root, "skills");
+        await mkdir(join(skills, "ship"), { recursive: true });
+        await writeFile(join(skills, "ship", "SKILL.md"), bytes);
+        expect(await scanRetiredSkills(skills)).toEqual([...expected]);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+  });
+
   test("flags only unmodified shipped copies and moves them to a backup", async () => {
     const root = await mkdtemp(join(tmpdir(), "cc-retired-skills-"));
     try {

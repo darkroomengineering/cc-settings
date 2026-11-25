@@ -38,7 +38,7 @@ beforeAll(async () => {
   // skills/ — subdirs each holding SKILL.md, plus the README.md that caused
   // the original "(1)" miscount, plus a stray subdir with no SKILL.md.
   await touch(join(root, "skills", "README.md"));
-  for (const name of ["build", "fix", "ship"]) {
+  for (const name of ["build", "fix", "land"]) {
     await touch(join(root, "skills", name, "SKILL.md"));
   }
   await mkdir(join(root, "skills", "not-a-skill"), { recursive: true }); // no SKILL.md
@@ -97,7 +97,7 @@ describe("countSkillDirs", () => {
   // Counting them made the summary claim credit for skills it did not install.
   test("third-party skills are not counted as installed", async () => {
     const shared = join(root, "shared-skills");
-    for (const name of ["build", "fix", "ship"]) {
+    for (const name of ["build", "fix", "land"]) {
       await touch(join(shared, name, "SKILL.md"));
     }
     // Real examples seen in a live ~/.claude/skills: not shipped by cc-settings.
