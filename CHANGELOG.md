@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [16.6.0] — 2026-11-25
+
+Synced with Claude Code v2.1.332 and Codex v0.172.0 (OSS-251).
+
+- The hook schema accepts the `PreSkillShellCommand` event (v2.1.332), which can refuse a skill's inline shell commands as it loads. cc-settings does not wire a hook for it yet, because Claude Code v2.1.331 and older open a dialog at start for any settings file that names it.
+- The env var reference covers `CLAUDE_CODE_DISABLE_RESPONSE_COMPRESSION` (v2.1.331), for proxies that cut compressed responses off. It stays unset.
+- The hook reference explains that a `PermissionDenied` hook's `retry: true` now asks Claude to retry only a call you asked for (v2.1.331).
+- The skill guide notes that skills from MCP servers show as `server:skill` and sit outside this library.
+- Codex v0.172.0 and the Codex app changelog through 2026-11-25 needed no changes.
+
 ## [16.5.1] — 2026-11-23
 
 Synced with Claude Code v2.1.330. Codex v0.171.0 had no new release.

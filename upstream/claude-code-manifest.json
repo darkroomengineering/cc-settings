@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-11-23T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.330",
+  "lastScan": "2026-11-25T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.332",
   "knownSettingsKeys": [
     "$schema",
     "additionalMarketplaces",
@@ -165,6 +165,7 @@
     "PostToolUseFailure",
     "PreCompact",
     "PreModelSwitch",
+    "PreSkillShellCommand",
     "PreToolUse",
     "SessionEnd",
     "SessionStart",
@@ -318,7 +319,8 @@
     "CLAUDE_CODE_DISABLE_AGENT_PROGRESS_SUMMARIES",
     "CLAUDE_CODE_DISABLE_DEFERRED_TOOL_RESUME",
     "CLAUDE_CODE_RESUME_HINT_COMMAND",
-    "CLAUDE_CODE_FULL_SIGN_IN_LINK"
+    "CLAUDE_CODE_FULL_SIGN_IN_LINK",
+    "CLAUDE_CODE_DISABLE_RESPONSE_COMPRESSION"
   ],
   "knownBuiltinTools": [
     "Agent",
@@ -430,6 +432,7 @@
     "v2.1.322 sync (2026-11-12). Env var tracked: CLAUDE_CODE_PLUGIN_DIR_WATCH (documented, not set). Docs only: claude -p stops background commands at 10 minutes, not 30; claude remote-control --settings <file>. Fable 5.2 was already documented. No adoption in schemas or config, no dedupe. Skipped: fast mode on Vertex (2.1.322), nested .claude/skills under ~/.claude/plugins no longer loading (we install none there), cp/mv deny-rule, sandbox and MCP OAuth security fixes, hook ask/defer and mcp_tool size fixes, managed extraKnownMarketplaces and gateway policy changes, Cowork, VSCode, Windows, cloud, Remote Control UI and other fix-only bullets. 2.1.320 had no changelog entry.",
     "v2.1.325 sync (2026-11-16; upstream skipped 2.1.324). Env vars tracked: CLAUDE_CODE_DISABLE_AGENT_PROGRESS_SUMMARIES (2.1.323, available since 2.1.318; documented, not set: it trades the live subagent progress line for fewer tokens) and CLAUDE_CODE_RESUME_HINT_COMMAND (documented, not set). Dedupe: the docs paragraph on subagentStatusLine, which 2.1.323 removed (cc-settings never set it). Docs only: CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS accepts up to 300000. Skipped: plugin.json engines[\"claude-code\"] (no stated version floor), Code Mode (experimental, no setting), the 1M default window for unknown model IDs (nothing hardcodes 200K), sandbox permission-flow and .claude write changes (only failIfUnavailable is set), /loop asking before allowed-tools skills (none are loop bodies), and bug fixes.",
     "v2.1.326–2.1.329 sync (2026-11-20). Adopted optional attributionProject for Claude apps gateway billing groups. Tracked CLAUDE_CODE_DISABLE_DEFERRED_TOOL_RESUME. Documented MCP tool hook onFailure and the Code Mode PreToolUse behavior. No native dedupe or default configuration changes.",
-    "v2.1.330 sync (2026-11-23). Tracked CLAUDE_CODE_FULL_SIGN_IN_LINK (documented, not set). Docs only: skill `model` scope (an inline skill's subagents, forks, compaction and /recap stay on the session model; context: fork skills excepted), prompt-hook model aliases, CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT covering unrecognized sonnet/haiku names, deniedMcpServers name entries hiding only the named connector. No dedupe: native rm approval asks where the destructive-command hook blocks. Skipped: easel chart mod, 30-day /loop, self-hosted runner flags and metrics, Enterprise Admin Console sign-in, restored max_tokens retry, VSCode, Code Mode and bug fixes."
+    "v2.1.330 sync (2026-11-23). Tracked CLAUDE_CODE_FULL_SIGN_IN_LINK (documented, not set). Docs only: skill `model` scope (an inline skill's subagents, forks, compaction and /recap stay on the session model; context: fork skills excepted), prompt-hook model aliases, CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT covering unrecognized sonnet/haiku names, deniedMcpServers name entries hiding only the named connector. No dedupe: native rm approval asks where the destructive-command hook blocks. Skipped: easel chart mod, 30-day /loop, self-hosted runner flags and metrics, Enterprise Admin Console sign-in, restored max_tokens retry, VSCode, Code Mode and bug fixes.",
+    "v2.1.331–2.1.332 sync (2026-11-25). Adopted the PreSkillShellCommand hook event in the schema and docs, not wired (a settings file naming it opens a startup dialog on 2.1.331 and older). Tracked CLAUDE_CODE_DISABLE_RESPONSE_COMPRESSION (documented, not set). Docs only: PermissionDenied retry: true semantics, MCP server skills shown as server:skill. No dedupe. Skipped: plugin optionalDependencies (no plugin dependencies), managed extraKnownMarketplaces auto-update default (ours is user-level and SHA-pinned), computer-use reserved skill name (no conflict), OTel changes, gateway, Bedrock, Foundry, Vertex, self-hosted runner, VSCode, Code Mode and bug fixes."
   ]
 }
