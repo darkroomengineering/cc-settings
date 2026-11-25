@@ -6,7 +6,8 @@
 
 You do not need to memorize names. Describe the outcome and let the host match a workflow. Pin a
 skill when you need an exact boundary: `/skill-name` in Claude Code and `$skill-name` in standalone
-Codex.
+Codex. Skills that an MCP server provides (Claude Code beta, v2.1.332) show in the `/` menu as
+`server:skill`; they are not part of this library.
 
 The executable procedure remains in each linked `SKILL.md`. This guide explains the human contract.
 The canonical active-name registry is `ACTIVE_SKILLS` in

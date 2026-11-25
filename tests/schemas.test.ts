@@ -9,7 +9,7 @@ import type { z } from "zod";
 import { composeSettings } from "../src/lib/compose-settings.ts";
 import { parseFrontmatter } from "../src/lib/frontmatter.ts";
 import { buildSchema, OUT, targets } from "../src/schemas/emit.ts";
-import { HookEvent } from "../src/schemas/hooks.ts";
+import { HookEvent, HooksBlock } from "../src/schemas/hooks.ts";
 import { Settings } from "../src/schemas/settings.ts";
 import { SkillFrontmatter } from "../src/schemas/skill.ts";
 
@@ -135,6 +135,34 @@ describe("HookEvent schema — v11.6.0 new events", () => {
   test("rejects an unknown event name", () => {
     expect(HookEvent.safeParse("TotallyBogusEvent").success).toBe(false);
   });
+});
+
+describe("HooksBlock — PreSkillShellCommand hook types", () => {
+  const block = (hook: Record<string, unknown>) => ({
+    PreSkillShellCommand: [{ matcher: "Bash", hooks: [hook] }],
+  });
+  test("accepts a command hook", () => {
+    expect(HooksBlock.safeParse(block({ type: "command", command: "true" })).success).toBe(true);
+  });
+  for (const type of ["prompt", "agent"] as const) {
+    test(`rejects a ${type} hook`, () => {
+      const result = HooksBlock.safeParse(block({ type, prompt: "check it" }));
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.path).toEqual([
+        "PreSkillShellCommand",
+        0,
+        "hooks",
+        0,
+        "type",
+      ]);
+    });
+    test(`still accepts a ${type} hook on PreToolUse`, () => {
+      const result = HooksBlock.safeParse({
+        PreToolUse: [{ hooks: [{ type, prompt: "check it" }] }],
+      });
+      expect(result.success).toBe(true);
+    });
+  }
 });
 
 describe("SkillFrontmatter schema vs every SKILL.md in skills/", () => {

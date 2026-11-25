@@ -94,7 +94,8 @@ This surface may change between Claude Code releases without notice — regenera
 | `PostToolBatch` | After a batch of tool calls completes | -- | No |
 | `PostToolUseFailure` | After a tool execution fails | Tool name | Optional |
 | `PermissionRequest` | When a tool needs user permission | Tool name | Yes |
-| `PermissionDenied` | After auto mode classifier denies a tool | Tool name | No |
+| `PermissionDenied` | After auto mode classifier denies a tool. Since v2.1.331 a `retry: true` output tells Claude to make the refused call again only if you asked for that call | Tool name | No |
+| `PreSkillShellCommand` | As a skill or slash command loads, before its inline shell commands run (v2.1.332). `deny`, `ask` and `defer` all keep the command from running, and `updatedInput` is never applied. Only command, HTTP and MCP tool hooks run here; a prompt or agent hook blocks every command, so the schema rejects them. Not wired by cc-settings: on v2.1.331 and older a settings file naming it opens a dialog at start | Shell tool name (`Bash` or `PowerShell`) | Yes |
 
 ### Agent Lifecycle
 
