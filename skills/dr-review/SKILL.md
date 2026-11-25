@@ -53,7 +53,7 @@ Claude bridge branch below.
 
 ## Cross-model review (when the Codex bridge is available)
 
-This skill runs as the Claude `reviewer` agent, often Claude reviewing a diff Claude just wrote, the self-preferential-bias case. The one cross-model Codex review per PR, `/ship`, or direct push (see `CLAUDE-FULL.md` "Claude and Codex routing") covers that case. Run it here only when the user asks or no Codex review has run for this PR (the reviewer has `Bash`, so call the bridge directly):
+This skill runs as the Claude `reviewer` agent, often Claude reviewing a diff Claude just wrote, the self-preferential-bias case. The one cross-model Codex review per PR, `/land`, or direct push (see `CLAUDE-FULL.md` "Claude and Codex routing") covers that case. Run it here only when the user asks or no Codex review has run for this PR (the reviewer has `Bash`, so call the bridge directly):
 
 ```bash
 bun "$HOME/.claude/src/scripts/codex-run.ts" review

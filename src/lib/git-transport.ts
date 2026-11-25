@@ -52,7 +52,7 @@ export function gitTransportLines(probe: TransportProbe): string[] {
     } else {
       const unlock = probe.onePassword ? " (or ask the user to unlock 1Password to use SSH)" : "";
       lines.push(
-        `Git push: no SSH key is loaded, so every push in this session, inside or outside /ship, uses the gh login and never retries SSH; this command is the supported path, not an untested fallback: ${insteadOfPush(origin)}${unlock}`,
+        `Git push: no SSH key is loaded, so every push in this session, inside or outside /land, uses the gh login and never retries SSH; this command is the supported path, not an untested fallback: ${insteadOfPush(origin)}${unlock}`,
       );
     }
   } else {

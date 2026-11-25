@@ -249,7 +249,7 @@ sync PR carries a Linear issue, created without asking when none exists. Put
 the ID at the end of the PR title and `Fixes <ID>` on its own line in the
 body. After `gh pr create`, spawn `linear` again with event `pr-opened` and
 the PR URL, and do not wait for it. Report the issue link with the PR link.
-With no Linear MCP server connected, follow the `ship` skill's "Linear issue"
+With no Linear MCP server connected, follow the `land` skill's "Linear issue"
 step yourself. The `linear-gate` hook blocks a PR without an issue in a mapped
 repo.
 
@@ -495,5 +495,5 @@ missing, the session is one that cannot load `AGENTS.md` (`disableAllHooks`,
 offer the one-line `CLAUDE.md` that holds `@AGENTS.md` as the fallback.
 
 Commit as `chore: move CLAUDE.md into AGENTS.md` on the project's usual branch
-flow (a PR through `/ship`; cc-settings main also takes changes only through a PR).
+flow (a PR through `/land`; cc-settings main also takes changes only through a PR).
 

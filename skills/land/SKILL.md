@@ -1,10 +1,10 @@
 ---
-name: ship
-description: Push, open a PR, and watch CI; land mode merges and cleans branches. Triggers "ship it", "create PR", "babysit CI", "land it", "fix CI and merge".
+name: land
+description: Push, open a PR, and watch CI; merge mode merges and cleans branches. Triggers "land it", "ship it", "create PR", "babysit CI", "fix CI and merge".
 context: fork
 ---
 
-# Ship Pipeline
+# Land Pipeline
 
 ## Standalone Codex
 
@@ -37,7 +37,7 @@ bun "$HOME/.claude/src/scripts/git-transport.ts"
 ```
 Follow its `Git push:` line for every push in this run, so a dropped SSH agent never costs a failed push. Never retry SSH after "Permission denied (publickey)". The 1Password instruction applies only when that line mentions 1Password; a `Commits are signed through 1Password` line means ask the user to unlock it now, before the first commit, because signing fails once the agent is locked. `not logged in` means stop and ask the user to log in. No output means no GitHub origin: use a plain `git push`.
 
-When the repo maps to a Linear team (the startup `Linear:` line, or `~/.claude/tmp/linear-map.json`), confirm the Linear MCP server is connected (a Linear tool such as `list_teams` is available and answers). If it is not, stop before any commit and hand back: "Sign in to Linear: run /mcp and select the Linear server, then rerun /ship. If you signed in from another session, restart this one; an open session keeps the Linear tools it started with", unless the user says this PR goes without a ticket.
+When the repo maps to a Linear team (the startup `Linear:` line, or `~/.claude/tmp/linear-map.json`), confirm the Linear MCP server is connected (a Linear tool such as `list_teams` is available and answers). If it is not, stop before any commit and hand back: "Sign in to Linear: run /mcp and select the Linear server, then rerun /land. If you signed in from another session, restart this one; an open session keeps the Linear tools it started with", unless the user says this PR goes without a ticket.
 
 Read and validate `package.json` before choosing commands. Invalid JSON or invalid
 script declarations block the pipeline. Do not commit until all applicable gates
@@ -134,7 +134,7 @@ If the `codex-verifier` spawn fails, or it reports that Bash was stripped (forke
 
 Read `~/.claude/rules/git.md` if present; Steps 7 and 8 follow its "Commit and PR mechanics".
 
-`git branch --show-current` printing `main` or `master` means branch off before the first commit: run steps 1-4 of "Linear issue" below to get the ID (skip them when the repo has no Linear or the user opted out of a ticket), then `git switch -c <type>/<LINEAR-ID>-<slug>` and commit there. /ship never pushes to main or master; the safety-net hook asks the user before any such push.
+`git branch --show-current` printing `main` or `master` means branch off before the first commit: run steps 1-4 of "Linear issue" below to get the ID (skip them when the repo has no Linear or the user opted out of a ticket), then `git switch -c <type>/<LINEAR-ID>-<slug>` and commit there. /land never pushes to main or master; the safety-net hook asks the user before any such push.
 
 Analyze the diff to decide commit strategy:
 
@@ -255,7 +255,7 @@ Guardrails:
 
 ### Land Mode (existing PR → merged → clean)
 
-Invoked as `/ship land` or when the ask is "review/fix CI then merge then clean up" on a PR that already exists. Skip Steps 0–8; run:
+Invoked as `/land merge` or when the ask is "review/fix CI then merge then clean up" on a PR that already exists. Skip Steps 0–8; run:
 
 1. Capture the head you're validating: `gh pr view --json headRefOid,reviewDecision,mergeable`. Everything below is checked against THIS `headRefOid`.
 2. Run Step 9 (required set, one blocking watch, verdict). If red, run its CI-fix loop until green. A CI fix that pushes a new commit moves the head: re-capture `headRefOid` and re-check against it.
@@ -265,7 +265,7 @@ Invoked as `/ship land` or when the ask is "review/fix CI then merge then clean 
 6. Cleanup: `git checkout main && git pull`, delete the local branch, prune remotes (`git remote prune origin`). Leave only main unless other branches have open PRs.
 7. Report: PR link, merge commit, branches deleted.
 
-Per `CLAUDE-FULL.md` "Autonomy": steps 5–7 are pre-approved once CI is green, the head is confirmed unchanged, and review is clean — report, don't ask. External-org repos: land mode is forbidden entirely.
+Per `CLAUDE-FULL.md` "Autonomy": steps 5–7 are pre-approved once CI is green, the head is confirmed unchanged, and review is clean — report, don't ask. External-org repos: merge mode is forbidden entirely.
 
 ## Output
 Return:

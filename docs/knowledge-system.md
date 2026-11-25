@@ -157,13 +157,13 @@ How it reaches a session:
 
 1. **Cache.** The detached refresh at SessionStart (`refresh-knowledge-index.ts`) fetches the file with `gh api` into `~/.claude/tmp/linear-map.json`, at most once per 6 hours. A failed fetch (no `gh`, no access, 404, bad JSON, wrong shape) never overwrites a good cache. The reader ignores a cache older than 7 days, so someone who loses access to the repo stops seeing the map within a week. Nothing needs a token or a setting; without read access to the repo there is no cache and no feature.
 2. **Session line.** `session-start.ts` reads the cache (no network) and compares the `origin` remote with the map. A mapped repo prints `Linear: team DR, project "<name or id>"`. A `darkroomengineering` repo with no entry prints a request to add it by PR. Repos outside the org, repos mapped to `null`, and sessions without a cache print nothing.
-3. **Skills.** `/ship` and `/build` use the project when a repo has one. `/build` starts the branch from the issue (`feat/DR-123-slug`); `/ship` finds or creates the issue, then puts the ID at the end of the PR title and `Fixes DR-123` in the PR body. Linear's GitHub integration links the PR and moves the issue to In Progress and Done. `~/.claude/linear-teams.json` (a per-repo `{"server", "team", "project"}` map) overrides the shared map for one person.
+3. **Skills.** `/land` and `/build` use the project when a repo has one. `/build` starts the branch from the issue (`feat/DR-123-slug`); `/land` finds or creates the issue, then puts the ID at the end of the PR title and `Fixes DR-123` in the PR body. Linear's GitHub integration links the PR and moves the issue to In Progress and Done. `~/.claude/linear-teams.json` (a per-repo `{"server", "team", "project"}` map) overrides the shared map for one person.
 
 The cache and the session line carry team keys, project ids and project names only: no issue text, no tokens, nothing written into the repo you are working in.
 
 **Prerequisites, once per organization:** the Linear GitHub integration installed on the GitHub org (Linear settings, Integrations, GitHub; needs an admin).
 
-**Prerequisite, once per person:** sign in to Linear's official MCP server, which `/ship` uses to find and create issues. Each person signs in with their own account; nothing goes into settings and nobody shares a key.
+**Prerequisite, once per person:** sign in to Linear's official MCP server, which `/land` uses to find and create issues. Each person signs in with their own account; nothing goes into settings and nobody shares a key.
 
 ```bash
 claude mcp add --transport http linear https://mcp.linear.app/mcp

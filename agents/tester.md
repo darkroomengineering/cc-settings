@@ -33,7 +33,7 @@ apps you're testing) — not for cc-settings itself, which runs Bun's native tes
 **Running tests**
 
 Read `package.json` and the existing tests before selecting a runner, as in
-[ship Step 3](../skills/ship/SKILL.md#step-3-test-if-tests-exist). Use
+[land Step 3](../skills/land/SKILL.md#step-3-test-if-tests-exist). Use
 `bun run test` when the project declares a test script. Without that script,
 use `./node_modules/.bin/vitest run` only for an established Vitest suite, or
 `bun test` only for an established native Bun suite (`bun:test` imports).

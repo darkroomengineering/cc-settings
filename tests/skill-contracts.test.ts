@@ -1,4 +1,4 @@
-// Text contracts for forked skills. `ship` and `handoff` run with
+// Text contracts for forked skills. `land` and `handoff` run with
 // `context: fork`, so an eval case sees only the fork's report and passes or
 // fails by chance; these rules are pinned here instead. Each check reads only
 // the section that owns the rule, so moving a rule out of its step fails too.
@@ -29,8 +29,8 @@ function section(text: string, start: string): string {
   return lines.join("\n");
 }
 
-describe("ship commit and PR contract", () => {
-  const ship = read("skills/ship/SKILL.md");
+describe("land commit and PR contract", () => {
+  const ship = read("skills/land/SKILL.md");
   const step7 = section(ship, "### Step 7:");
   const step8 = section(ship, "### Step 8:");
   const mechanics = section(read("rules/git.md"), "## Commit and PR mechanics");

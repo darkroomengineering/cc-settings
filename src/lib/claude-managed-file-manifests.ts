@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 50;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 51;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -991,9 +991,17 @@ const ADDED_IN_V50 = [
   "skills/case-study/scripts/browser/fakedata.js",
   "skills/case-study/scripts/browser/leakcheck.js",
 ];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v50 = {
   full: [...v49.full, ...ADDED_IN_V50],
   light: v49.light,
+};
+MANIFESTS.set(50, v50);
+// Version 51: `ship` became `land`. Claude Code 2.1.332's native /ship shadows a skill named
+// `ship`, so ours stopped loading (see TOMBSTONE_SKILLS in managed-skills.ts).
+const RENAMED_IN_V51 = new Map([["skills/ship/SKILL.md", "skills/land/SKILL.md"]]);
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: v50.full.map((path) => RENAMED_IN_V51.get(path) ?? path),
+  light: v50.light.map((path) => RENAMED_IN_V51.get(path) ?? path),
 });
 
 const GENERATED_MANAGED_FILES = new Set([

@@ -190,6 +190,9 @@ const FILES_REMOVED_IN_V46 = [
   "skills/zero-tech-debt/SKILL.md",
 ];
 
+// Version 51 renamed ship to land; every earlier full version owns the old path.
+const FILES_REMOVED_IN_V51 = ["skills/ship/SKILL.md"];
+
 async function seedRemovedFiles(
   claudeDir: string,
   managedFiles?: Record<string, string>,
@@ -201,6 +204,7 @@ async function seedRemovedFiles(
     ...FILES_REMOVED_IN_V23,
     ...FILES_REMOVED_IN_V25,
     ...FILES_REMOVED_IN_V46,
+    ...FILES_REMOVED_IN_V51,
   ]) {
     await mkdir(dirname(join(claudeDir, path)), { recursive: true });
     await writeFile(join(claudeDir, path), bytes);
@@ -638,6 +642,8 @@ exit $rc
         expect(existsSync(join(claudeDir, path))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "review"))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "dr-review", "SKILL.md"))).toBe(true);
+      expect(existsSync(join(claudeDir, "skills", "ship"))).toBe(false);
+      expect(existsSync(join(claudeDir, "skills", "land", "SKILL.md"))).toBe(true);
       const upgraded = JSON.parse(await readFile(sentinelPath, "utf8")) as {
         managed_files: Record<string, string>;
         managed_files_manifest_version: number;
@@ -703,6 +709,8 @@ exit $rc
       expect(existsSync(join(claudeDir, "skills", "verify"))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "review"))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "dr-review", "SKILL.md"))).toBe(true);
+      expect(existsSync(join(claudeDir, "skills", "ship"))).toBe(false);
+      expect(existsSync(join(claudeDir, "skills", "land", "SKILL.md"))).toBe(true);
       for (const path of FILES_REMOVED_IN_V46)
         expect(existsSync(join(claudeDir, path))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "oracle"))).toBe(false);
@@ -2920,6 +2928,7 @@ describe("install E2E — uninstall ownership", () => {
             "skills/autoresearch/RESEARCH-FORMAT.md",
             "skills/cc/references/update-restart.md",
             "skills/dr-review/SKILL.md",
+            "skills/land/SKILL.md",
             "skills/poke-holes/SKILL.md",
             "skills/proof-of-work/references/offscreen.md",
             "skills/proof-of-work/references/verify-app-template.md",
