@@ -130,5 +130,24 @@ export type HookGroup = z.infer<typeof HookGroup>;
 // The `hooks` field of settings.json: partial record keyed by event name.
 // zod 4's `partialRecord` makes every enum key optional — users only need to
 // declare events they actually wire up. The strict enum still catches typos.
-export const HooksBlock = z.partialRecord(HookEvent, z.array(HookGroup));
+// Claude Code does not run prompt or agent hooks on PreSkillShellCommand, and a
+// hook that cannot run blocks the command, so one of them there would block
+// every skill shell command.
+const SKILL_SHELL_UNSUPPORTED: ReadonlySet<Hook["type"]> = new Set(["prompt", "agent"]);
+
+export const HooksBlock = z
+  .partialRecord(HookEvent, z.array(HookGroup))
+  .superRefine((block, ctx) => {
+    block.PreSkillShellCommand?.forEach((group, g) => {
+      group.hooks.forEach((hook, h) => {
+        if (SKILL_SHELL_UNSUPPORTED.has(hook.type)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["PreSkillShellCommand", g, "hooks", h, "type"],
+            message: `${hook.type} hooks don't run on PreSkillShellCommand and would block every skill shell command`,
+          });
+        }
+      });
+    });
+  });
 export type HooksBlock = z.infer<typeof HooksBlock>;
