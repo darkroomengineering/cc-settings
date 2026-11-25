@@ -10,6 +10,10 @@ export const HookEvent = z.enum([
   "Setup", // v2.1.x — triggered via --init, --init-only, or --maintenance CLI flags
   "UserPromptSubmit",
   "UserPromptExpansion", // v2.1.x — user prompt expansion events
+  // 2.1.332 — can refuse a skill's or command's inline shell commands as it loads.
+  // Do not wire it in config/40-hooks.json yet: on 2.1.331 and older a settings
+  // file naming it opens a dialog at every start.
+  "PreSkillShellCommand",
   "PreToolUse",
   "PermissionRequest",
   "PermissionDenied",
