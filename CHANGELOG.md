@@ -6,6 +6,7 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+- Agents can read X posts, threads and timelines, Reddit threads, Hacker News, YouTube details and transcripts, public LinkedIn posts and App Store reviews through the new `research-sources` skill, adapted from [research-sources](https://github.com/SamuelZ12/research-sources) by Samuel Zhang (MIT). On macOS and Linux an interactive full install offers `uv tool install` of its `rsrc` CLI at a reviewed commit when uv is present, and remembers a no; otherwise it prints the command. `CC_RSRC=0` silences the offer. The skill never sets up X or Reddit sign-in for you (OSS-261).
 - Adding, removing or renaming an installed file needs no hand edits to the install manifests anymore. `bun run manifests:emit` derives the Claude and Codex file lists from the tracked source tree and appends the next manifest version (Claude 53, Codex runtime 40); CI fails when the committed records are out of date (OSS-256).
 - `rules/releases.md` now installs. It was added without a manifest version, so no install had received it.
 - The hook tables in `docs/hooks-reference.md` are generated from `config/40-hooks.json` and the dispatcher's handler list by `bun run docs:hooks`, and a test fails when a table is stale or a wired hook has no description. The first run adds the missing `session-worktrees` PostToolUse handler and the `cache-cold` SessionStart entry, and corrects the SessionEnd handoff command (OSS-259).

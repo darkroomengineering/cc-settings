@@ -1,0 +1,28 @@
+{
+	"should": [
+		"What are people on X saying about the new Claude Code release this week?",
+		"Read this tweet and the thread under it: https://x.com/example_dev/status/1860000000000000000",
+		"Summarize the replies to https://x.com/example_co/status/1859000000000000000, what's the general mood?",
+		"Pull the Reddit thread at https://www.reddit.com/r/nextjs/comments/1h2abcd/ and tell me what the top comments recommend.",
+		"What does r/reactnative think of Expo Router v5? Find a few recent threads.",
+		"Grab the Hacker News comments on https://news.ycombinator.com/item?id=46120931 and give me the main objections.",
+		"Get me the transcript of https://www.youtube.com/watch?v=dQw4w9WgXcQ and the bits where they talk about pricing.",
+		"What are users complaining about in the App Store reviews for Linear's iOS app?",
+		"Read this LinkedIn post and its comments: https://www.linkedin.com/posts/someone_activity-7260000000000000000-abcd",
+		"Check what HN and Reddit said about Bun 2.0 when it launched."
+	],
+	"near_miss": [
+		"Read issue #412 in darkroomengineering/lenis and summarize the discussion.",
+		"Look up the Next.js 16 docs on caching and explain `use cache`.",
+		"Open our Vercel dashboard and tell me why the last deploy failed.",
+		"Draft a tweet announcing our new release.",
+		"Write a Reddit API client in TypeScript that fetches the top posts of a subreddit.",
+		"Add YouTube embeds to the blog post component with a lazy-loaded facade.",
+		"Search the web for the current price of an Apple Developer Program membership.",
+		"Fix the share-to-X button on the article page, it opens a blank window.",
+		"Explain how the App Store review guidelines treat in-app purchases for SaaS apps.",
+		"Check our Google Analytics for last week's traffic from Hacker News."
+	],
+	"min_recall": 0.8,
+	"max_false_trigger": 0.1
+}

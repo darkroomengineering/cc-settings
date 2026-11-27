@@ -61,6 +61,7 @@ import {
 } from "./mcp.ts";
 import { CLAUDE_DIR, getTimestamp, os } from "./platform.ts";
 import { isInteractive, promptYn } from "./prompts.ts";
+import { installRsrc } from "./rsrc.ts";
 import {
   type AutoUpdateStateSnapshot,
   autoUpdateJobLoaded,
@@ -660,6 +661,13 @@ export async function runSelectedUninstall(
 
 // --- Main ----------------------------------------------------------------
 
+/** Answers to the optional-tool questions setup asks before the install;
+ *  undefined means the question was not asked. */
+export interface OptionalToolAnswers {
+  gitCow?: boolean;
+  rsrc?: boolean;
+}
+
 /**
  * Run the full install path: deps → backup → dirs → clean → light-incompatible
  * removal → file copy → TS source copy → src manifest.
@@ -676,7 +684,7 @@ export async function runFullInstall(
   ownershipSnapshot: ClaudeLifecycleOwnershipSnapshot,
   backup: boolean = true,
   backupId?: string,
-  gitCowAnswer?: boolean,
+  optionalTools: OptionalToolAnswers = {},
 ): Promise<Record<string, string>> {
   // Preflight BEFORE any destructive step. A bad --source (partial checkout,
   // wrong path) must abort here — while the existing install is still intact —
@@ -691,7 +699,8 @@ export async function runFullInstall(
   phase("Dependencies");
   await installDependencies(args.profile, engine);
   await installPinnedTools(args.profile);
-  await installGitCow(args.profile, gitCowAnswer, args.fresh);
+  await installGitCow(args.profile, optionalTools.gitCow, args.fresh);
+  await installRsrc(args.profile, optionalTools.rsrc, args.fresh);
   printPreflightReport(checkCliTools());
 
   await assertClaudeLifecycleOwnershipUnchanged(ownershipSnapshot);

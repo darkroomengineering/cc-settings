@@ -100,6 +100,7 @@ import { retireSkills, scanRetiredSkills } from "./lib/managed-skills.ts";
 import { CLAUDE_JSON_PATH, type McpServers, removeManagedMcpServers } from "./lib/mcp.ts";
 import { CLAUDE_DIR, getTimestamp, installPaths, isWindows } from "./lib/platform.ts";
 import { isInteractive, promptYn } from "./lib/prompts.ts";
+import { askRsrcUpfront, installRsrc } from "./lib/rsrc.ts";
 import { snapshotAutoUpdateState } from "./lib/schedule.ts";
 import {
   BASELINE_FILENAME,
@@ -426,6 +427,10 @@ async function main(): Promise<number> {
   }
 
   if (!includesTarget(target, "claude")) {
+    // Codex ships the research-sources skill too. A combined install asks once,
+    // on the Claude path below; this one keeps its marker in Codex's home.
+    const { codexHome } = codexInstallPaths();
+    const rsrcAnswer = await askRsrcUpfront(args.profile, args.fresh, codexHome);
     const installCode = await underInstallLock(target, async () => {
       if (!(await normalInstallVersionGuard(target))) return 1;
       await installCodex({
@@ -433,12 +438,13 @@ async function main(): Promise<number> {
         version: VERSION,
         profile: args.profile,
       });
+      await installRsrc(args.profile, rsrcAnswer, args.fresh, codexHome);
       return 0;
     });
     if (installCode !== 0) return installCode;
     await printCodexStatus(args.sourceDir);
     console.log("");
-    console.log(`Installed to: ${palette.cyan}${codexInstallPaths().codexHome}${palette.reset}`);
+    console.log(`Installed to: ${palette.cyan}${codexHome}${palette.reset}`);
     console.log("");
     info("Rollback if needed: bun src/setup.ts --target=codex --rollback");
     success("Restart Codex to apply changes.");
@@ -497,9 +503,12 @@ async function main(): Promise<number> {
   const skillsDir = join(CLAUDE_DIR, "skills");
   const typesafeKey = await askTypesafeKeyUpfront(args.profile, args.typesafeKey, args.fresh);
   const autoUpdateAnswer = await askAutoUpdateUpfront(args, args.fresh ? null : priorAutoUpdate);
-  const gitCowAnswer = args.migrateOnly
-    ? undefined
-    : await askGitCowUpfront(args.profile, args.fresh);
+  const optionalTools = args.migrateOnly
+    ? {}
+    : {
+        gitCow: await askGitCowUpfront(args.profile, args.fresh),
+        rsrc: await askRsrcUpfront(args.profile, args.fresh),
+      };
   const retiredAtStart = args.migrateOnly ? [] : await scanRetiredSkills(skillsDir).catch(() => []);
   const removeRetired =
     retiredAtStart.length > 0 &&
@@ -595,7 +604,7 @@ async function main(): Promise<number> {
             preparedClaudeInstallOwnership.snapshot,
             true,
             backupId,
-            gitCowAnswer,
+            optionalTools,
           );
         }
 

@@ -38,6 +38,24 @@ export const CLAUDE_MANIFEST_RECORDS: readonly ClaudeManifestRecord[] = [
       removed: [],
     },
   },
+  {
+    version: 55,
+    full: {
+      added: [
+        "skills/research-sources/LICENSE",
+        "skills/research-sources/SKILL.md",
+        "skills/research-sources/references/appstore.md",
+        "skills/research-sources/references/hn.md",
+        "skills/research-sources/references/linkedin.md",
+        "skills/research-sources/references/reddit.md",
+        "skills/research-sources/references/x.md",
+        "skills/research-sources/references/youtube.md",
+        "src/lib/rsrc.ts",
+      ],
+      removed: [],
+    },
+    light: { added: ["src/lib/rsrc.ts"], removed: [] },
+  },
 ];
 
 export const CODEX_RUNTIME_MANIFEST_RECORDS: readonly RuntimeManifestRecord[] = [
@@ -52,6 +70,21 @@ export const CODEX_RUNTIME_MANIFEST_RECORDS: readonly RuntimeManifestRecord[] = 
       "src/hooks/dispatch-handlers.ts",
       "src/lib/hooks-doc.ts",
       "src/scripts/gen-hooks-doc.ts",
+    ],
+    removed: [],
+  },
+  {
+    version: 42,
+    added: [
+      "skills/research-sources/LICENSE",
+      "skills/research-sources/SKILL.md",
+      "skills/research-sources/references/appstore.md",
+      "skills/research-sources/references/hn.md",
+      "skills/research-sources/references/linkedin.md",
+      "skills/research-sources/references/reddit.md",
+      "skills/research-sources/references/x.md",
+      "skills/research-sources/references/youtube.md",
+      "src/lib/rsrc.ts",
     ],
     removed: [],
   },

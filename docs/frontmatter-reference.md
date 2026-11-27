@@ -140,7 +140,7 @@ Skills using `fork` (11): `autoresearch`, `build`, `dr-review`, `fix`, `handoff`
 
 Skills declaring `context: main` explicitly (4): `audit`, `codex`, `freeze`, `stories`.
 
-Skills that omit `context` (8, same behavior as `main`): `case-study`, `cc`, `component`, `context-doc`, `dr-init`, `proof-of-work`, `review-batch`, `share-learning`.
+Skills that omit `context` (9, same behavior as `main`): `case-study`, `cc`, `component`, `context-doc`, `dr-init`, `proof-of-work`, `research-sources`, `review-batch`, `share-learning`.
 
 ### Agent Delegation
 

@@ -53,6 +53,7 @@ export const ACTIVE_SKILLS = [
   "orchestrate",
   "poke-holes",
   "proof-of-work",
+  "research-sources",
   "retro",
   "review-batch",
   "share-learning",

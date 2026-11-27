@@ -27,7 +27,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { currentClaudeManagedSourceFiles } from "../src/lib/claude-managed-file-manifests.ts";
 import {
   CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
@@ -2271,6 +2271,37 @@ mock.module("node:fs/promises", () => ({ ...original,
     },
     { timeout: 90_000 },
   );
+
+  test.skipIf(process.platform === "win32")(
+    "a Codex-only full install offers rsrc and keeps ~/.claude untouched",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-codex-rsrc-"));
+      try {
+        // CC_SKIP_DEPS=0 opens the offer. A PATH without rsrc and an empty uv tool
+        // dir keep a host install from hiding it; with no terminal it only hints.
+        const path = (process.env.PATH ?? "")
+          .split(delimiter)
+          .filter((dir) => dir && !existsSync(join(dir, "rsrc")))
+          .join(delimiter);
+        const env = { CC_SKIP_DEPS: "0", PATH: path, UV_TOOL_BIN_DIR: join(home, "uv-tools") };
+        const hint =
+          "Optional: `uv tool install git+https://github.com/SamuelZ12/research-sources@";
+
+        const install = await runInstall(home, [], "codex", env);
+        const out = `${install.stdout}\n${install.stderr}`;
+        expect(install.exitCode, out).toBe(0);
+        expect(out).toContain(hint);
+        expect(existsSync(join(home, ".claude"))).toBe(false);
+
+        const silenced = await runInstall(home, [], "codex", { ...env, CC_RSRC: "0" });
+        expect(silenced.exitCode).toBe(0);
+        expect(`${silenced.stdout}\n${silenced.stderr}`).not.toContain(hint);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    { timeout: 180_000 },
+  );
 });
 
 describe("install E2E — uninstall ownership", () => {
@@ -3054,6 +3085,15 @@ describe("install E2E — uninstall ownership", () => {
             "skills/case-study/scripts/media/sheet.sh",
             "skills/case-study/scripts/media/soundtrack.py",
             "skills/case-study/scripts/media/theatre_history.py",
+            "skills/research-sources/LICENSE",
+            "skills/research-sources/SKILL.md",
+            "skills/research-sources/references/appstore.md",
+            "skills/research-sources/references/hn.md",
+            "skills/research-sources/references/linkedin.md",
+            "skills/research-sources/references/reddit.md",
+            "skills/research-sources/references/x.md",
+            "skills/research-sources/references/youtube.md",
+            "src/lib/rsrc.ts",
           ].sort(),
         );
         for (const path of newlyManaged) delete sentinel.managed_files[path];
