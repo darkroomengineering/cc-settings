@@ -1,5 +1,8 @@
+import { CODEX_RUNTIME_MANIFEST_RECORDS } from "./generated/current-manifests.ts";
 import {
   AUDIT_PERFORMANCE_RESOURCES,
+  applyManifestDelta,
+  assertSequentialRecords,
   FROZEN_RUNTIME_TYPESCRIPT_SOURCES,
 } from "./install-source-inventory.ts";
 
@@ -309,7 +312,9 @@ const ADDED_IN_V37 = [
 ];
 // Version 39: the git-cow detection helper the Claude settings installer imports.
 const ADDED_IN_V39 = ["src/lib/git-cow.ts"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 39;
+// The last hand-written version. Every later version is a record that
+// `bun run manifests:emit` derives from the source tree.
+const LAST_HAND_WRITTEN_VERSION = 39;
 // Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
 // CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.
 const REMOVED_IN_V20 = [
@@ -494,10 +499,7 @@ const RENAMED_IN_V38 = new Map([["skills/ship/SKILL.md", "skills/land/SKILL.md"]
 const RUNTIME_SOURCE_FILES_V38: readonly string[] = RUNTIME_SOURCE_FILES_V37.map(
   (path) => RENAMED_IN_V38.get(path) ?? path,
 );
-export const RUNTIME_SOURCE_FILES: readonly string[] = [
-  ...RUNTIME_SOURCE_FILES_V38,
-  ...ADDED_IN_V39,
-];
+const RUNTIME_SOURCE_FILES_V39: readonly string[] = [...RUNTIME_SOURCE_FILES_V38, ...ADDED_IN_V39];
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
 );
@@ -553,8 +555,18 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [36, RUNTIME_SOURCE_FILES_V36],
   [37, RUNTIME_SOURCE_FILES_V37],
   [38, RUNTIME_SOURCE_FILES_V38],
-  [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
+  [LAST_HAND_WRITTEN_VERSION, RUNTIME_SOURCE_FILES_V39],
 ]);
+assertSequentialRecords(CODEX_RUNTIME_MANIFEST_RECORDS, LAST_HAND_WRITTEN_VERSION, "Codex runtime");
+let latest = RUNTIME_SOURCE_FILES_V39;
+for (const record of CODEX_RUNTIME_MANIFEST_RECORDS) {
+  latest = applyManifestDelta(latest, record);
+  SUPPORTED_RUNTIME_MANIFESTS.set(record.version, latest);
+}
+
+export const RUNTIME_SOURCE_FILES: readonly string[] = latest;
+export const CURRENT_RUNTIME_MANIFEST_VERSION =
+  CODEX_RUNTIME_MANIFEST_RECORDS.at(-1)?.version ?? LAST_HAND_WRITTEN_VERSION;
 
 export function runtimePathsForVersion(value: unknown, source: string): readonly string[] {
   if (typeof value !== "number" || !Number.isInteger(value)) {

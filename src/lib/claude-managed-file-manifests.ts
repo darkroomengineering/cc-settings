@@ -1,10 +1,15 @@
+import { CLAUDE_MANIFEST_RECORDS } from "./generated/current-manifests.ts";
 import {
   AUDIT_PERFORMANCE_RESOURCES,
+  applyManifestDelta,
+  assertSequentialRecords,
   FROZEN_RUNTIME_TYPESCRIPT_SOURCES,
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 52;
+// The last hand-written version. Every later version is a record that
+// `bun run manifests:emit` derives from the source tree.
+const LAST_HAND_WRITTEN_VERSION = 52;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -1006,10 +1011,22 @@ MANIFESTS.set(51, v51);
 // Version 52: the git-cow worktree hooks and their detection helper (every profile: src/ is
 // installed from the light list).
 const ADDED_IN_V52 = ["src/hooks/worktree-cow.ts", "src/lib/git-cow.ts"];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+let latest: Record<Profile, readonly string[]> = {
   full: [...v51.full, ...ADDED_IN_V52],
   light: [...v51.light, ...ADDED_IN_V52],
-});
+};
+MANIFESTS.set(LAST_HAND_WRITTEN_VERSION, latest);
+assertSequentialRecords(CLAUDE_MANIFEST_RECORDS, LAST_HAND_WRITTEN_VERSION, "Claude");
+for (const record of CLAUDE_MANIFEST_RECORDS) {
+  latest = {
+    full: applyManifestDelta(latest.full, record.full),
+    light: applyManifestDelta(latest.light, record.light),
+  };
+  MANIFESTS.set(record.version, latest);
+}
+
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION =
+  CLAUDE_MANIFEST_RECORDS.at(-1)?.version ?? LAST_HAND_WRITTEN_VERSION;
 
 const GENERATED_MANAGED_FILES = new Set([
   ".cc-settings-baseline.json",

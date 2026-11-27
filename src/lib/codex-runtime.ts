@@ -190,11 +190,15 @@ export async function preflightCodexSource(sourceDir: string): Promise<NativeAge
   return await loadNativeAgents(sourceDir);
 }
 
-async function assertRuntimeImportClosure(sourceDir: string): Promise<void> {
-  const selected = new Set<string>(RUNTIME_SOURCE_FILES);
+/** Relative `.ts` imports (static and dynamic) of the listed TypeScript artifacts that the list itself omits, sorted. */
+export async function missingLocalImports(
+  sourceDir: string,
+  artifacts: readonly string[],
+): Promise<string[]> {
+  const selected = new Set<string>(artifacts);
   const missing = new Set<string>();
   const importPattern = /(?:from\s*|import\s*\()\s*["'](\.[^"']+)["']/g;
-  for (const artifact of RUNTIME_SOURCE_FILES) {
+  for (const artifact of artifacts) {
     if (!artifact.endsWith(".ts")) continue;
     const content = await readFile(join(sourceDir, artifact), "utf8");
     for (const match of content.matchAll(importPattern)) {
@@ -205,10 +209,13 @@ async function assertRuntimeImportClosure(sourceDir: string): Promise<void> {
       if (imported.endsWith(".ts") && !selected.has(imported)) missing.add(imported);
     }
   }
-  if (missing.size > 0) {
-    throw new Error(
-      `Codex runtime manifest omits transitive local imports: ${[...missing].sort().join(", ")}`,
-    );
+  return [...missing].sort();
+}
+
+async function assertRuntimeImportClosure(sourceDir: string): Promise<void> {
+  const missing = await missingLocalImports(sourceDir, RUNTIME_SOURCE_FILES);
+  if (missing.length > 0) {
+    throw new Error(`Codex runtime manifest omits transitive local imports: ${missing.join(", ")}`);
   }
 }
 

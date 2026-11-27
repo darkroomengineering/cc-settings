@@ -27,6 +27,8 @@
 		"format": "biome format --write .",
 		"schemas:emit": "bun src/schemas/emit.ts",
 		"schemas:check": "bun src/schemas/emit.ts && git diff --exit-code schemas/",
+		"manifests:emit": "bun src/scripts/emit-manifests.ts",
+		"manifests:check": "bun src/scripts/emit-manifests.ts && git diff --exit-code src/lib/generated/",
 		"docs:permissions": "bun src/scripts/gen-permissions-doc.ts",
 		"upstream:scan": "bun src/upstream/scan.ts",
 		"compose": "bun -e 'import { composeSettings } from \"./src/lib/compose-settings.ts\"; console.log(JSON.stringify(await composeSettings(\".\"), null, \"\\t\"))'",

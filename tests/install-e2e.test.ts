@@ -2999,6 +2999,8 @@ describe("install E2E — uninstall ownership", () => {
             "src/lib/process-tree.ts",
             "src/lib/personal-overrides.ts",
             "src/schemas/personal-overrides.ts",
+            "src/lib/generated/current-manifests.ts",
+            "src/scripts/emit-manifests.ts",
             "skills/case-study/SKILL.md",
             "skills/case-study/examples/clips-template.txt",
             "skills/case-study/examples/design-template.json",

@@ -85,8 +85,9 @@ jobs:
       - run: bun test --parallel
 
   schemas:
-    # Fails if `bun run schemas:emit` would produce a diff — enforces that the
-    # committed JSON Schemas match the zod sources.
+    # Fails if `bun run schemas:emit` or `bun run manifests:emit` would produce a
+    # diff — enforces that the committed JSON Schemas match the zod sources and
+    # the install manifest records match the tracked source tree.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -96,6 +97,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run schemas:emit
       - run: git diff --exit-code schemas/
+      - run: bun run manifests:emit
+      - run: git diff --exit-code src/lib/generated/
 
   upstream-scan:
     # Dry-run in CI so any drift surfaces in the PR logs. Not a gate, and not
