@@ -13,8 +13,8 @@ For a post with an article from FxTwitter, `title` and `text` contain the articl
 The post's photos, videos and GIFs are in `raw.media`, with `type`, `url` and `duration` in seconds. A quoted post's media are in `raw.quoted.media`. Open every entry before you explain, summarize or quote a post.
 
 - `photo`: download it and view it.
-- `video`: if `vidscribe` is installed (optional, Apple Silicon only), run `vidscribe URL` and read the transcript. Then view frames from the video file whose path it prints (`ffmpeg -i FILE -vf fps=1/5 f%02d.jpg`).
-- `gif`, or a video that vidscribe rejects for having no sound: download it and view frames from it with the same `ffmpeg` command.
+- `video`: if `vidscribe` is installed (optional, Apple Silicon only), run `vidscribe URL` and read the transcript. Then view frames from the video file whose path it prints, extracted into a new directory per item so one item's frames never overwrite another's (`d=$(mktemp -d) && ffmpeg -i FILE -vf fps=1/5 "$d/f%02d.jpg"`).
+- `gif`, or a video that vidscribe rejects for having no sound: download it and view frames from it with the same command, again in its own `mktemp -d` directory.
 
 Done when every entry is opened, or named in your answer as unopened with the reason.
 
