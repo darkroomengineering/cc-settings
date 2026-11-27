@@ -30,6 +30,7 @@
 		"manifests:emit": "bun src/scripts/emit-manifests.ts",
 		"manifests:check": "bun src/scripts/emit-manifests.ts --base origin/main && git diff --exit-code src/lib/generated/",
 		"docs:permissions": "bun src/scripts/gen-permissions-doc.ts",
+		"docs:hooks": "bun src/scripts/gen-hooks-doc.ts",
 		"upstream:scan": "bun src/upstream/scan.ts",
 		"compose": "bun -e 'import { composeSettings } from \"./src/lib/compose-settings.ts\"; console.log(JSON.stringify(await composeSettings(\".\"), null, \"\\t\"))'",
 		"check:cli-tools": "bun src/scripts/check-cli-tools.ts",

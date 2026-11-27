@@ -22,6 +22,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  type HookEntry,
   hooksConfigPath,
   loadHookEntries,
   matchesTool,
@@ -35,7 +36,9 @@ const USAGE = `Usage: hook-bench [--runs N] [--warmup N] [--json]
   --warmup N   discarded runs per hook before measuring (default 3)
   --json       machine-readable report`;
 
-const SKIP: Record<string, string> = {
+// Every synchronous entry in config/40-hooks.json needs a payload in
+// buildCases or a reason here; benchCoverage() fails on a gap or a stale key.
+export const SKIP: Record<string, string> = {
   "verify-hooks": "needs the installed src manifest and hashes the install tree; once per session",
   "session-start":
     "starts the code-intel daemon, a gh knowledge refresh and an MCP prune; once per session",
@@ -154,7 +157,40 @@ function buildCases(work: string, sample: string, transcript: string): Record<st
         },
       },
     ],
+    "cache-cold": [
+      {
+        payload: {
+          ...base,
+          hook_event_name: "SessionStart",
+          source: "resume",
+          prompt_cache_likely_expired: true,
+          context_tokens: 150_000,
+          seconds_since_last_response: 7_200,
+          estimated_cache_write_usd: 0.56,
+        },
+      },
+    ],
   };
+}
+
+/** Gaps between the config and this bench: a synchronous entry with neither a
+ *  payload nor a skip reason, and a payload or skip key no synchronous entry has. */
+export function benchCoverage(entries: readonly HookEntry[]): string[] {
+  const caseIds = new Set(Object.keys(buildCases("", "", "")));
+  const skipIds = new Set(Object.keys(SKIP));
+  const syncIds = new Set(entries.filter((e) => !e.async).map((e) => e.id));
+  const problems: string[] = [];
+  for (const id of syncIds) {
+    if (caseIds.has(id) && skipIds.has(id))
+      problems.push(`${id}: has both a payload and a SKIP reason`);
+    else if (!caseIds.has(id) && !skipIds.has(id))
+      problems.push(`${id}: synchronous hook with no payload in buildCases and no SKIP reason`);
+  }
+  for (const id of caseIds)
+    if (!syncIds.has(id)) problems.push(`${id}: payload in buildCases names no synchronous hook`);
+  for (const id of skipIds)
+    if (!syncIds.has(id)) problems.push(`${id}: SKIP entry names no synchronous hook`);
+  return problems;
 }
 
 // ── Sandbox ──────────────────────────────────────────────────────────────────
@@ -474,4 +510,4 @@ async function main(): Promise<void> {
   }
 }
 
-await main();
+if (import.meta.main) await main();

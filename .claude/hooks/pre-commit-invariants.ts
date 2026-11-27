@@ -22,6 +22,7 @@ const INVARIANT_TESTS = [
   "tests/lint-profiles.test.ts",
   "tests/schemas.test.ts",
   "tests/docs-permissions.test.ts",
+  "tests/docs-hooks.test.ts",
   "tests/docs-settings-keys.test.ts",
   "tests/version-drift.test.ts",
   "tests/agent-schema.test.ts",
