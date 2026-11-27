@@ -73,7 +73,7 @@ authentication or repository access.
    - Frontmatter: `name` = the slug; `kind` from the argument; `summary` (required,
      see below); `added-by` from
      `gh api user --jq .login` (fall back to `git config user.name` if that fails);
-     `tags`, `scope`, `verified` and `retire_when` optional (see below); `supersedes`
+     `tags`, `scope`, `stack`, `verified` and `retire_when` optional (see below); `supersedes`
      only when this note replaces an existing one.
    - `summary`: one line, at most 160 characters, no `·`, in double quotes. It
      becomes the note's line in `INDEX.md`, which is all an agent sees before
@@ -94,6 +94,15 @@ authentication or repository access.
      The hook hides a scoped note in every other repo, so add it only when the
      rule is wrong or irrelevant elsewhere, never because the learning came from
      one repo. Check the name with `gh repo view darkroomengineering/<name>`.
+   - `stack`: the frameworks or libraries the rule depends on (`[react]`,
+     `[nextjs, satus]`, `[lenis, tempus]`). Take the framework out of the story
+     and ask whether the lesson still holds. If it does not (a React Compiler
+     bailout, a hamo rounding bug), add `stack`; the hook hides these notes in
+     Nulla projects, which ship no framework. If it does (a layout read in a
+     frame loop), leave `stack` out and write the summary, opening rule and how
+     to apply in platform terms (`ResizeObserver`, not `useRect`), with the
+     framework recipe in a closing section headed **In Satus (React, hamo).**
+     A vendor service or API (Sanity, Meta, Clerk) is not a stack.
    - `verified`: for a note about a tool, SDK or service version, the date
      (`"YYYY-MM-DD"`, quoted) its claims were last confirmed.
    - `retire_when`: for a workaround or a note about a bug in someone else's tool,
@@ -126,6 +135,7 @@ authentication or repository access.
    summary: "<one-line rule, max 160 chars>"
    tags: [<tag1>, <tag2>]
    scope: [<repo>]             # only when the rule applies to one repo
+   stack: [<framework>]        # only when the rule depends on a framework
    verified: "<YYYY-MM-DD>"    # only for version-specific claims
    retire_when: "<condition>"  # only for workarounds with an outside exit
    added-by: <login>

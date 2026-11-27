@@ -7,6 +7,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
+  followsNullaFrom,
   GENERIC_TOKENS,
   rankNotes,
   repoNamesFrom,
@@ -57,6 +58,21 @@ const PROGRAMA_LOG: KnowledgeNote = {
   tags: ["programa", "debugging", "diagnostics"],
   scope: ["programa"],
   hook: "Programa Release builds log to diagnostics.log.",
+};
+
+const LENIS_DECISION: KnowledgeNote = {
+  name: "lenis-over-native-smooth-scroll",
+  kind: "decision",
+  tags: ["frontend", "scroll", "lenis", "scroll-behavior"],
+  stack: ["lenis"],
+  hook: "Use Lenis instead of CSS scroll-behavior: smooth.",
+};
+
+const LAYOUT_READS: KnowledgeNote = {
+  name: "no-layout-reads-in-frame-loops",
+  kind: "gotcha",
+  tags: ["performance", "scroll", "layout", "getboundingclientrect", "requestanimationframe"],
+  hook: "No getBoundingClientRect in frame loops; measure once with ResizeObserver.",
 };
 
 // ── GENERIC_TOKENS ───────────────────────────────────────────────────────────
@@ -193,6 +209,73 @@ describe("rankNotes — scope", () => {
   });
 });
 
+describe("rankNotes — stack", () => {
+  const css = "main.css html { scroll-behavior: smooth; }";
+
+  test("a stack note surfaces outside Nulla", () => {
+    expect(rankNotes([LENIS_DECISION], css).map((n) => n.name)).toEqual([LENIS_DECISION.name]);
+  });
+
+  test("a stack note is hidden in a Nulla project", () => {
+    expect(rankNotes([LENIS_DECISION], css, new Set(), undefined, () => true)).toEqual([]);
+  });
+
+  test("a note without stack still surfaces in a Nulla project", () => {
+    const loop = "requestAnimationFrame(() => el.getBoundingClientRect())";
+    const ranked = rankNotes(
+      [LAYOUT_READS, LENIS_DECISION],
+      loop,
+      new Set(),
+      undefined,
+      () => true,
+    );
+    expect(ranked.map((n) => n.name)).toEqual([LAYOUT_READS.name]);
+  });
+
+  test("Nulla is not checked when no stack note qualifies", () => {
+    let calls = 0;
+    const nulla = () => {
+      calls++;
+      return true;
+    };
+    rankNotes([DRIZZLE, LENIS_DECISION], "bun drizzle-kit push", new Set(), undefined, nulla);
+    expect(calls).toBe(0);
+  });
+});
+
+describe("followsNullaFrom", () => {
+  test("the kickoff line counts", () => {
+    expect(
+      followsNullaFrom(
+        "This project follows Nulla: https://github.com/darkroomengineering/nulla\nRead its README.",
+      ),
+    ).toBe(true);
+  });
+
+  test("the other declarations in use count", () => {
+    expect(
+      followsNullaFrom(
+        "# GrowthLoop on Nulla\n\nThis project follows the current [Nulla rules](https://github.com/darkroomengineering/nulla/blob/main/RULES.md).",
+      ),
+    ).toBe(true);
+    expect(
+      followsNullaFrom("This repository builds the production website with Nulla. Follow the"),
+    ).toBe(true);
+  });
+
+  test("a passing mention or a link does not count", () => {
+    expect(followsNullaFrom("No project in this workspace follows Nulla yet.")).toBe(false);
+    expect(
+      followsNullaFrom("See the migration plan: https://github.com/darkroomengineering/nulla"),
+    ).toBe(false);
+  });
+
+  test("an AGENTS.md that does not mention Nulla does not", () => {
+    expect(followsNullaFrom("# Satus\nUse Lenis for scroll.")).toBe(false);
+    expect(followsNullaFrom("")).toBe(false);
+  });
+});
+
 describe("repoNamesFrom", () => {
   test("SSH remote plus a worktree folder yields both names", () => {
     expect(
@@ -325,6 +408,43 @@ describe("knowledge-hint hook (e2e)", () => {
       const elsewhere = await runHintHook(home, payload("session-B", home));
       expect(elsewhere.exit).toBe(0);
       expect(elsewhere.stdout).toBe("");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("in a Nulla checkout, stack notes stay hidden and platform notes surface", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-knowledge-hint-"));
+    try {
+      await seedIndex(home, [LENIS_DECISION, LAYOUT_READS]);
+      const nulla = join(home, "site-nulla");
+      const satus = join(home, "site-satus");
+      for (const repo of [nulla, satus]) {
+        await mkdir(repo);
+        Bun.spawnSync(["git", "init", "-q", repo], {
+          env: { ...process.env, ...GIT_ISOLATION_ENV },
+        });
+      }
+      await writeFile(
+        join(nulla, "AGENTS.md"),
+        "This project follows Nulla: https://github.com/darkroomengineering/nulla\n",
+      );
+      const edit = (sessionId: string, cwd: string, content: string) => ({
+        session_id: sessionId,
+        tool_name: "Write",
+        tool_input: { file_path: join(cwd, "src/scroll.js"), content },
+        cwd,
+      });
+      const smooth = "html { scroll-behavior: smooth; }";
+      const loop = "requestAnimationFrame(() => el.getBoundingClientRect())";
+
+      const nullaSmooth = await runHintHook(home, edit("session-A", nulla, smooth));
+      expect(nullaSmooth.stdout).not.toContain(LENIS_DECISION.name);
+      const nullaLoop = await runHintHook(home, edit("session-A", nulla, loop));
+      expect(nullaLoop.stdout).toContain(LAYOUT_READS.name);
+
+      const satusSmooth = await runHintHook(home, edit("session-B", satus, smooth));
+      expect(satusSmooth.stdout).toContain(LENIS_DECISION.name);
     } finally {
       await rm(home, { recursive: true, force: true });
     }

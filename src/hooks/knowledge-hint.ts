@@ -11,9 +11,11 @@
 // Delivery: plain stdout on PreToolUse never reaches the model — the hint is
 // emitted via hookSpecificOutput.additionalContext (see hook-runtime.ts).
 
+import { closeSync, constants, fstatSync, openSync, readSync } from "node:fs";
+import { join } from "node:path";
 import { z } from "zod";
 import { type HookIO, processIO, readState, runHook, writeState } from "../lib/hook-runtime.ts";
-import { rankNotes, repoNamesFrom } from "../lib/knowledge-hint.ts";
+import { followsNullaFrom, rankNotes, repoNamesFrom } from "../lib/knowledge-hint.ts";
 import { type KnowledgeNote, readKnowledgeIndex } from "../lib/knowledge-index.ts";
 import { isSafeSessionId } from "../lib/session-ledger.ts";
 
@@ -67,6 +69,40 @@ function repoNamesResolver(cwd: string): () => ReadonlySet<string> {
       gitOut(cwd, ["rev-parse", "--show-toplevel"]),
     );
     return names;
+  };
+}
+
+// The Nulla declaration sits in the first lines of AGENTS.md.
+const AGENTS_MD_READ_BYTES = 16_384;
+
+/** The first bytes of a regular file, or "" for anything else. Opened
+ *  nonblocking so a FIFO named AGENTS.md cannot stall the hook. */
+function readHead(path: string): string {
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK);
+    if (!fstatSync(fd).isFile()) return "";
+    const buf = Buffer.alloc(AGENTS_MD_READ_BYTES);
+    const read = readSync(fd, buf, 0, buf.length, 0);
+    return buf.subarray(0, read).toString("utf8");
+  } catch {
+    return "";
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+/** Lazily check whether the checkout's root AGENTS.md says it follows Nulla.
+ *  Outside a git repo, cwd stands in for the root. A missing or unreadable
+ *  file means no, so stack-bound notes keep surfacing as before. */
+function followsNullaResolver(cwd: string): () => boolean {
+  let result: boolean | undefined;
+  return () => {
+    if (result === undefined) {
+      const root = gitOut(cwd, ["rev-parse", "--show-toplevel"]) || cwd;
+      result = followsNullaFrom(readHead(join(root, "AGENTS.md")));
+    }
+    return result;
   };
 }
 
@@ -138,7 +174,13 @@ export async function main(io: HookIO = processIO): Promise<void> {
   const shown = new Set(safeState.sessions[sessionId] ?? []);
 
   const cwd = input.cwd ?? process.cwd();
-  const matched = rankNotes(index.notes, haystack, shown, repoNamesResolver(cwd));
+  const matched = rankNotes(
+    index.notes,
+    haystack,
+    shown,
+    repoNamesResolver(cwd),
+    followsNullaResolver(cwd),
+  );
   if (matched.length === 0) return;
 
   io.context("PreToolUse", formatMessage(matched));
