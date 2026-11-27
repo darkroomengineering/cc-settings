@@ -9,8 +9,8 @@ import {
 } from "../src/lib/codex-runtime-manifests.ts";
 
 test("personal overrides runtime sources belong only to the new manifest versions", () => {
-  expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBe(51);
-  expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBe(38);
+  expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBe(52);
+  expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBe(39);
   for (const path of ["src/lib/personal-overrides.ts", "src/schemas/personal-overrides.ts"]) {
     expect(runtimePathsForVersion(33, "test")).not.toContain(path);
     expect(runtimePathsForVersion(34, "test")).toContain(path);
@@ -76,4 +76,16 @@ test("the ship skill installs as land from the new manifest versions", () => {
     expect(next).not.toContain(before);
     expect(next.includes(after)).toBe(old.includes(before));
   }
+});
+
+test("the git-cow worktree hook and helper belong only to the new manifest versions", () => {
+  for (const profile of ["full", "light"] as const) {
+    for (const path of ["src/hooks/worktree-cow.ts", "src/lib/git-cow.ts"]) {
+      expect(claudeManagedManifestPaths(51, profile, "test")).not.toContain(path);
+      expect(claudeManagedManifestPaths(52, profile, "test")).toContain(path);
+    }
+  }
+  expect(runtimePathsForVersion(38, "test")).not.toContain("src/lib/git-cow.ts");
+  expect(runtimePathsForVersion(39, "test")).toContain("src/lib/git-cow.ts");
+  expect(runtimePathsForVersion(39, "test")).not.toContain("src/hooks/worktree-cow.ts");
 });

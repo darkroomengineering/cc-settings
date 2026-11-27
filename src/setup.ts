@@ -77,6 +77,7 @@ import {
 import { composeSettings } from "./lib/compose-settings.ts";
 import { reportCopilotSync } from "./lib/copilot-instructions.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
+import { askGitCowUpfront } from "./lib/git-cow.ts";
 import { FINGERPRINT_FILENAME } from "./lib/hooks-fingerprint.ts";
 import { prepareClaudeCompensation, printHelp } from "./lib/install-cmds.ts";
 import { cmdDryRun, printStatus, showCredit, showSummary } from "./lib/install-display.ts";
@@ -119,7 +120,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "16.6.0";
+const VERSION = "16.7.0";
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
@@ -496,6 +497,9 @@ async function main(): Promise<number> {
   const skillsDir = join(CLAUDE_DIR, "skills");
   const typesafeKey = await askTypesafeKeyUpfront(args.profile, args.typesafeKey, args.fresh);
   const autoUpdateAnswer = await askAutoUpdateUpfront(args, args.fresh ? null : priorAutoUpdate);
+  const gitCowAnswer = args.migrateOnly
+    ? undefined
+    : await askGitCowUpfront(args.profile, args.fresh);
   const retiredAtStart = args.migrateOnly ? [] : await scanRetiredSkills(skillsDir).catch(() => []);
   const removeRetired =
     retiredAtStart.length > 0 &&
@@ -591,6 +595,7 @@ async function main(): Promise<number> {
             preparedClaudeInstallOwnership.snapshot,
             true,
             backupId,
+            gitCowAnswer,
           );
         }
 

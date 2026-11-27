@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [16.7.0] — 2026-11-27
+
+Agent worktrees start with dependencies and build output already in place when [git-cow](https://github.com/gabrielkoerich/git-cow) is installed (OSS-255).
+
+- `claude -w`, `EnterWorktree` and Agent `isolation: "worktree"` create their worktree with `git cow add`, a copy-on-write clone of a spare checkout, through the new `worktree-cow.ts` WorktreeCreate and WorktreeRemove hooks. The hook keeps Claude Code's layout: `.claude/worktrees/<name>` on branch `worktree-<name>`, `worktree.baseRef`, reuse of an existing worktree, and `.worktreeinclude`. Without git-cow it falls back to `git worktree add`.
+- Setup wires the two hooks only when git-cow 0.4.1 or later is on PATH or in `~/.cargo/bin`, read from cargo's install record since git-cow has no version flag. On macOS and Linux an interactive full install offers `cargo install git-cow --version 0.6.0 --locked` when cargo is present, and remembers a no; otherwise it prints the command. `CC_GIT_COW=0` silences the offer. On Windows, where git-cow can't clone, setup prints one line and wires nothing.
+- The hook reference notes that Claude Code 2.1.295+ reports its working, blocked and done status to terminals that support OSC 7501 (Program Status Protocol), such as Programa and libghostty-based terminals, so cc-settings ships no status hook for it.
+
 ## [16.6.0] — 2026-11-25
 
 Synced with Claude Code v2.1.332 and Codex v0.172.0 (OSS-251).

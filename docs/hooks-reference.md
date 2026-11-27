@@ -638,6 +638,8 @@ Since v2.1.314, hooks with the `Bash` matcher also run on shell commands started
 |--------|---------|-------|
 | `notify.ts` | Sends desktop notification (macOS/Linux) when tasks complete | Yes |
 
+Claude Code 2.1.295+ reports its own working, blocked and done status to terminals that support OSC 7501 (Program Status Protocol), such as Programa and libghostty-based terminals, so cc-settings ships no status hook for it.
+
 ### SessionEnd
 
 | Script | Purpose | Async |
@@ -647,11 +649,22 @@ Since v2.1.314, hooks with the `Bash` matcher also run on shell commands started
 
 `session-worktrees.ts` tracks only worktrees created in the session by `EnterWorktree` or `Agent`/`Task` isolation, using the structured `PostToolUse.tool_response.worktreePath` string. It never tracks the folder a session starts in or moves to. Every candidate is checked with Git and stored as its canonical worktree root in `~/.claude/tmp/session-worktrees-<sha256 of session id>.jsonl`. Main checkouts are excluded. Parallel completions append independently. Text-only tool responses cannot supply a reliable path and are ignored.
 
-`WorktreeCreate` supplies the proposed name, not a created path, and replaces Claude Code's worktree creation. Registering an observer there would break creation. The hook uses structured tool results instead. See the [WorktreeCreate contract](https://code.claude.com/docs/en/hooks#worktreecreate).
+Because `WorktreeCreate` replaces worktree creation, `session-worktrees.ts` takes paths from structured tool results rather than observing that event. Worktrees made by `worktree-cow.ts` arrive the same way and are tracked like native ones.
 
 Cleanup runs `programa storage clean --path <root> [--path <root> ...] --now --include-external --json`, with a 60 second process timeout and no grace period. Programa checks that each worktree is merged into the default remote branch, or has a missing upstream and is clean. It skips uncommitted or untracked files, ignored `.env` files, open Programa workspaces and running processes. It never force-removes worktrees or deletes branches.
 
 The hook looks for Programa on PATH, at `$HOME/.local/bin/programa`, then in `/Applications/Programa.app/Contents/Resources/bin/programa`. Missing Programa, no eligible paths, older versions rejecting the flags, and other failures skip cleanup without interrupting exit. Errors go to the hook's stderr log. A successful JSON response and directories removed from disk produce one plain line reporting the count; the JSON contract supplies no size fields. Nothing else is printed. Set `CC_SESSION_WORKTREE_CLEANUP_ENABLED` to `false` in settings `env` to disable tracking and cleanup; it defaults to `true`.
+
+### WorktreeCreate / WorktreeRemove
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `worktree-cow.ts create` | Creates the worktree for `claude -w`, `EnterWorktree` and Agent `isolation: "worktree"` with `git cow add`, a copy-on-write clone of a spare checkout, so `node_modules` and build output are already there. Timeout 180 s | No |
+| `worktree-cow.ts remove` | Removes a worktree Claude Code is discarding with `git cow remove --warm --force`, which first hands its build output to the spare checkout. Timeout 60 s | No |
+
+Setup wires these two hooks only when [git-cow](https://github.com/gabrielkoerich/git-cow) 0.4.1 or later is installed (on PATH or at `~/.cargo/bin/git-cow`), the platform is not Windows, and `~/.claude/src/hooks/worktree-cow.ts` is installed. git-cow has no version flag, so the version comes from cargo's install record (`.crates2.json` under `$CARGO_HOME`, default `~/.cargo`); an older or unrecorded git-cow counts as absent, in setup and in the hook. A `WorktreeCreate` command hook replaces Claude Code's own creation, so `create` reproduces it: the path is `<repo root>/.claude/worktrees/<name>` on branch `worktree-<name>`, started from `worktree.baseRef` (`fresh`, the default, fetches the default branch from `origin` with a 20 s limit and no prompts, then uses `origin/HEAD` or `origin/main`, whichever resolves to a commit first, falling back to `HEAD`; `head` is local `HEAD`), read from the repo's `.claude/settings.local.json`, `.claude/settings.json`, then `~/.claude/settings.json`. An existing worktree at that path is reused; any other file or directory there, or a symlinked `.claude` or `.claude/worktrees`, makes it exit non-zero without touching anything. It adds `/.claude/worktrees/` to `.git/info/exclude` when that directory is not already ignored, and copies gitignored files that match `.worktreeinclude`, skipping files the clone already brought, symlinked sources, and destinations that would resolve outside the worktree. The name must match `^[A-Za-z0-9][A-Za-z0-9._-]*$`. Every git and git-cow message goes to stderr; stdout carries only the final worktree path. When git-cow is missing or fails, `create` falls back to `git worktree add`, so a hook that stays wired after git-cow is uninstalled keeps working. It exits non-zero only when no worktree exists at the end.
+
+`remove` acts only on a registered, unlocked worktree directly under the main checkout's `.claude/worktrees/`, and never on the git-cow spare checkout (`.claude/worktrees/.git-cow/<repo>`). Without git-cow it runs `git worktree remove --force` and then `git branch -d worktree-<name>`, which deletes the branch only when it is merged. It exits non-zero when the directory still exists. Claude Code does not fire `WorktreeRemove` when a subagent finishes; `session-worktrees.ts` cleans those up at `SessionEnd`.
 
 ---
 

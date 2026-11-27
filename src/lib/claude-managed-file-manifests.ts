@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 51;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 52;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -999,9 +999,17 @@ MANIFESTS.set(50, v50);
 // Version 51: `ship` became `land`. Claude Code 2.1.332's native /ship shadows a skill named
 // `ship`, so ours stopped loading (see TOMBSTONE_SKILLS in managed-skills.ts).
 const RENAMED_IN_V51 = new Map([["skills/ship/SKILL.md", "skills/land/SKILL.md"]]);
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v51 = {
   full: v50.full.map((path) => RENAMED_IN_V51.get(path) ?? path),
   light: v50.light.map((path) => RENAMED_IN_V51.get(path) ?? path),
+};
+MANIFESTS.set(51, v51);
+// Version 52: the git-cow worktree hooks and their detection helper (every profile: src/ is
+// installed from the light list).
+const ADDED_IN_V52 = ["src/hooks/worktree-cow.ts", "src/lib/git-cow.ts"];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v51.full, ...ADDED_IN_V52],
+  light: [...v51.light, ...ADDED_IN_V52],
 });
 
 const GENERATED_MANAGED_FILES = new Set([
