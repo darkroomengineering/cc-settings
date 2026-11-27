@@ -7,10 +7,16 @@ import {
   CURRENT_RUNTIME_MANIFEST_VERSION,
   runtimePathsForVersion,
 } from "../src/lib/codex-runtime-manifests.ts";
+import {
+  CLAUDE_MANIFEST_RECORDS,
+  CODEX_RUNTIME_MANIFEST_RECORDS,
+} from "../src/lib/generated/current-manifests.ts";
 
 test("personal overrides runtime sources belong only to the new manifest versions", () => {
-  expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBeGreaterThanOrEqual(47);
-  expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBeGreaterThanOrEqual(34);
+  expect(CLAUDE_MANIFEST_RECORDS.at(-1)?.version).toBe(
+    CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+  );
+  expect(CODEX_RUNTIME_MANIFEST_RECORDS.at(-1)?.version).toBe(CURRENT_RUNTIME_MANIFEST_VERSION);
   for (const path of ["src/lib/personal-overrides.ts", "src/schemas/personal-overrides.ts"]) {
     expect(runtimePathsForVersion(33, "test")).not.toContain(path);
     expect(runtimePathsForVersion(34, "test")).toContain(path);
