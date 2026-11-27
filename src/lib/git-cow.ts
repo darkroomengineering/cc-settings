@@ -130,10 +130,17 @@ export async function installGitCow(
   if (findUsableGitCow() !== null) return;
   if (answer === false) {
     // A first install reaches this phase before ~/.claude exists.
-    await mkdir(CLAUDE_DIR, { recursive: true })
+    const saved = await mkdir(CLAUDE_DIR, { recursive: true })
       .then(() => writeFile(DECLINED_FILE, `${new Date().toISOString()}\n`))
-      .catch(() => {});
-    info(`Skipped git-cow. Setup won't ask again; remove ${DECLINED_FILE} to be asked.`);
+      .then(
+        () => true,
+        () => false,
+      );
+    if (saved) info(`Skipped git-cow. Setup won't ask again; remove ${DECLINED_FILE} to be asked.`);
+    else
+      warn(
+        `Skipped git-cow, but setup couldn't save that answer to ${DECLINED_FILE}, so it will ask again.`,
+      );
     return;
   }
   if (offerSilenced(fresh)) return;
