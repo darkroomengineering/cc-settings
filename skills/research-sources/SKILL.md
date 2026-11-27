@@ -17,7 +17,7 @@ X search and Reddit search act as the user's own account: X through the user's c
 
 Never configure cookies, run `rsrc x connect`, or sign in to Ego Lite, X or Reddit on the user's behalf. Those are the user's steps. When a route needs setup, tell the user which one and point them to upstream's [X session guide](https://github.com/SamuelZ12/research-sources/blob/e8d2b62820f7ce3b137705cf0ac1f47b52b02395/docs/x-session.md), with these limits:
 
-- X cookies go only in the mode-600 `~/.config/rsrc/x.env` file, never in exported environment variables. rsrc reads `AUTH_TOKEN` from the environment before that file, so an `AUTH_TOKEN` exported for something else would be sent to x.com as a cookie or break default X search. If `test -n "$AUTH_TOKEN"` succeeds, tell the user before any `rsrc x` command. Never print its value.
+- X cookies go only in the mode-600 `~/.config/rsrc/x.env` file, never in exported environment variables. rsrc reads `AUTH_TOKEN` and `CT0` from the environment before that file, so values exported for something else would be sent to x.com as cookies or break default X search. Run every X command as `env -u AUTH_TOKEN -u CT0 rsrc x …`, so rsrc reads only `x.env`. The table below leaves the prefix out.
 - `rsrc x connect` is opt-in. The Chrome it manages keeps an unauthenticated loopback debug port open until the user quits it, so the user should use that window only for X. Never suggest `rsrc x connect --cdp` against the user's everyday Chrome.
 
 Without an X session, X search queries go to FxTwitter, a third party. Hacker News queries go to Algolia. Mention this when the query itself is sensitive.

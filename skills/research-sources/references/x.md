@@ -48,7 +48,7 @@ If `x search` or `x timeline` stops at its request cap, the CLI puts a `warning`
 
 - With a Chrome connection, `x search` and `x timeline` use `x-chrome`.
 - Without a Chrome connection or a search order, a configured cookie pair selects `x-graphql`. With neither cookie, search uses public `fxtwitter`, a third party that sees the query. A partial pair is `config`.
-- The cookie pair belongs only in the mode-600 `~/.config/rsrc/x.env` file, never in exported environment variables. rsrc reads `AUTH_TOKEN` and `CT0` from the environment first, so an `AUTH_TOKEN` exported for another tool would be sent to x.com as a cookie or break default search. If `test -n "$AUTH_TOKEN"` succeeds, tell the user before searching. Never print its value.
+- The cookie pair belongs only in the mode-600 `~/.config/rsrc/x.env` file, never in exported environment variables. rsrc reads `AUTH_TOKEN` and `CT0` from the environment first, so values exported for another tool would be sent to x.com as cookies or break default search. Run every X command as `env -u AUTH_TOKEN -u CT0 rsrc x …`, so rsrc reads only `x.env`. The examples below leave the prefix out.
 - When public search fails and the user has already signed in to X in Ego Lite, use `rsrc x search --backend x-browser "Claude Code" --limit 10`. It searches inside that browser without exporting cookies. It needs at least two requests and runs one browser X command at a time. The user can set `RSRC_X_SEARCH=x-browser` to make it the default. Select it alone.
 - Otherwise the user's `RSRC_X_SEARCH` can order FxTwitter and x-graphql. Only upstream and network errors permit fallback, within the shared request cap.
 
