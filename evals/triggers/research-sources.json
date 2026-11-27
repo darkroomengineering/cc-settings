@@ -1,8 +1,8 @@
 {
 	"should": [
 		"What are people on X saying about the new Claude Code release this week?",
-		"Read this tweet and the thread under it: https://x.com/jarredsumner/status/1860000000000000000",
-		"Summarize the replies to https://x.com/vercel/status/1859000000000000000, what's the general mood?",
+		"Read this tweet and the thread under it: https://x.com/example_dev/status/1860000000000000000",
+		"Summarize the replies to https://x.com/example_co/status/1859000000000000000, what's the general mood?",
 		"Pull the Reddit thread at https://www.reddit.com/r/nextjs/comments/1h2abcd/ and tell me what the top comments recommend.",
 		"What does r/reactnative think of Expo Router v5? Find a few recent threads.",
 		"Grab the Hacker News comments on https://news.ycombinator.com/item?id=46120931 and give me the main objections.",
