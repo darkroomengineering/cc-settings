@@ -6,12 +6,28 @@
 
 import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { withWorktreeHooks } from "../src/lib/claude-install-settings.ts";
 import { composeSettings } from "../src/lib/compose-settings.ts";
-import { findGitCow, gitCowUsable } from "../src/lib/git-cow.ts";
+import {
+  findGitCow,
+  findUsableGitCow,
+  gitCowUsable,
+  gitCowVersion,
+  versionAtLeast,
+} from "../src/lib/git-cow.ts";
 
 const REPO = resolve(import.meta.dir, "..");
 const HOOK = join(REPO, "src", "hooks", "worktree-cow.ts");
@@ -38,8 +54,18 @@ function basePath(): string {
 let tmp: string;
 let home: string;
 let repo: string;
+let cargoRoot: string;
 let shimDir: string;
 let shimLog: string;
+
+/** cargo's install record, which is where git-cow's version comes from. */
+async function writeCratesRecord(root: string, version: string): Promise<void> {
+  const key = `git-cow ${version} (registry+https://github.com/rust-lang/crates.io-index)`;
+  await writeFile(
+    join(root, ".crates2.json"),
+    JSON.stringify({ installs: { [key]: { bins: ["git-cow"] } } }),
+  );
+}
 
 function env(withCow: boolean): Record<string, string> {
   return {
@@ -47,6 +73,7 @@ function env(withCow: boolean): Record<string, string> {
     HOME: home,
     PATH: withCow ? `${shimDir}${delimiter}${basePath()}` : basePath(),
     NO_COLOR: "1",
+    ...(withCow ? { CARGO_HOME: cargoRoot } : {}),
   };
 }
 
@@ -132,10 +159,12 @@ beforeEach(async () => {
   tmp = await realpath(await mkdtemp(join(tmpdir(), "worktree-cow-")));
   home = join(tmp, "home");
   repo = join(tmp, "repo");
-  shimDir = join(tmp, "shim");
+  cargoRoot = join(tmp, "cargo");
+  shimDir = join(cargoRoot, "bin");
   shimLog = join(tmp, "shim.log");
   await mkdir(home, { recursive: true });
   await mkdir(shimDir, { recursive: true });
+  await writeCratesRecord(cargoRoot, "0.6.0");
   // The repo and the sh shim need a POSIX git; Windows runs only the detection tests.
   if (!posix) return;
   await mkdir(repo, { recursive: true });
@@ -249,6 +278,93 @@ describe.skipIf(!posix)("worktree-cow create", () => {
     expect(existsSync(join(repo, ".claude"))).toBe(false);
   });
 
+  test("git-cow older than 0.4.1 counts as absent: plain git worktree add", async () => {
+    await writeCratesRecord(cargoRoot, "0.4.0");
+    const r = await hook("create", createPayload("old1"), true);
+    expect(r.exit, r.stderr).toBe(0);
+    expect(r.stdout).toBe(`${join(repo, ".claude", "worktrees", "old1")}\n`);
+    expect(existsSync(shimLog)).toBe(false);
+  });
+
+  test("refuses a symlinked .claude or .claude/worktrees", async () => {
+    const outside = join(tmp, "outside");
+    await mkdir(outside, { recursive: true });
+    await symlink(outside, join(repo, ".claude"));
+    const viaClaude = await hook("create", createPayload("link1"), true);
+    expect(viaClaude.exit).toBe(1);
+    expect(viaClaude.stdout).toBe("");
+    await rm(join(repo, ".claude"));
+    await mkdir(join(repo, ".claude"), { recursive: true });
+    await symlink(outside, join(repo, ".claude", "worktrees"));
+    const viaWorktrees = await hook("create", createPayload("link2"), true);
+    expect(viaWorktrees.exit).toBe(1);
+    expect(await readdir(outside)).toEqual([]);
+    expect(existsSync(shimLog)).toBe(false);
+  });
+
+  test("refuses an occupied path that is not a worktree, leaving its files", async () => {
+    const path = join(repo, ".claude", "worktrees", "busy");
+    await mkdir(path, { recursive: true });
+    await writeFile(join(path, "keep.txt"), "mine\n");
+    const r = await hook("create", createPayload("busy"), true);
+    expect(r.exit).toBe(1);
+    expect(r.stdout).toBe("");
+    expect(await readFile(join(path, "keep.txt"), "utf8")).toBe("mine\n");
+    expect(existsSync(shimLog)).toBe(false);
+  });
+
+  test("fresh fetches origin first; a dangling origin/HEAD falls back to origin/main", async () => {
+    const work = join(tmp, "work");
+    await sh(tmp, "git", "clone", "-q", repo, work);
+    await writeFile(join(repo, "later.txt"), "later\n");
+    await sh(repo, "git", "add", ".");
+    await sh(repo, "git", "commit", "-qm", "upstream moved");
+    const upstreamTip = await sh(repo, "git", "rev-parse", "HEAD");
+    expect(await sh(work, "git", "rev-parse", "origin/main")).not.toBe(upstreamTip);
+
+    const fetched = await hook("create", createPayload("fetch1", work));
+    expect(fetched.exit, fetched.stderr).toBe(0);
+    expect(await sh(fetched.stdout.trim(), "git", "rev-parse", "HEAD")).toBe(upstreamTip);
+
+    await sh(work, "git", "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/gone");
+    const dangling = await hook("create", createPayload("fetch2", work));
+    expect(dangling.exit, dangling.stderr).toBe(0);
+    expect(await sh(dangling.stdout.trim(), "git", "rev-parse", "HEAD")).toBe(upstreamTip);
+  });
+
+  test("an unreachable origin is logged and the cached ref is used", async () => {
+    const work = join(tmp, "work");
+    await sh(tmp, "git", "clone", "-q", repo, work);
+    const cached = await sh(work, "git", "rev-parse", "origin/main");
+    await sh(work, "git", "remote", "set-url", "origin", join(tmp, "missing-remote"));
+    const r = await hook("create", createPayload("offline", work));
+    expect(r.exit, r.stderr).toBe(0);
+    expect(r.stderr).toContain("using the cached ref");
+    expect(await sh(r.stdout.trim(), "git", "rev-parse", "HEAD")).toBe(cached);
+  });
+
+  test(".worktreeinclude skips symlinked sources and links out of the worktree", async () => {
+    const outside = join(tmp, "outside");
+    await mkdir(outside, { recursive: true });
+    await writeFile(join(outside, "secret.txt"), "outside\n");
+    await writeFile(join(repo, ".worktreeinclude"), "*.local\n");
+    await writeFile(join(repo, "real.local"), "real\n");
+    await symlink(join(outside, "secret.txt"), join(repo, "linked.local"));
+    // A tracked symlinked directory in the worktree must not carry a copy outside it.
+    await symlink(outside, join(repo, "escape"));
+    await sh(repo, "git", "add", "escape");
+    await sh(repo, "git", "commit", "-qm", "tracked link");
+    await rm(join(repo, "escape"));
+    await mkdir(join(repo, "escape"), { recursive: true });
+    await writeFile(join(repo, "escape", "copy.local"), "would leak\n");
+    const r = await hook("create", createPayload("links"));
+    expect(r.exit, r.stderr).toBe(0);
+    const path = r.stdout.trim();
+    expect(await readFile(join(path, "real.local"), "utf8")).toBe("real\n");
+    expect(existsSync(join(path, "linked.local"))).toBe(false);
+    expect(await readdir(outside)).toEqual(["secret.txt"]);
+  });
+
   test(".worktreeinclude copies only gitignored matches the worktree lacks", async () => {
     await writeFile(join(repo, ".worktreeinclude"), "*.local\nloose.txt\n");
     await mkdir(join(repo, "config"), { recursive: true });
@@ -318,6 +434,19 @@ describe.skipIf(!posix)("worktree-cow remove", () => {
     expect(existsSync(shimLog) ? await readFile(shimLog, "utf8") : "").not.toContain("remove");
   });
 
+  test("refuses a linked worktree outside .claude/worktrees/", async () => {
+    const elsewhere = join(tmp, "elsewhere");
+    await sh(repo, "git", "worktree", "add", "-q", "-b", "other", elsewhere);
+    const nested = join(repo, ".claude", "worktrees", "deep", "wt");
+    await sh(repo, "git", "worktree", "add", "-q", "-b", "deep", nested);
+    for (const path of [elsewhere, nested]) {
+      const r = await hook("remove", removePayload(path), true);
+      expect(r.exit, path).toBe(1);
+      expect(existsSync(path), path).toBe(true);
+    }
+    expect(existsSync(shimLog)).toBe(false);
+  });
+
   test("a missing directory or garbage input is a no-op", async () => {
     expect((await hook("remove", removePayload(join(repo, "nope")))).exit).toBe(0);
     expect((await hook("remove", "not json{{{")).exit).toBe(0);
@@ -325,18 +454,31 @@ describe.skipIf(!posix)("worktree-cow remove", () => {
 });
 
 describe("git-cow detection and hook wiring", () => {
-  test("finds git-cow on PATH or in ~/.cargo/bin only", async () => {
+  test("finds git-cow on PATH or in cargo's bin, and requires version 0.4.1 or later", async () => {
     expect(findGitCow("", home)).toBeNull();
     expect(gitCowUsable("", home)).toBe(false);
-    if (posix) {
-      expect(findGitCow(shimDir, home)).toBe(join(shimDir, "git-cow"));
-      const cargo = join(home, ".cargo", "bin");
-      await mkdir(cargo, { recursive: true });
-      await Bun.write(join(cargo, "git-cow"), await Bun.file(join(shimDir, "git-cow")).text());
-      await chmod(join(cargo, "git-cow"), 0o755);
-      expect(findGitCow("", home)).toBe(join(cargo, "git-cow"));
-      expect(gitCowUsable("", home)).toBe(true);
-    }
+    expect(versionAtLeast("0.4.1", "0.4.1")).toBe(true);
+    expect(versionAtLeast("0.10.0", "0.4.1")).toBe(true);
+    expect(versionAtLeast("0.4.0", "0.4.1")).toBe(false);
+    if (!posix) return;
+    const cargo = join(home, ".cargo");
+    const bin = join(cargo, "bin", "git-cow");
+    await mkdir(dirname(bin), { recursive: true });
+    await writeFile(bin, "#!/bin/sh\n");
+    await chmod(bin, 0o755);
+    expect(findGitCow("", home)).toBe(bin);
+    // No cargo record: version unknown, so not usable.
+    expect(gitCowVersion(bin, home)).toBeNull();
+    expect(gitCowUsable("", home)).toBe(false);
+    await writeCratesRecord(cargo, "0.4.0");
+    expect(gitCowVersion(bin, home)).toBe("0.4.0");
+    expect(findUsableGitCow("", home)).toBeNull();
+    await writeCratesRecord(cargo, "0.6.0");
+    expect(findUsableGitCow("", home)).toBe(bin);
+    expect(gitCowUsable("", home)).toBe(true);
+    // A git-cow on PATH that cargo did not install has no known version.
+    expect(findGitCow(shimDir, home)).toBe(join(shimDir, "git-cow"));
+    expect(gitCowVersion(join(shimDir, "git-cow"), home)).toBeNull();
   });
 
   test("withWorktreeHooks drops only the two worktree events when git-cow is absent", async () => {
@@ -390,7 +532,8 @@ await installSettings(${JSON.stringify(REPO)}, "0.0.0-test", false, "full", getE
         return settings.hooks as Record<string, unknown>;
       };
 
-      await mkdir(join(home, ".claude"), { recursive: true });
+      await mkdir(join(home, ".claude", "src", "hooks"), { recursive: true });
+      const script = join(home, ".claude", "src", "hooks", "worktree-cow.ts");
       const without = await install();
       expect(Object.keys(without)).not.toContain("WorktreeCreate");
       expect(Object.keys(without)).not.toContain("WorktreeRemove");
@@ -400,6 +543,11 @@ await installSettings(${JSON.stringify(REPO)}, "0.0.0-test", false, "full", getE
       await mkdir(cargo, { recursive: true });
       await Bun.write(join(cargo, "git-cow"), "#!/bin/sh\n");
       await chmod(join(cargo, "git-cow"), 0o755);
+      await writeCratesRecord(join(home, ".cargo"), "0.6.0");
+      // --migrate-only merges settings without copying src/: no script, no wiring.
+      const noScript = await install();
+      expect(Object.keys(noScript)).not.toContain("WorktreeCreate");
+      await writeFile(script, "");
       const withCow = await install();
       expect(JSON.stringify(withCow.WorktreeCreate)).toContain('worktree-cow.ts\\" create');
       expect(JSON.stringify(withCow.WorktreeRemove)).toContain('worktree-cow.ts\\" remove');

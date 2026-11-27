@@ -1,4 +1,4 @@
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { chmod } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
@@ -140,7 +140,12 @@ export async function installSettings(
   // mcpServers is deliberately absent from what the merger sees, so it is
   // neither written nor re-added on top of the prune above.
   const { mcpServers: _composedMcp, ...composedForMerge } = fullComposed;
-  const settingsForMerge = withWorktreeHooks(composedForMerge, gitCowUsable());
+  // --migrate-only merges settings without copying src/, so wire the hooks only
+  // when their script is already installed.
+  const settingsForMerge = withWorktreeHooks(
+    composedForMerge,
+    gitCowUsable() && existsSync(join(CLAUDE_DIR, "src", "hooks", "worktree-cow.ts")),
+  );
   // The previous team's contribution lets the merge decide three-way: prune
   // env keys cc-settings retired, and move values still equal to what that
   // team supplied onto changed defaults, while user edits keep winning.

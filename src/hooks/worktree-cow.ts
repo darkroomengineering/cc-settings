@@ -10,14 +10,15 @@
 // and `.worktreeinclude`. Contract: https://code.claude.com/docs/en/hooks#worktreecreate
 
 import { constants, existsSync, writeSync } from "node:fs";
-import { appendFile, copyFile, mkdir, readFile, realpath } from "node:fs/promises";
+import { appendFile, copyFile, lstat, mkdir, readFile, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, delimiter, dirname, isAbsolute, join } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, join, sep } from "node:path";
 import { z } from "zod";
-import { findGitCow } from "../lib/git-cow.ts";
+import { findUsableGitCow } from "../lib/git-cow.ts";
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const WORKTREES_DIR = join(".claude", "worktrees");
+const FETCH_TIMEOUT_MS = 20_000;
 
 interface Run {
   exit: number;
@@ -33,7 +34,13 @@ function log(message: string): void {
  *  the stdout line Claude Code reads as the worktree path. */
 async function run(
   argv: string[],
-  opts: { cwd: string; env?: Record<string, string>; echo?: boolean; stdin?: string },
+  opts: {
+    cwd: string;
+    env?: Record<string, string>;
+    echo?: boolean;
+    stdin?: string;
+    timeout?: number;
+  },
 ): Promise<Run> {
   const proc = Bun.spawn(argv, {
     cwd: opts.cwd,
@@ -41,6 +48,7 @@ async function run(
     stdin: opts.stdin === undefined ? "ignore" : new Blob([opts.stdin]),
     stdout: "pipe",
     stderr: "inherit",
+    ...(opts.timeout ? { timeout: opts.timeout, killSignal: "SIGKILL" as const } : {}),
   });
   const [stdout, exit] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
   if (opts.echo && stdout) process.stderr.write(stdout);
@@ -87,6 +95,20 @@ async function listWorktrees(cwd: string): Promise<WorktreeEntry[] | null> {
   return entries;
 }
 
+async function lexists(path: string): Promise<boolean> {
+  return lstat(path).then(
+    () => true,
+    () => false,
+  );
+}
+
+async function isSymlink(path: string): Promise<boolean> {
+  return lstat(path).then(
+    (s) => s.isSymbolicLink(),
+    () => false,
+  );
+}
+
 async function isWorktree(root: string, path: string): Promise<boolean> {
   if (!existsSync(path)) return false;
   const real = await realpath(path);
@@ -117,14 +139,29 @@ async function baseRefSetting(root: string): Promise<"fresh" | "head"> {
   return "fresh";
 }
 
-/** "fresh": the remote default branch (origin/HEAD, then origin/main); "head": local HEAD. */
+const isCommit = async (root: string, ref: string): Promise<boolean> =>
+  (await git(root, ["rev-parse", "--verify", "-q", `${ref}^{commit}`])).exit === 0;
+
+/** "fresh": the remote default branch (origin/HEAD, then origin/main), fetched
+ *  first; "head": local HEAD. */
 async function resolveBase(root: string): Promise<string> {
   if ((await baseRefSetting(root)) === "head") return "HEAD";
   const symbolic = await git(root, ["symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"]);
-  const remoteHead = symbolic.stdout.trim();
-  if (symbolic.exit === 0 && remoteHead) return remoteHead;
-  if ((await git(root, ["rev-parse", "--verify", "-q", "refs/remotes/origin/main"])).exit === 0) {
-    return "origin/main";
+  const remoteHead = symbolic.exit === 0 ? symbolic.stdout.trim() : "";
+  const hasOrigin = (await git(root, ["remote", "get-url", "origin"])).exit === 0;
+  if (hasOrigin) {
+    const branch = remoteHead.startsWith("origin/") ? remoteHead.slice("origin/".length) : "main";
+    // Bounded, and never prompts: a slow or unreachable remote leaves the cached ref.
+    const fetched = await run(["git", "-C", root, "fetch", "--quiet", "origin", branch], {
+      cwd: root,
+      env: { ...(process.env as Record<string, string>), GIT_TERMINAL_PROMPT: "0" },
+      echo: true,
+      timeout: FETCH_TIMEOUT_MS,
+    });
+    if (fetched.exit !== 0) log(`git fetch origin ${branch} failed; using the cached ref`);
+  }
+  for (const ref of [remoteHead, "origin/main"]) {
+    if (ref && (await isCommit(root, ref))) return ref;
   }
   log("no origin/HEAD or origin/main; starting from HEAD");
   return "HEAD";
@@ -162,12 +199,20 @@ async function copyIncluded(root: string, target: string): Promise<void> {
     cwd: root,
     stdin: `${candidates.join("\0")}\0`,
   });
+  const realTarget = await realpath(target);
   for (const rel of ignored.stdout.split("\0").filter(Boolean)) {
+    if (rel.includes("..")) continue;
+    const from = join(root, rel);
     const to = join(target, rel);
-    if (existsSync(to)) continue;
     try {
+      // Never follow a link out of either tree: skip linked sources, and
+      // destinations that exist (even as a dangling link) or sit under a linked directory.
+      if (await isSymlink(from)) continue;
+      if (await lexists(to)) continue;
       await mkdir(dirname(to), { recursive: true });
-      await copyFile(join(root, rel), to, constants.COPYFILE_FICLONE);
+      const parent = await realpath(dirname(to));
+      if (parent !== realTarget && !parent.startsWith(`${realTarget}${sep}`)) continue;
+      await copyFile(from, to, constants.COPYFILE_FICLONE);
     } catch (error) {
       log(`could not copy ${rel}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -200,15 +245,25 @@ export async function create(raw: string): Promise<number> {
   const root = await realpath(top.stdout.trim());
   const path = join(root, WORKTREES_DIR, name);
   const branch = `worktree-${name}`;
+  for (const dir of [join(root, ".claude"), join(root, WORKTREES_DIR)]) {
+    if (await isSymlink(dir)) {
+      log(`${dir} is a symlink; refusing to create a worktree through it`);
+      return 1;
+    }
+  }
 
   if (await isWorktree(root, path)) {
     log(`reusing existing worktree ${path}`);
   } else {
+    if (await lexists(path)) {
+      log(`${path} exists and is not a worktree; not touching it`);
+      return 1;
+    }
     await ensureIgnored(root);
     const branchExists =
       (await git(root, ["rev-parse", "--verify", "-q", `refs/heads/${branch}`])).exit === 0;
     const target = branchExists ? [path, branch] : ["-b", branch, path, await resolveBase(root)];
-    const cow = findGitCow(process.env.PATH ?? "", home());
+    const cow = findUsableGitCow(process.env.PATH ?? "", home());
     if (cow) {
       // git-cow reads the repository from its working directory.
       const result = await run(["git", "cow", "add", ...target], {
@@ -262,7 +317,13 @@ export async function remove(raw: string): Promise<number> {
     return 1;
   }
   const root = main.path;
-  const cow = findGitCow(process.env.PATH ?? "", home());
+  if (dirname(path) !== join(root, WORKTREES_DIR)) {
+    log(
+      `${path} is not under ${join(root, WORKTREES_DIR)}, so this hook did not create it; not removed`,
+    );
+    return 1;
+  }
+  const cow = findUsableGitCow(process.env.PATH ?? "", home());
   if (cow) {
     // Claude Code asked the user before removing, so uncommitted changes go too.
     await run(["git", "cow", "remove", "--warm", "--force", path], {
