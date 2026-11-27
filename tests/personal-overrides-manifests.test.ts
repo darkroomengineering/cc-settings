@@ -7,10 +7,16 @@ import {
   CURRENT_RUNTIME_MANIFEST_VERSION,
   runtimePathsForVersion,
 } from "../src/lib/codex-runtime-manifests.ts";
+import {
+  CLAUDE_MANIFEST_RECORDS,
+  CODEX_RUNTIME_MANIFEST_RECORDS,
+} from "../src/lib/generated/current-manifests.ts";
 
 test("personal overrides runtime sources belong only to the new manifest versions", () => {
-  expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBe(52);
-  expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBe(39);
+  expect(CLAUDE_MANIFEST_RECORDS.at(-1)?.version).toBe(
+    CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+  );
+  expect(CODEX_RUNTIME_MANIFEST_RECORDS.at(-1)?.version).toBe(CURRENT_RUNTIME_MANIFEST_VERSION);
   for (const path of ["src/lib/personal-overrides.ts", "src/schemas/personal-overrides.ts"]) {
     expect(runtimePathsForVersion(33, "test")).not.toContain(path);
     expect(runtimePathsForVersion(34, "test")).toContain(path);
@@ -88,4 +94,21 @@ test("the git-cow worktree hook and helper belong only to the new manifest versi
   expect(runtimePathsForVersion(38, "test")).not.toContain("src/lib/git-cow.ts");
   expect(runtimePathsForVersion(39, "test")).toContain("src/lib/git-cow.ts");
   expect(runtimePathsForVersion(39, "test")).not.toContain("src/hooks/worktree-cow.ts");
+});
+
+test("the releases rule and the manifest generator belong only to the new manifest versions", () => {
+  const generator = ["src/lib/generated/current-manifests.ts", "src/scripts/emit-manifests.ts"];
+  expect(claudeManagedManifestPaths(53, "full", "test")).toEqual([
+    ...claudeManagedManifestPaths(52, "full", "test"),
+    "rules/releases.md",
+    ...generator,
+  ]);
+  expect(claudeManagedManifestPaths(53, "light", "test")).toEqual([
+    ...claudeManagedManifestPaths(52, "light", "test"),
+    ...generator,
+  ]);
+  expect(runtimePathsForVersion(40, "test")).toEqual([
+    ...runtimePathsForVersion(39, "test"),
+    ...generator,
+  ]);
 });

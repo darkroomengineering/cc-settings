@@ -216,10 +216,16 @@ instruction files only when their first line matches a supported generated cc-se
 stamp. A heading or personal instruction that merely mentions `cc-settings` does not authorize
 overwrite; custom files are preserved.
 
-Managed source inventories are explicit and versioned: Claude manifest 7 and Codex runtime
-manifest 5 share the current source list in `src/lib/install-source-inventory.ts`. They include
-the audit performance playbook, network capture script, and bundle attribution script.
-Historical manifests retain their original ownership lists for rollback and uninstall.
+Managed source inventories are explicit and versioned. Each install records its manifest
+version, and every version keeps the exact file list that installer copied, for rollback and
+uninstall. `bun run manifests:emit` derives the current Claude (full and light) and Codex runtime
+lists from the tracked source tree, using the rules and exceptions in
+`src/scripts/emit-manifests.ts`. When a list changed, it appends a new version record to
+`src/lib/generated/current-manifests.ts`. After adding, removing, or renaming an installed file,
+`git add` it, run `bun run manifests:emit`, and commit the result. CI runs the same emit and fails
+on any diff, or when the records do not extend main's records unchanged
+(`bun run manifests:check` runs both against `origin/main`). Never edit the generated records or the hand-written versions before them in
+`src/lib/claude-managed-file-manifests.ts` and `src/lib/codex-runtime-manifests.ts`.
 The installer separates settings and ownership (`claude-install-settings.ts`,
 `claude-install-ownership.ts`), lifecycle coordination (`install-lifecycle.ts`), display
 (`install-display.ts`), and rollback validation (`claude-rollback-validation.ts`) under `src/lib/`.

@@ -1,10 +1,15 @@
+import { CLAUDE_MANIFEST_RECORDS } from "./generated/current-manifests.ts";
 import {
   AUDIT_PERFORMANCE_RESOURCES,
-  CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
+  applyManifestDelta,
+  assertSequentialRecords,
+  FROZEN_RUNTIME_TYPESCRIPT_SOURCES,
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 52;
+// The last hand-written version. Every later version is a record that
+// `bun run manifests:emit` derives from the source tree.
+const LAST_HAND_WRITTEN_VERSION = 52;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -498,9 +503,8 @@ const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>(
   ]),
 );
 
-// Preserve versions 1–6 verbatim; version 7 froze the inventory as it stood
-// before the Codex-to-Claude bridge; only the current release follows the shared
-// source inventory.
+// Preserve versions 1–6 verbatim; versions 7–51 derive from the frozen shared source
+// inventory by subtracting each file added after them.
 const ADDED_IN_V8 = ["src/lib/claude-bridge.ts", "src/scripts/claude-run.ts"];
 // Version 9: the Codex skill-budget report and the Swift animation rule
 // (full profile only; light installs carry no rules).
@@ -578,7 +582,7 @@ const ADDED_IN_V44 = [
 // Version 45: the process-tree kill and bounded pipe reads both model bridges import.
 const ADDED_IN_V45 = ["src/lib/process-tree.ts"];
 const ADDED_IN_V47 = ["src/lib/personal-overrides.ts", "src/schemas/personal-overrides.ts"];
-const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
+const HISTORICAL_TYPESCRIPT_SOURCES = FROZEN_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) =>
     !ADDED_IN_V17.includes(path) &&
     !ADDED_IN_V20.includes(path) &&
@@ -1007,10 +1011,22 @@ MANIFESTS.set(51, v51);
 // Version 52: the git-cow worktree hooks and their detection helper (every profile: src/ is
 // installed from the light list).
 const ADDED_IN_V52 = ["src/hooks/worktree-cow.ts", "src/lib/git-cow.ts"];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+let latest: Record<Profile, readonly string[]> = {
   full: [...v51.full, ...ADDED_IN_V52],
   light: [...v51.light, ...ADDED_IN_V52],
-});
+};
+MANIFESTS.set(LAST_HAND_WRITTEN_VERSION, latest);
+assertSequentialRecords(CLAUDE_MANIFEST_RECORDS, LAST_HAND_WRITTEN_VERSION, "Claude");
+for (const record of CLAUDE_MANIFEST_RECORDS) {
+  latest = {
+    full: applyManifestDelta(latest.full, record.full),
+    light: applyManifestDelta(latest.light, record.light),
+  };
+  MANIFESTS.set(record.version, latest);
+}
+
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION =
+  CLAUDE_MANIFEST_RECORDS.at(-1)?.version ?? LAST_HAND_WRITTEN_VERSION;
 
 const GENERATED_MANAGED_FILES = new Set([
   ".cc-settings-baseline.json",

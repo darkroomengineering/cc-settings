@@ -1,5 +1,8 @@
-// Current release source ownership is explicit. Historical manifests never depend on this list.
-export const CURRENT_RUNTIME_TYPESCRIPT_SOURCES = [
+// The shared src/*.ts inventory the hand-written manifest history derives from (Claude through
+// version 52, Codex runtime through 39). Editing it rewrites versions that installs already
+// recorded. Never edit it: later versions come from the records that `bun run manifests:emit`
+// writes to src/lib/generated/current-manifests.ts.
+export const FROZEN_RUNTIME_TYPESCRIPT_SOURCES = [
   "src/codemap/callgraph.ts",
   "src/codemap/change-impact.ts",
   "src/codemap/cli.ts",
@@ -173,3 +176,40 @@ export const AUDIT_PERFORMANCE_RESOURCES = [
   "skills/audit/references/net-capture.mjs",
   "skills/audit/references/bundle-attribution.py",
 ] as const;
+
+/** The paths one manifest version adds to and removes from the version before it. */
+export interface ManifestDelta {
+  added: readonly string[];
+  removed: readonly string[];
+}
+
+export interface ClaudeManifestRecord {
+  version: number;
+  full: ManifestDelta;
+  light: ManifestDelta;
+}
+
+export interface RuntimeManifestRecord extends ManifestDelta {
+  version: number;
+}
+
+export function applyManifestDelta(paths: readonly string[], delta: ManifestDelta): string[] {
+  const removed = new Set(delta.removed);
+  return [...paths.filter((path) => !removed.has(path)), ...delta.added];
+}
+
+/** Throws unless the generated records continue the hand-written history one version at a time. */
+export function assertSequentialRecords(
+  records: readonly { version: number }[],
+  lastHandVersion: number,
+  kind: string,
+): void {
+  records.forEach((record, index) => {
+    if (record.version !== lastHandVersion + index + 1) {
+      throw new Error(
+        `Generated ${kind} manifest record ${index} has version ${record.version}, expected ${lastHandVersion + index + 1}. ` +
+          "Rerun `bun run manifests:emit` instead of editing src/lib/generated/current-manifests.ts.",
+      );
+    }
+  });
+}
