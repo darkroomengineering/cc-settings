@@ -122,7 +122,10 @@ const summary = (d: ManifestDelta) =>
 
 async function main(): Promise<void> {
   const output = join(ROOT, OUTPUT);
-  if (!existsSync(output)) await writeFile(output, render([], []));
+  // Shipped records are append-only, so a missing file is an error, never a fresh start.
+  if (!existsSync(output)) {
+    throw new Error(`${OUTPUT} is missing. Restore it from git; never regenerate shipped records.`);
+  }
 
   const claude = await import("../lib/claude-managed-file-manifests.ts");
   const codex = await import("../lib/codex-runtime-manifests.ts");
