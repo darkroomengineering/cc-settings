@@ -7,6 +7,7 @@ import { Settings } from "../schemas/settings.ts";
 import { type EngineDescriptor, ensureEngineInstalled } from "./code-intel-engine.ts";
 import { debug, info, progressArrow, progressOk, warn, withProgress } from "./colors.ts";
 import { composeSettings } from "./compose-settings.ts";
+import { gitCowUsable } from "./git-cow.ts";
 import { safetyNetAllow } from "./hook-command.ts";
 import { writeFingerprint as writeHooksFingerprint } from "./hooks-fingerprint.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
@@ -25,6 +26,21 @@ import { CLAUDE_DIR, hasCommand } from "./platform.ts";
 import { isInteractive, promptSecret } from "./prompts.ts";
 import { type SettingsBaseline, writeSettingsBaseline } from "./settings-baseline.ts";
 import { mergeSettings, printMergeAccounting } from "./settings-merge.ts";
+
+const WORKTREE_EVENTS = ["WorktreeCreate", "WorktreeRemove"] as const;
+
+/** The composed settings, minus the worktree-cow.ts hooks when git-cow is not
+ *  usable. A hook a previous install wired survives as a user extra, and still
+ *  works: create falls back to `git worktree add`. */
+export function withWorktreeHooks<T extends { hooks?: Record<string, unknown> }>(
+  settings: T,
+  wire: boolean,
+): T {
+  if (wire || !settings.hooks) return settings;
+  const hooks = { ...settings.hooks };
+  for (const event of WORKTREE_EVENTS) delete hooks[event];
+  return { ...settings, hooks };
+}
 
 // --- Settings + MCP install ---------------------------------------------
 
@@ -123,7 +139,8 @@ export async function installSettings(
   const prunedInertMcp = await pruneSettingsMcpServers(userSettingsPath, teamMcp, priorMcpWritten);
   // mcpServers is deliberately absent from what the merger sees, so it is
   // neither written nor re-added on top of the prune above.
-  const { mcpServers: _composedMcp, ...settingsForMerge } = fullComposed;
+  const { mcpServers: _composedMcp, ...composedForMerge } = fullComposed;
+  const settingsForMerge = withWorktreeHooks(composedForMerge, gitCowUsable());
   // The previous team's contribution lets the merge decide three-way: prune
   // env keys cc-settings retired, and move values still equal to what that
   // team supplied onto changed defaults, while user edits keep winning.

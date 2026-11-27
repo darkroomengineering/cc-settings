@@ -40,6 +40,8 @@ const SKIP: Record<string, string> = {
   "session-start":
     "starts the code-intel daemon, a gh knowledge refresh and an MCP prune; once per session",
   "handoff create --from-hook": "git-bound, writes handoff files; once per compaction",
+  "worktree-cow create": "creates a git worktree in the repo; once per worktree",
+  "worktree-cow remove": "removes a git worktree; once per worktree",
 };
 
 const SESSION = "00000000-0000-4000-8000-000000000001";

@@ -166,6 +166,28 @@
 				]
 			}
 		],
+		"WorktreeCreate": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/worktree-cow.ts\" create",
+						"timeout": 180
+					}
+				]
+			}
+		],
+		"WorktreeRemove": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/worktree-cow.ts\" remove",
+						"timeout": 60
+					}
+				]
+			}
+		],
 		"Stop": [
 			{
 				"hooks": [
