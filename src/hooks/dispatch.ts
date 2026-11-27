@@ -41,120 +41,53 @@
 import { writeSync } from "node:fs";
 import { matchesTool } from "../lib/hook-frequency.ts";
 import { captureIO, HookBlocked, type HookIO, parseHookInput } from "../lib/hook-runtime.ts";
+import {
+  type DispatchEvent,
+  HANDLER_META,
+  type HandlerMeta,
+  type HandlerName,
+} from "./dispatch-handlers.ts";
 
-export type DispatchEvent = "UserPromptSubmit" | "PreToolUse" | "PostToolUse";
+export type { DispatchEvent } from "./dispatch-handlers.ts";
 
-export interface Handler {
-  /** Script basename, for error lines. */
-  name: string;
-  /** Tool-name regex the handler's own config entry used; absent matches every call. */
-  matcher?: string;
-  /** Seconds the handler's own config entry allowed; absent means none was set. */
-  timeoutS?: number;
-  /** Label for a block when this handler fails: `[<label>] internal error, failing closed: …`. */
-  failClosed?: string;
+export interface Handler extends HandlerMeta {
   load(safetyNetAllow?: string): Promise<{ main(io: HookIO): Promise<void> }>;
 }
 
-/** Handlers per event in the order the config ran them. */
+// Keyed by every name in HANDLER_META: a handler missing here, or a loader
+// with no metadata, fails the typecheck.
+const LOADERS: Record<HandlerName, Handler["load"]> = {
+  "cache-cold": () => import("./cache-cold.ts"),
+  "delegation-detector": () => import("./delegation-detector.ts"),
+  "quota-steer": () => import("./quota-steer.ts"),
+  "escalate-model": () => import("./escalate-model.ts"),
+  "safety-net": async (allow) => {
+    const { main } = await import("./safety-net.ts");
+    return { main: (io) => main(io, allow) };
+  },
+  "freeze-guard": () => import("./freeze-guard.ts"),
+  "test-protect": () => import("./test-protect.ts"),
+  "spawn-cap": () => import("./spawn-cap.ts"),
+  "visual-proof": () => import("./visual-proof.ts"),
+  "config-guard": () => import("./config-guard.ts"),
+  "linear-gate": () => import("./linear-gate.ts"),
+  "pre-edit-validate": () => import("./pre-edit-validate.ts"),
+  "knowledge-hint": () => import("./knowledge-hint.ts"),
+  "session-worktrees": () => import("./session-worktrees.ts"),
+  "post-edit": () => import("../scripts/post-edit.ts"),
+  "tool-cadence": () => import("./tool-cadence.ts"),
+  "promote-memory": () => import("./promote-memory.ts"),
+  "escalate-acted": () => import("./escalate-acted.ts"),
+};
+
+const withLoaders = (metas: readonly (HandlerMeta & { name: HandlerName })[]): Handler[] =>
+  metas.map((meta) => ({ ...meta, load: LOADERS[meta.name] }));
+
+/** Handlers per event in the order the config ran them (see HANDLER_META). */
 export const HANDLERS: Record<DispatchEvent, Handler[]> = {
-  UserPromptSubmit: [
-    // First: a bounded transcript read, so a slow Jev call in
-    // delegation-detector cannot spend the entry budget and skip its warning.
-    { name: "cache-cold", timeoutS: 3, load: () => import("./cache-cold.ts") },
-    { name: "delegation-detector", timeoutS: 3, load: () => import("./delegation-detector.ts") },
-    { name: "quota-steer", timeoutS: 3, load: () => import("./quota-steer.ts") },
-    { name: "escalate-model", timeoutS: 3, load: () => import("./escalate-model.ts") },
-  ],
-  PreToolUse: [
-    {
-      name: "safety-net",
-      matcher: "Bash",
-      timeoutS: 5,
-      failClosed: "Safety Net",
-      load: async (allow) => {
-        const { main } = await import("./safety-net.ts");
-        return { main: (io) => main(io, allow) };
-      },
-    },
-    // freeze-guard runs before pre-edit-validate so a slow validation cannot
-    // spend the shared entry budget and skip the freeze boundary check.
-    {
-      name: "freeze-guard",
-      matcher: "Edit|Write",
-      timeoutS: 5,
-      load: () => import("./freeze-guard.ts"),
-    },
-    {
-      name: "test-protect",
-      matcher: "Bash|Edit|Write",
-      timeoutS: 5,
-      load: () => import("./test-protect.ts"),
-    },
-    {
-      name: "spawn-cap",
-      matcher: "Agent|Task",
-      timeoutS: 5,
-      load: () => import("./spawn-cap.ts"),
-    },
-    {
-      name: "visual-proof",
-      matcher: "Bash",
-      timeoutS: 5,
-      load: () => import("./visual-proof.ts"),
-    },
-    {
-      name: "config-guard",
-      matcher: "Bash",
-      timeoutS: 5,
-      load: () => import("./config-guard.ts"),
-    },
-    {
-      name: "linear-gate",
-      matcher: "Bash",
-      timeoutS: 5,
-      load: () => import("./linear-gate.ts"),
-    },
-    {
-      name: "pre-edit-validate",
-      matcher: "Edit",
-      timeoutS: 5,
-      load: () => import("./pre-edit-validate.ts"),
-    },
-    {
-      name: "knowledge-hint",
-      matcher: "Bash|Edit|Write",
-      timeoutS: 5,
-      load: () => import("./knowledge-hint.ts"),
-    },
-  ],
-  PostToolUse: [
-    {
-      name: "session-worktrees",
-      matcher: "Agent|Task|EnterWorktree",
-      timeoutS: 5,
-      load: () => import("./session-worktrees.ts"),
-    },
-    { name: "post-edit", matcher: "Write|Edit", load: () => import("../scripts/post-edit.ts") },
-    {
-      name: "tool-cadence",
-      matcher: "Bash|Agent",
-      timeoutS: 3,
-      load: () => import("./tool-cadence.ts"),
-    },
-    {
-      name: "promote-memory",
-      matcher: "Write|Edit",
-      timeoutS: 3,
-      load: () => import("./promote-memory.ts"),
-    },
-    {
-      name: "escalate-acted",
-      matcher: "Agent",
-      timeoutS: 3,
-      load: () => import("./escalate-acted.ts"),
-    },
-  ],
+  UserPromptSubmit: withLoaders(HANDLER_META.UserPromptSubmit),
+  PreToolUse: withLoaders(HANDLER_META.PreToolUse),
+  PostToolUse: withLoaders(HANDLER_META.PostToolUse),
 };
 
 /** Timeout of the event's config entry: the max of its handlers', undefined
