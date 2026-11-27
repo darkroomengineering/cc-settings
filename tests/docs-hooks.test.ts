@@ -60,6 +60,16 @@ describe("docs/hooks-reference.md hook tables", () => {
     );
   });
 
+  test("fails when the dispatcher region is gone while the config routes hooks through it", () => {
+    const without = doc
+      .replace("<!-- BEGIN AUTOGEN:hooks dispatcher -->", "")
+      .replace("<!-- END AUTOGEN:hooks dispatcher -->", "");
+    expect(without).not.toContain("AUTOGEN:hooks dispatcher");
+    expect(renderHooksDoc(without, entries).problems).toContain(
+      'the config routes hooks through dispatch.ts, so the doc needs exactly one "dispatcher" region; found 0',
+    );
+  });
+
   test("fails a region whose selector matches no wired hook", () => {
     const extra = `${doc}\n<!-- BEGIN AUTOGEN:hooks FileChanged -->\n\n<!-- END AUTOGEN:hooks FileChanged -->\n`;
     expect(renderHooksDoc(extra, entries).problems).toContain(

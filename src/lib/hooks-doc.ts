@@ -187,6 +187,12 @@ export function renderHooksDoc(
   const { regions, problems } = findRegions(doc);
   if (problems.length > 0) return { text: doc, problems };
   const rows = hookRows(entries);
+  const dispatcherRegions = regions.filter((r) => r.spec === "dispatcher").length;
+  if (entries.some(isDispatch) && dispatcherRegions !== 1) {
+    problems.push(
+      `the config routes hooks through dispatch.ts, so the doc needs exactly one "dispatcher" region; found ${dispatcherRegions}`,
+    );
+  }
   const placed = new Map<string, string>();
   let text = "";
   let last = 0;
