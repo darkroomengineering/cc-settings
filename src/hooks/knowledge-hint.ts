@@ -11,9 +11,11 @@
 // Delivery: plain stdout on PreToolUse never reaches the model — the hint is
 // emitted via hookSpecificOutput.additionalContext (see hook-runtime.ts).
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { z } from "zod";
 import { type HookIO, processIO, readState, runHook, writeState } from "../lib/hook-runtime.ts";
-import { rankNotes, repoNamesFrom } from "../lib/knowledge-hint.ts";
+import { followsNullaFrom, rankNotes, repoNamesFrom } from "../lib/knowledge-hint.ts";
 import { type KnowledgeNote, readKnowledgeIndex } from "../lib/knowledge-index.ts";
 import { isSafeSessionId } from "../lib/session-ledger.ts";
 
@@ -67,6 +69,24 @@ function repoNamesResolver(cwd: string): () => ReadonlySet<string> {
       gitOut(cwd, ["rev-parse", "--show-toplevel"]),
     );
     return names;
+  };
+}
+
+/** Lazily check whether the checkout's root AGENTS.md says it follows Nulla.
+ *  Outside a git repo, cwd stands in for the root. A missing or unreadable
+ *  file means no, so stack-bound notes keep surfacing as before. */
+function followsNullaResolver(cwd: string): () => boolean {
+  let result: boolean | undefined;
+  return () => {
+    if (result === undefined) {
+      const root = gitOut(cwd, ["rev-parse", "--show-toplevel"]) || cwd;
+      try {
+        result = followsNullaFrom(readFileSync(join(root, "AGENTS.md"), "utf8"));
+      } catch {
+        result = false;
+      }
+    }
+    return result;
   };
 }
 
@@ -138,7 +158,13 @@ export async function main(io: HookIO = processIO): Promise<void> {
   const shown = new Set(safeState.sessions[sessionId] ?? []);
 
   const cwd = input.cwd ?? process.cwd();
-  const matched = rankNotes(index.notes, haystack, shown, repoNamesResolver(cwd));
+  const matched = rankNotes(
+    index.notes,
+    haystack,
+    shown,
+    repoNamesResolver(cwd),
+    followsNullaResolver(cwd),
+  );
   if (matched.length === 0) return;
 
   io.context("PreToolUse", formatMessage(matched));

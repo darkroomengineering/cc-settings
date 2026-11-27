@@ -36,6 +36,12 @@ export const KnowledgeFrontmatter = z.looseObject({
     .array(z.string().regex(KEBAB_CASE_RE, "scope entries must be repo names (kebab-case)"))
     .min(1)
     .optional(),
+  // Frameworks or libraries the rule depends on. The knowledge-hint hook
+  // hides these notes in Nulla projects, which ship no framework.
+  stack: z
+    .array(z.string().regex(KEBAB_CASE_RE, "stack entries must be kebab-case"))
+    .min(1)
+    .optional(),
   // Date the note's version-specific claims were last confirmed. The YAML
   // parser keeps an unquoted date as a string, so one regex covers both forms.
   verified: z

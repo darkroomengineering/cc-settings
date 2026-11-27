@@ -37,6 +37,8 @@ export const KnowledgeNoteSchema = z.object({
   tags: z.array(z.string()),
   // Optional so a cache written before scope existed still parses.
   scope: z.array(z.string()).optional(),
+  // Frameworks the rule depends on; hidden in Nulla projects.
+  stack: z.array(z.string()).optional(),
   hook: z.string(),
 });
 
@@ -80,9 +82,10 @@ export type LinearMapCache = z.infer<typeof LinearMapCacheSchema>;
 // ── Pure helpers ───────────────────────────────────────────────────────────────
 
 // One INDEX.md line:
-//   `- [<kind>: <name>](<name>.md) — <hook> · scope: x, y · tags: a, b, c`
+//   `- [<kind>: <name>](<name>.md) — <hook> · stack: x · scope: x, y · tags: a, b, c`
 // Each ` · <field>: ...` suffix is optional (omitted when the note has no
-// value). Scope precedes tags, so suffixes are stripped right to left.
+// value). Suffixes are stripped right to left, and a newer field sits further
+// left, so an older parser keeps it as hook text instead of losing a field.
 // — is U+2014, · is U+00B7.
 const INDEX_LINE = /^-\s*\[([^:\]]+):\s*([^\]]+)\]\([^)]+\)\s*—\s*(.*)$/;
 
@@ -101,7 +104,8 @@ function takeListSuffix(rest: string, field: string): { list: string[]; rest: st
 }
 
 /** Parse the team-knowledge corpus's INDEX.md into structured notes. Tolerates
- *  lines without the trailing scope and tags suffixes (tags = [], no scope)
+ *  lines without the trailing stack, scope and tags suffixes (tags = [], no
+ *  scope, no stack)
  *  and skips lines that don't match the documented format (headers, blank
  *  lines, etc). */
 export function parseIndexMarkdown(md: string): KnowledgeNote[] {
@@ -122,10 +126,15 @@ export function parseIndexMarkdown(md: string): KnowledgeNote[] {
     }
 
     const note: KnowledgeNote = { name, kind, tags, hook: rest };
-    const scopePart = takeListSuffix(rest, "scope");
+    const scopePart = takeListSuffix(note.hook, "scope");
     if (scopePart && scopePart.list.length > 0) {
       note.scope = scopePart.list;
       note.hook = scopePart.rest;
+    }
+    const stackPart = takeListSuffix(note.hook, "stack");
+    if (stackPart && stackPart.list.length > 0) {
+      note.stack = stackPart.list;
+      note.hook = stackPart.rest;
     }
     notes.push(note);
   }

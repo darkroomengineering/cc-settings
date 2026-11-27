@@ -168,13 +168,16 @@ export function scoreNote(note: KnowledgeNote, haystack: string): number {
 /** Rank notes against a haystack, dropping ones already shown this session,
  *  keeping only notes scoring >= QUALIFY_THRESHOLD whose scope includes the
  *  current repo, sorted by score desc then name asc, capped at MAX_SHOWN.
- *  `repoNames` is only called when a scoped note qualifies, so callers can
- *  resolve the repo lazily; unscoped notes never depend on it. */
+ *  `repoNames` is only called when a scoped note qualifies, and `followsNulla`
+ *  only when a note with a `stack` qualifies, so callers can resolve both
+ *  lazily. A Nulla project ships no framework, so stack-bound notes are wrong
+ *  advice there and stay hidden. */
 export function rankNotes(
   notes: KnowledgeNote[],
   haystack: string,
   shown: ReadonlySet<string> = new Set(),
   repoNames: () => ReadonlySet<string> = () => new Set(),
+  followsNulla: () => boolean = () => false,
 ): KnowledgeNote[] {
   const capped = haystack.slice(0, MAX_HAYSTACK_CHARS);
   return notes
@@ -187,6 +190,7 @@ export function rankNotes(
       const repos = repoNames();
       return scope.some((repo) => repos.has(repo));
     })
+    .filter((r) => !r.note.stack?.length || !followsNulla())
     .sort((a, b) => b.score - a.score || a.note.name.localeCompare(b.note.name))
     .slice(0, MAX_SHOWN)
     .map((r) => r.note);
@@ -209,4 +213,10 @@ export function repoNamesFrom(originUrl: string, toplevel: string): Set<string> 
   const folder = toplevel.trim().split(/[\\/]/).pop();
   if (folder) names.add(folder.toLowerCase());
   return names;
+}
+
+/** Whether a root AGENTS.md marks the project as following Nulla. Nulla's
+ *  kickoff writes "This project follows Nulla: <repo URL>" into it. */
+export function followsNullaFrom(agentsMd: string): boolean {
+  return /github\.com\/darkroomengineering\/nulla\b|\bfollows nulla\b/i.test(agentsMd);
 }

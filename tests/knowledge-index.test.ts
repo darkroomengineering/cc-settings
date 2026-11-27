@@ -121,6 +121,33 @@ describe("parseIndexMarkdown — scope suffix", () => {
   });
 });
 
+describe("parseIndexMarkdown — stack suffix", () => {
+  test("stack, scope and tags: all parsed, hook keeps none", () => {
+    const md = "- [gotcha: a](a.md) — Hook. · stack: react, nextjs · scope: satus · tags: x";
+    expect(parseIndexMarkdown(md)).toEqual([
+      {
+        kind: "gotcha",
+        name: "a",
+        hook: "Hook.",
+        tags: ["x"],
+        scope: ["satus"],
+        stack: ["react", "nextjs"],
+      },
+    ]);
+  });
+
+  test("stack with tags and no scope", () => {
+    const [note] = parseIndexMarkdown("- [decision: a](a.md) — Hook. · stack: lenis · tags: x");
+    expect(note).toEqual({
+      kind: "decision",
+      name: "a",
+      hook: "Hook.",
+      tags: ["x"],
+      stack: ["lenis"],
+    });
+  });
+});
+
 describe("isStale", () => {
   test("undefined → stale", () => {
     expect(isStale(undefined)).toBe(true);
