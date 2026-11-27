@@ -191,6 +191,14 @@ describe.skipIf(!posix)("the rsrc install offer", () => {
     );
   });
 
+  test("a no that cannot be saved says setup will ask again", async () => {
+    // A file where ~/.claude should be makes the marker write fail.
+    await writeFile(join(home, ".claude"), "");
+    const out = await offer('await installRsrc("full", false, false);');
+    expect(out).toContain("couldn't save that answer");
+    expect(out).not.toContain("won't ask again");
+  });
+
   test("a yes runs the pinned uv install", async () => {
     const out = await offer('await installRsrc("full", true, false);', { withUv: true });
     expect(out).toContain(`rsrc installed at ${RSRC_COMMIT.slice(0, 7)}`);
