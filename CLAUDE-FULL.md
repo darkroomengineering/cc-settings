@@ -45,7 +45,8 @@ yes, route when it saves main-context reading; the `security-reviewer` and
 | build, change, fix across files | `implementer` |
 | plan or architecture | `planner` |
 | new test files | `tester` |
-| read signed-in or third-party web pages | `browser`, spawned without `name` (a named spawn gets no Chrome tools) |
+| read X, Reddit, Hacker News, YouTube, LinkedIn or App Store content | `research-sources` skill (`rsrc`) |
+| read signed-in dashboards or other third-party web pages | `browser`, spawned without `name` (a named spawn gets no Chrome tools) |
 | auth, payments, crypto, input validation | `security-reviewer` (**MUST**) |
 | dead code or deslop | `deslopper` |
 | Linear issue, status, checklist, comments, follow-ups | `linear`, in the background (**MUST** in a repo with a `Linear:` startup line) |
