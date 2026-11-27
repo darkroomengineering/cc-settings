@@ -1,6 +1,6 @@
 {
 	"name": "cc-settings",
-	"version": "16.6.0",
+	"version": "16.7.0",
 	"private": true,
 	"packageManager": "bun@1.4.4",
 	"type": "module",
