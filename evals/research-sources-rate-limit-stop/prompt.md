@@ -4,7 +4,7 @@ max_turns: 10
 allowed_tools: [Skill, Read, Glob, Grep]
 ---
 
-I want to know what people on X and Hacker News think of Bun's new built-in SQL client this month. I already ran rsrc for both, here is what came back. You don't have a shell here, so work from these. What's next, and what do people think so far?
+/research-sources I want to know what people on X and Hacker News think of Bun's new built-in SQL client this month. I already ran rsrc for both, here is what came back. You don't have a shell here, so work from these. What's next, and what do people think so far?
 
 `rsrc x search '"Bun" SQL -filter:replies lang:en' --since 2026-11-01` exited 1:
 
