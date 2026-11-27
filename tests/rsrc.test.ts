@@ -1,7 +1,8 @@
 // rsrc.ts: detection and the setup install offer, run in a child bun under a
-// throwaway HOME with PATH cut down to the bun and system directories, so the
-// host's real uv and rsrc never leak in. "With uv" cases put a logging shim first
-// on PATH instead; the shim creates the rsrc binary uv would install.
+// throwaway HOME. Without uv, PATH is an empty directory, so a real uv can never
+// run the network install. "With uv" cases put a logging shim first on PATH, ahead
+// of the system directories its shell commands need; the shim creates the rsrc
+// binary uv would install.
 
 import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync } from "node:fs";
@@ -21,10 +22,7 @@ let tmp: string;
 let home: string;
 let shimDir: string;
 let shimLog: string;
-
-function basePath(): string {
-  return [...new Set([dirname(process.execPath), "/usr/bin", "/bin"])].join(delimiter);
-}
+let emptyDir: string;
 
 async function writeExe(path: string, body: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
@@ -47,7 +45,7 @@ ${call}
   const proc = Bun.spawn([process.execPath, script], {
     env: {
       HOME: home,
-      PATH: opts.withUv ? `${shimDir}${delimiter}${basePath()}` : basePath(),
+      PATH: opts.withUv ? [shimDir, "/usr/bin", "/bin"].join(delimiter) : emptyDir,
       NO_COLOR: "1",
       ...opts.env,
     },
@@ -69,7 +67,9 @@ beforeEach(async () => {
   home = join(tmp, "home");
   shimDir = join(tmp, "shim");
   shimLog = join(tmp, "uv.log");
+  emptyDir = join(tmp, "empty");
   await mkdir(home, { recursive: true });
+  await mkdir(emptyDir);
   // Logs its argv and creates rsrc where `uv tool install` puts it.
   await writeExe(
     join(shimDir, "uv"),
@@ -86,7 +86,13 @@ afterEach(async () => {
 
 describe("rsrc detection", () => {
   test.skipIf(!posix)("finds rsrc on PATH, in ~/.local/bin, or in $UV_TOOL_BIN_DIR", async () => {
-    expect(findRsrc("", home)).toBeNull();
+    const prior = process.env.UV_TOOL_BIN_DIR;
+    delete process.env.UV_TOOL_BIN_DIR;
+    try {
+      expect(findRsrc("", home)).toBeNull();
+    } finally {
+      if (prior !== undefined) process.env.UV_TOOL_BIN_DIR = prior;
+    }
 
     const onPath = join(tmp, "path-bin", "rsrc");
     await writeExe(onPath, "");
@@ -98,7 +104,6 @@ describe("rsrc detection", () => {
 
     const custom = join(tmp, "uv-tools", "rsrc");
     await writeExe(custom, "");
-    const prior = process.env.UV_TOOL_BIN_DIR;
     process.env.UV_TOOL_BIN_DIR = dirname(custom);
     try {
       expect(findRsrc("", home)).toBe(custom);
@@ -127,6 +132,17 @@ describe("rsrc detection", () => {
     for (const file of [join(skillDir, "SKILL.md"), join(REPO, "docs", "install.md")]) {
       expect(await readFile(file, "utf8"), file).toContain(INSTALL_LINE);
     }
+    // No install source without the pin, such as upstream's unpinned line.
+    for (const file of files) {
+      const text = await readFile(file, "utf8");
+      for (const source of text.match(
+        /git\+https:\/\/github\.com\/SamuelZ12\/research-sources\S*/g,
+      ) ?? []) {
+        expect(source, file).toStartWith(
+          `git+https://github.com/SamuelZ12/research-sources@${RSRC_COMMIT}`,
+        );
+      }
+    }
   });
 });
 
@@ -140,9 +156,10 @@ describe.skipIf(!posix)("the rsrc install offer", () => {
   });
 
   test("prints the pinned install line when it cannot install", async () => {
-    expect(await offer('await installRsrc("full", undefined, false);')).toContain(INSTALL_LINE);
+    const hint = `Optional: \`${INSTALL_LINE}\``;
+    expect(await offer('await installRsrc("full", undefined, false);')).toContain(hint);
     // A yes without uv on the machine falls back to the hint.
-    expect(await offer('await installRsrc("full", true, false);')).toContain(INSTALL_LINE);
+    expect(await offer('await installRsrc("full", true, false);')).toContain(hint);
   });
 
   test("silent on the light profile, CC_RSRC=0 and CC_SKIP_DEPS=1", async () => {
@@ -169,7 +186,9 @@ describe.skipIf(!posix)("the rsrc install offer", () => {
     expect(await offer('await installRsrc("full", false, false);')).toContain("won't ask again");
     expect(existsSync(declined())).toBe(true);
     expect(await offer('await installRsrc("full", undefined, false);')).toBe("");
-    expect(await offer('await installRsrc("full", undefined, true);')).toContain(INSTALL_LINE);
+    expect(await offer('await installRsrc("full", undefined, true);')).toContain(
+      `Optional: \`${INSTALL_LINE}\``,
+    );
   });
 
   test("a yes runs the pinned uv install", async () => {
