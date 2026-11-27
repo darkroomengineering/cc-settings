@@ -87,7 +87,8 @@ jobs:
   schemas:
     # Fails if `bun run schemas:emit` or `bun run manifests:emit` would produce a
     # diff — enforces that the committed JSON Schemas match the zod sources and
-    # the install manifest records match the tracked source tree.
+    # the install manifest records match the tracked source tree — or if the
+    # records do not extend main's unchanged, so a shipped version never changes.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -97,7 +98,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run schemas:emit
       - run: git diff --exit-code schemas/
-      - run: bun run manifests:emit
+      - run: git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main
+      - run: bun run manifests:emit --base origin/main
       - run: git diff --exit-code src/lib/generated/
 
   upstream-scan:

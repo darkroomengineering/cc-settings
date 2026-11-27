@@ -3,13 +3,16 @@
 // and appends a version record to src/lib/generated/current-manifests.ts when
 // a set changed. Existing records are written back unchanged, so a shipped
 // version never moves. `bun run manifests:check` fails when this would write.
+// `--base <ref>` also fails unless the records extend that ref's records
+// unchanged, so a merge can never reuse a shipped version for another list.
 //
 // Membership comes from the git index only (`git ls-files`): `git add` a new
 // file and `git rm` a deleted one before running this, so ignored, scratch or
 // half-deleted files never change an install.
 
 import { existsSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type {
   ClaudeManifestRecord,
@@ -100,6 +103,95 @@ export const CODEX_RUNTIME_MANIFEST_RECORDS: readonly RuntimeManifestRecord[] = 
 `;
 }
 
+export interface ManifestRecords {
+  claude: readonly ClaudeManifestRecord[];
+  codex: readonly RuntimeManifestRecord[];
+}
+
+/** Why `candidate` does not extend `base` unchanged; empty when every base record is kept as is. */
+export function baseRecordProblems(base: ManifestRecords, candidate: ManifestRecords): string[] {
+  const problems: string[] = [];
+  const compare = (kind: string, before: readonly object[], after: readonly object[]) => {
+    if (after.length < before.length) {
+      problems.push(`${kind} has ${after.length} records; the base has ${before.length}`);
+    }
+    before.forEach((record, index) => {
+      if (index < after.length && !Bun.deepEquals(record, after[index])) {
+        problems.push(`${kind} record ${index} differs from the base`);
+      }
+    });
+  };
+  compare("Claude", base.claude, candidate.claude);
+  compare("Codex runtime", base.codex, candidate.codex);
+  return problems;
+}
+
+const LAST_HAND_WRITTEN = /^const LAST_HAND_WRITTEN_VERSION = (\d+);$/m;
+const HAND_WRITTEN_MODULES = [
+  "src/lib/claude-managed-file-manifests.ts",
+  "src/lib/codex-runtime-manifests.ts",
+];
+
+async function gitShow(ref: string, path: string): Promise<string | null> {
+  const result = await Bun.$`git -C ${ROOT} show ${`${ref}:${path}`}`.quiet().nothrow();
+  return result.exitCode === 0 ? result.stdout.toString() : null;
+}
+
+function lastHandWrittenVersion(source: string, label: string): number {
+  const match = source.match(LAST_HAND_WRITTEN);
+  if (!match) throw new Error(`No LAST_HAND_WRITTEN_VERSION constant in ${label}`);
+  return Number(match[1]);
+}
+
+async function assertExtendsBase(ref: string, candidate: ManifestRecords): Promise<void> {
+  const verified = await Bun.$`git -C ${ROOT} rev-parse --verify --quiet ${`${ref}^{commit}`}`
+    .quiet()
+    .nothrow();
+  if (verified.exitCode !== 0) throw new Error(`--base ${ref} is not a commit`);
+  const baseOutput = await gitShow(ref, OUTPUT);
+  if (baseOutput === null) {
+    console.log(`Base ${ref} has no ${OUTPUT}; nothing to extend.`);
+    return;
+  }
+  const dir = await mkdtemp(join(tmpdir(), "cc-manifests-base-"));
+  let base: ManifestRecords;
+  try {
+    const file = join(dir, "current-manifests.ts");
+    await writeFile(file, baseOutput);
+    const loaded = await import(file);
+    base = { claude: loaded.CLAUDE_MANIFEST_RECORDS, codex: loaded.CODEX_RUNTIME_MANIFEST_RECORDS };
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+  const problems = baseRecordProblems(base, candidate);
+  for (const path of HAND_WRITTEN_MODULES) {
+    const before = await gitShow(ref, path);
+    if (before === null) throw new Error(`Base ${ref} has ${OUTPUT} but no ${path}`);
+    const baseVersion = lastHandWrittenVersion(before, `${ref}:${path}`);
+    const ownVersion = lastHandWrittenVersion(await Bun.file(join(ROOT, path)).text(), path);
+    if (baseVersion !== ownVersion) {
+      problems.push(
+        `${path} ends its hand-written history at ${ownVersion}; the base at ${baseVersion}`,
+      );
+    }
+  }
+  if (problems.length > 0) {
+    throw new Error(
+      `Install manifest records do not extend ${ref} unchanged: ${problems.join("; ")}. ` +
+        `Shipped versions never change: take ${ref}'s records and run \`bun run manifests:emit\` again.`,
+    );
+  }
+  console.log(`Records extend ${ref} unchanged.`);
+}
+
+function baseRef(args: readonly string[]): string | null {
+  const index = args.indexOf("--base");
+  if (index === -1) return null;
+  const ref = args[index + 1];
+  if (!ref || ref.startsWith("--")) throw new Error("--base needs a git ref");
+  return ref;
+}
+
 async function indexedFiles(): Promise<string[]> {
   const listed = (await Bun.$`git -C ${ROOT} ls-files -z`.text()).split("\0").filter(Boolean);
   return [...new Set([...listed, OUTPUT])].sort();
@@ -121,6 +213,7 @@ const summary = (d: ManifestDelta) =>
   [...d.added.map((path) => `+ ${path}`), ...d.removed.map((path) => `- ${path}`)].join("\n  ");
 
 async function main(): Promise<void> {
+  const base = baseRef(Bun.argv.slice(2));
   const output = join(ROOT, OUTPUT);
   // Shipped records are append-only, so a missing file is an error, never a fresh start.
   if (!existsSync(output)) {
@@ -213,6 +306,7 @@ async function main(): Promise<void> {
   if (format.exitCode !== 0) {
     throw new Error(`biome format failed on ${OUTPUT}: ${format.stderr.toString()}`);
   }
+  if (base) await assertExtendsBase(base, { claude: claudeRecords, codex: codexRecords });
 }
 
-await main();
+if (import.meta.main) await main();
