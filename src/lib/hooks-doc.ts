@@ -3,8 +3,10 @@
 // Rows come from config/40-hooks.json, with each `dispatch.ts <Event>` entry
 // expanded into the handlers it runs (HANDLER_META in src/hooks/dispatch-handlers.ts,
 // which imports nothing, so this file ships to Codex without the handlers). Each table sits
-// between `<!-- BEGIN AUTOGEN:hooks <selector>... -->` and
-// `<!-- END AUTOGEN:hooks -->`. A selector is `Event` (hooks with no matcher)
+// between `<!-- BEGIN AUTOGEN:hooks <selectors> -->` and
+// `<!-- END AUTOGEN:hooks <selectors> -->`, the same selectors on both, so a lost
+// or edited marker fails instead of swallowing the prose up to the next one. A
+// selector is `Event` (hooks with no matcher)
 // or `Event:matcher` (the handler's own matcher for a dispatched handler, the
 // tool names of an `if` filter for an entry that has only that), and
 // `dispatcher` renders the dispatcher table. The prose between regions is hand
@@ -12,13 +14,55 @@
 // asserts freshness.
 
 import { readFileSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { type DispatchEvent, HANDLER_META, type HandlerMeta } from "../hooks/dispatch-handlers.ts";
 import { flattenHooks, type HookEntry } from "./hook-frequency.ts";
 
-export const BEGIN_PREFIX = "<!-- BEGIN AUTOGEN:hooks ";
-export const END = "<!-- END AUTOGEN:hooks -->";
-const REGION = /<!-- BEGIN AUTOGEN:hooks (.+?) -->\n[\s\S]*?<!-- END AUTOGEN:hooks -->/g;
+const begin = (spec: string) => `<!-- BEGIN AUTOGEN:hooks ${spec} -->`;
+const end = (spec: string) => `<!-- END AUTOGEN:hooks ${spec} -->`;
+const MARKER = /<!-- (BEGIN|END) AUTOGEN:hooks(?: (.*?))? -->/g;
+
+interface Region {
+  spec: string;
+  /** Offset just past the BEGIN marker. */
+  from: number;
+  /** Offset of the END marker. */
+  to: number;
+}
+
+/** The marked regions of `doc`, or the reasons its markers do not pair up. */
+function findRegions(doc: string): { regions: Region[]; problems: string[] } {
+  const regions: Region[] = [];
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  let open: { spec: string; from: number; line: number } | undefined;
+  const lineAt = (offset: number) => doc.slice(0, offset).split("\n").length;
+  for (const m of doc.matchAll(MARKER)) {
+    const spec = (m[2] ?? "").trim();
+    const at = m.index;
+    const line = lineAt(at);
+    if (spec === "") {
+      problems.push(`line ${line}: ${m[1]} marker names no selectors`);
+    } else if (m[1] === "BEGIN") {
+      if (open)
+        problems.push(`line ${line}: BEGIN "${spec}" inside "${open.spec}" (line ${open.line})`);
+      else if (seen.has(spec)) problems.push(`line ${line}: a second region "${spec}"`);
+      else open = { spec, from: at + m[0].length, line };
+      seen.add(spec);
+    } else if (!open) {
+      problems.push(`line ${line}: END "${spec}" with no open region`);
+    } else if (spec !== open.spec) {
+      problems.push(`line ${line}: END "${spec}" closes "${open.spec}" (line ${open.line})`);
+      open = undefined;
+    } else {
+      regions.push({ spec, from: open.from, to: at });
+      open = undefined;
+    }
+  }
+  if (open) problems.push(`line ${open.line}: region "${open.spec}" has no END marker`);
+  return { regions, problems };
+}
 
 export interface HookRow {
   event: string;
@@ -133,17 +177,21 @@ export interface RenderResult {
   problems: string[];
 }
 
-/** Regenerate every AUTOGEN:hooks region of `doc` from the config entries. */
+/** Regenerate every AUTOGEN:hooks region of `doc` from the config entries. When
+ *  the markers do not pair up, `text` is `doc` unchanged. */
 export function renderHooksDoc(
   doc: string,
   entries: readonly HookEntry[],
   descriptions: Record<string, string> = HOOK_DESCRIPTIONS,
 ): RenderResult {
+  const { regions, problems } = findRegions(doc);
+  if (problems.length > 0) return { text: doc, problems };
   const rows = hookRows(entries);
-  const problems: string[] = [];
   const placed = new Map<string, string>();
-  const text = doc.replace(REGION, (_, spec: string) => {
-    const selectors = spec.trim().split(/\s+/);
+  let text = "";
+  let last = 0;
+  for (const { spec, from, to } of regions) {
+    const selectors = spec.split(/\s+/);
     let table: string;
     if (selectors.length === 1 && selectors[0] === "dispatcher") {
       table = dispatcherTable(entries);
@@ -162,12 +210,15 @@ export function renderHooksDoc(
       }
       table = hookTable(chosen, descriptions);
     }
-    return `${BEGIN_PREFIX}${spec} -->\n\n${table}\n\n${END}`;
-  });
+    text += `${doc.slice(last, from)}\n\n${table}\n\n`;
+    last = to;
+  }
+  text += doc.slice(last);
   for (const r of rows) {
     if (!placed.has(keyOf(r))) {
+      const s = selectorOf(r);
       problems.push(
-        `${keyOf(r)} (selector ${selectorOf(r)}) is in no region; add \`${BEGIN_PREFIX}${selectorOf(r)} -->\` … \`${END}\``,
+        `${keyOf(r)} (selector ${s}) is in no region; add \`${begin(s)}\` … \`${end(s)}\``,
       );
     }
     if (!descriptions[keyOf(r)]) {
@@ -179,6 +230,29 @@ export function renderHooksDoc(
     if (!wired.has(key)) problems.push(`HOOK_DESCRIPTIONS["${key}"] names no wired hook`);
   }
   return { text, problems };
+}
+
+export interface DocUpdate {
+  problems: string[];
+  /** The file differs from what the config renders. */
+  stale: boolean;
+  wrote: boolean;
+}
+
+/** Render `docPath` and, unless `check` is set, write it back. Every check runs
+ *  first: with any problem the file is left byte for byte as it was. */
+export async function updateHooksDoc(
+  docPath: string,
+  entries: readonly HookEntry[],
+  opts: { check: boolean; extraProblems?: readonly string[] },
+): Promise<DocUpdate> {
+  const original = await readFile(docPath, "utf8");
+  const { text, problems } = renderHooksDoc(original, entries);
+  problems.push(...(opts.extraProblems ?? []));
+  const stale = text !== original;
+  const wrote = !opts.check && stale && problems.length === 0;
+  if (wrote) await writeFile(docPath, text, "utf8");
+  return { problems, stale, wrote };
 }
 
 // Purpose column, keyed by "<event> <id>". A table cell: escape `|` as `\|`.
