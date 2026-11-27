@@ -103,9 +103,10 @@ export async function installRsrc(
       stderr: "inherit",
     });
     const exit = await proc.exited;
-    if (exit === 0 && findRsrc() !== null)
-      progressOk(`rsrc installed at ${RSRC_COMMIT.slice(0, 7)}`);
-    else warn(`rsrc install failed (exit ${exit}); run \`${INSTALL_LINE}\` to retry`);
+    if (exit !== 0) warn(`rsrc install failed (exit ${exit}); run \`${INSTALL_LINE}\` to retry`);
+    else if (findRsrc() === null)
+      warn("uv installed rsrc outside PATH and ~/.local/bin; add uv's tool bin directory to PATH.");
+    else progressOk(`rsrc installed at ${RSRC_COMMIT.slice(0, 7)}`);
   } catch (e) {
     warn(`rsrc install failed: ${(e as Error).message}`);
   }
