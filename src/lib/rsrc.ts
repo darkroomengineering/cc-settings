@@ -22,7 +22,6 @@ export const RSRC_INSTALL = [
   `git+https://github.com/SamuelZ12/research-sources@${RSRC_COMMIT}`,
 ] as const;
 const INSTALL_LINE = RSRC_INSTALL.join(" ");
-const DECLINED_FILE = join(CLAUDE_DIR, ".rsrc-declined");
 const QUESTION =
   "Install rsrc so agents can read X, Reddit, Hacker News, YouTube, LinkedIn and App Store pages?";
 
@@ -47,8 +46,14 @@ function findUv(path: string = process.env.PATH ?? "", home: string = homedir())
   return Bun.which("uv", { PATH: path }) ?? Bun.which(join(home, ".local", "bin", "uv"));
 }
 
-function offerSilenced(fresh: boolean): boolean {
-  return process.env.CC_RSRC === "0" || (!fresh && existsSync(DECLINED_FILE));
+// `stateDir` holds the decline marker: ~/.claude, or Codex's home on a Codex-only
+// install, which must not create ~/.claude.
+function declinedFile(stateDir: string): string {
+  return join(stateDir, ".rsrc-declined");
+}
+
+function offerSilenced(fresh: boolean, stateDir: string): boolean {
+  return process.env.CC_RSRC === "0" || (!fresh && existsSync(declinedFile(stateDir)));
 }
 
 function offerApplies(profile: Profile): boolean {
@@ -60,8 +65,9 @@ function offerApplies(profile: Profile): boolean {
 export async function askRsrcUpfront(
   profile: Profile,
   fresh: boolean,
+  stateDir: string = CLAUDE_DIR,
 ): Promise<boolean | undefined> {
-  if (!offerApplies(profile) || isWindows() || offerSilenced(fresh)) return undefined;
+  if (!offerApplies(profile) || isWindows() || offerSilenced(fresh, stateDir)) return undefined;
   if (findRsrc() !== null || !isInteractive() || findUv() === null) return undefined;
   return promptYn(QUESTION, false);
 }
@@ -72,6 +78,7 @@ export async function installRsrc(
   profile: Profile,
   answer: boolean | undefined,
   fresh: boolean,
+  stateDir: string = CLAUDE_DIR,
 ): Promise<void> {
   if (!offerApplies(profile) || process.env.CC_RSRC === "0") return;
   if (isWindows()) {
@@ -81,21 +88,22 @@ export async function installRsrc(
   }
   if (findRsrc() !== null) return;
   if (answer === false) {
-    // A first install reaches this phase before ~/.claude exists.
-    const saved = await mkdir(CLAUDE_DIR, { recursive: true })
-      .then(() => writeFile(DECLINED_FILE, `${new Date().toISOString()}\n`))
+    // A first install reaches this phase before stateDir exists.
+    const declined = declinedFile(stateDir);
+    const saved = await mkdir(stateDir, { recursive: true })
+      .then(() => writeFile(declined, `${new Date().toISOString()}\n`))
       .then(
         () => true,
         () => false,
       );
-    if (saved) info(`Skipped rsrc. Setup won't ask again; remove ${DECLINED_FILE} to be asked.`);
+    if (saved) info(`Skipped rsrc. Setup won't ask again; remove ${declined} to be asked.`);
     else
       warn(
-        `Skipped rsrc, but setup couldn't save that answer to ${DECLINED_FILE}, so it will ask again.`,
+        `Skipped rsrc, but setup couldn't save that answer to ${declined}, so it will ask again.`,
       );
     return;
   }
-  if (offerSilenced(fresh)) return;
+  if (offerSilenced(fresh, stateDir)) return;
   const uv = findUv();
   if (answer !== true || uv === null) {
     info(

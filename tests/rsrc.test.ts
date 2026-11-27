@@ -191,6 +191,16 @@ describe.skipIf(!posix)("the rsrc install offer", () => {
     );
   });
 
+  test("a Codex-only no lands in the given state dir, not ~/.claude", async () => {
+    const codexHome = join(home, ".codex");
+    const call = (answer: string) =>
+      `await installRsrc("full", ${answer}, false, ${JSON.stringify(codexHome)});`;
+    expect(await offer(call("false"))).toContain(join(codexHome, ".rsrc-declined"));
+    expect(existsSync(join(codexHome, ".rsrc-declined"))).toBe(true);
+    expect(existsSync(join(home, ".claude"))).toBe(false);
+    expect(await offer(call("undefined"))).toBe("");
+  });
+
   test("a no that cannot be saved says setup will ask again", async () => {
     // A file where ~/.claude should be makes the marker write fail.
     await writeFile(join(home, ".claude"), "");
