@@ -4,8 +4,9 @@
 // a set changed. Existing records are written back unchanged, so a shipped
 // version never moves. `bun run manifests:check` fails when this would write.
 //
-// Only tracked files count (`git ls-files`): `git add` a new file before
-// running this, so ignored or scratch files never enter an install.
+// Membership comes from the git index only (`git ls-files`): `git add` a new
+// file and `git rm` a deleted one before running this, so ignored, scratch or
+// half-deleted files never change an install.
 
 import { existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
@@ -99,10 +100,9 @@ export const CODEX_RUNTIME_MANIFEST_RECORDS: readonly RuntimeManifestRecord[] = 
 `;
 }
 
-async function trackedFiles(): Promise<string[]> {
+async function indexedFiles(): Promise<string[]> {
   const listed = (await Bun.$`git -C ${ROOT} ls-files -z`.text()).split("\0").filter(Boolean);
-  const present = listed.filter((path) => existsSync(join(ROOT, path)));
-  return [...new Set([...present, OUTPUT])].sort();
+  return [...new Set([...listed, OUTPUT])].sort();
 }
 
 const under = (trees: readonly string[]) => (path: string) =>
@@ -132,7 +132,7 @@ async function main(): Promise<void> {
   const generated = await import("../lib/generated/current-manifests.ts");
   const { missingLocalImports } = await import("../lib/codex-runtime.ts");
 
-  const tracked = (await trackedFiles()).filter((path) => !DEV_ONLY(path));
+  const tracked = (await indexedFiles()).filter((path) => !DEV_ONLY(path));
   const lightSkillTrees = LIGHT_SKILLS.map((skill) => `skills/${skill}/`);
   const srcFiles = tracked.filter(under(["src/"]));
 
@@ -164,6 +164,16 @@ async function main(): Promise<void> {
         (under(CODEX_TREES)(path) && !claudeOnly.has(path)),
     ),
   );
+  const indexed = new Set(tracked);
+  const absent = [...new Set([...full, ...light, ...codexSet])]
+    .filter((path) => indexed.has(path) && !existsSync(join(ROOT, path)))
+    .sort();
+  if (absent.length > 0) {
+    throw new Error(
+      `Files in the git index are missing from the working tree: ${absent.join(", ")}. ` +
+        "Restore them, or `git rm` them to drop them from the install.",
+    );
+  }
   const missing = await missingLocalImports(ROOT, [...codexSet]);
   if (missing.length > 0) {
     throw new Error(
