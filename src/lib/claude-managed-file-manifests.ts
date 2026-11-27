@@ -1,6 +1,6 @@
 import {
   AUDIT_PERFORMANCE_RESOURCES,
-  CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
+  FROZEN_RUNTIME_TYPESCRIPT_SOURCES,
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
@@ -498,9 +498,8 @@ const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>(
   ]),
 );
 
-// Preserve versions 1–6 verbatim; version 7 froze the inventory as it stood
-// before the Codex-to-Claude bridge; only the current release follows the shared
-// source inventory.
+// Preserve versions 1–6 verbatim; versions 7–51 derive from the frozen shared source
+// inventory by subtracting each file added after them.
 const ADDED_IN_V8 = ["src/lib/claude-bridge.ts", "src/scripts/claude-run.ts"];
 // Version 9: the Codex skill-budget report and the Swift animation rule
 // (full profile only; light installs carry no rules).
@@ -578,7 +577,7 @@ const ADDED_IN_V44 = [
 // Version 45: the process-tree kill and bounded pipe reads both model bridges import.
 const ADDED_IN_V45 = ["src/lib/process-tree.ts"];
 const ADDED_IN_V47 = ["src/lib/personal-overrides.ts", "src/schemas/personal-overrides.ts"];
-const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
+const HISTORICAL_TYPESCRIPT_SOURCES = FROZEN_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) =>
     !ADDED_IN_V17.includes(path) &&
     !ADDED_IN_V20.includes(path) &&

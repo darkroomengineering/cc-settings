@@ -1,6 +1,6 @@
 import {
   AUDIT_PERFORMANCE_RESOURCES,
-  CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
+  FROZEN_RUNTIME_TYPESCRIPT_SOURCES,
 } from "./install-source-inventory.ts";
 
 export const REQUIRED_SOURCE_ARTIFACTS = [
@@ -331,7 +331,7 @@ const REJOINING_AFTER = new Map<string, readonly string[]>([
   ["src/scripts/post-failure.ts", ["src/scripts/pre-commit-tsc.ts"]],
   ["src/scripts/session-start.ts", ["src/scripts/session-title.ts", ...REMOVED_IN_V17]],
 ]);
-const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
+const HISTORICAL_TYPESCRIPT_SOURCES = FROZEN_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) =>
     !ADDED_IN_V15.includes(path) &&
     !ADDED_IN_V18.includes(path) &&

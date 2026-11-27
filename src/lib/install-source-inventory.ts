@@ -1,5 +1,8 @@
-// Current release source ownership is explicit. Historical manifests never depend on this list.
-export const CURRENT_RUNTIME_TYPESCRIPT_SOURCES = [
+// The shared src/*.ts inventory as Claude manifest 51 and Codex runtime manifest 38 shipped it.
+// Both historical manifest chains derive from this snapshot, so editing it rewrites versions that
+// installs already recorded. Never edit it: later versions come from the records that
+// `bun run manifests:emit` writes to src/lib/generated/current-manifests.ts.
+export const FROZEN_RUNTIME_TYPESCRIPT_SOURCES = [
   "src/codemap/callgraph.ts",
   "src/codemap/change-impact.ts",
   "src/codemap/cli.ts",
