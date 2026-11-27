@@ -223,7 +223,8 @@ lists from the tracked source tree, using the rules and exceptions in
 `src/scripts/emit-manifests.ts`. When a list changed, it appends a new version record to
 `src/lib/generated/current-manifests.ts`. After adding, removing, or renaming an installed file,
 `git add` it, run `bun run manifests:emit`, and commit the result. CI runs the same emit and fails
-on any diff. Never edit the generated records or the hand-written versions before them in
+on any diff, or when the records do not extend main's records unchanged
+(`bun run manifests:check` runs both against `origin/main`). Never edit the generated records or the hand-written versions before them in
 `src/lib/claude-managed-file-manifests.ts` and `src/lib/codex-runtime-manifests.ts`.
 The installer separates settings and ownership (`claude-install-settings.ts`,
 `claude-install-ownership.ts`), lifecycle coordination (`install-lifecycle.ts`), display
