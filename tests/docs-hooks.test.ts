@@ -77,4 +77,15 @@ describe("hook-bench coverage", () => {
       "verify-hooks: SKIP entry names no synchronous hook",
     ]);
   });
+
+  test("flags a synchronous entry whose matcher accepts none of its id's payloads", () => {
+    const notebook = entry({
+      id: "dispatch PreToolUse",
+      event: "PreToolUse",
+      matcher: "NotebookEdit",
+    });
+    expect(benchCoverage([...entries, notebook])).toEqual([
+      "dispatch PreToolUse (PreToolUse, matcher NotebookEdit): no payload in buildCases has a tool its matcher accepts",
+    ]);
+  });
 });

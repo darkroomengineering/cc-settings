@@ -173,24 +173,37 @@ function buildCases(work: string, sample: string, transcript: string): Record<st
   };
 }
 
+/** The payloads a config entry runs: those whose tool its matcher accepts. The
+ *  bench does not evaluate `if` filters, so a filtered entry runs every payload
+ *  its matcher accepts. */
+function variantsFor(e: HookEntry, cases: Record<string, Variant[]>): Variant[] {
+  return (cases[e.id] ?? []).filter((v) => !v.tool || matchesTool(e.matcher, v.tool));
+}
+
 /** Gaps between the config and this bench: a synchronous entry with neither a
- *  payload nor a skip reason, and a payload or skip key no synchronous entry has. */
+ *  skip reason nor a payload its matcher accepts, and a payload or skip key no
+ *  synchronous entry has. */
 export function benchCoverage(entries: readonly HookEntry[]): string[] {
-  const caseIds = new Set(Object.keys(buildCases("", "", "")));
+  const cases = buildCases("", "", "");
   const skipIds = new Set(Object.keys(SKIP));
-  const syncIds = new Set(entries.filter((e) => !e.async).map((e) => e.id));
-  const problems: string[] = [];
-  for (const id of syncIds) {
-    if (caseIds.has(id) && skipIds.has(id))
-      problems.push(`${id}: has both a payload and a SKIP reason`);
-    else if (!caseIds.has(id) && !skipIds.has(id))
-      problems.push(`${id}: synchronous hook with no payload in buildCases and no SKIP reason`);
+  const sync = entries.filter((e) => !e.async);
+  const syncIds = new Set(sync.map((e) => e.id));
+  const problems = new Set<string>();
+  for (const e of sync) {
+    const hasCase = Object.hasOwn(cases, e.id);
+    if (hasCase && skipIds.has(e.id)) problems.add(`${e.id}: has both a payload and a SKIP reason`);
+    else if (!hasCase && !skipIds.has(e.id))
+      problems.add(`${e.id}: synchronous hook with no payload in buildCases and no SKIP reason`);
+    else if (hasCase && variantsFor(e, cases).length === 0)
+      problems.add(
+        `${e.id} (${e.event}, matcher ${e.matcher ?? "none"}): no payload in buildCases has a tool its matcher accepts`,
+      );
   }
-  for (const id of caseIds)
-    if (!syncIds.has(id)) problems.push(`${id}: payload in buildCases names no synchronous hook`);
+  for (const id of Object.keys(cases))
+    if (!syncIds.has(id)) problems.add(`${id}: payload in buildCases names no synchronous hook`);
   for (const id of skipIds)
-    if (!syncIds.has(id)) problems.push(`${id}: SKIP entry names no synchronous hook`);
-  return problems;
+    if (!syncIds.has(id)) problems.add(`${id}: SKIP entry names no synchronous hook`);
+  return [...problems];
 }
 
 // ── Sandbox ──────────────────────────────────────────────────────────────────
@@ -362,16 +375,15 @@ async function main(): Promise<void> {
         skipped.push({ id: e.id, event: e.event, reason: skip });
         continue;
       }
-      const variants = cases[e.id];
-      if (!variants) {
-        skipped.push({ id: e.id, event: e.event, reason: "no payload defined in hook-bench.ts" });
+      const variants = variantsFor(e, cases);
+      if (variants.length === 0) {
+        skipped.push({ id: e.id, event: e.event, reason: "no payload its matcher accepts" });
         continue;
       }
       const key = `${e.event}:${e.matcher}:${e.id}`;
       if (tested.has(key)) continue;
       tested.add(key);
       for (const v of variants) {
-        if (v.tool && !matchesTool(e.matcher, v.tool)) continue;
         const payload = { ...v.payload, cwd: repoRoot };
         const env = childEnv(sb, repoRoot);
         const stdin = JSON.stringify(payload);
