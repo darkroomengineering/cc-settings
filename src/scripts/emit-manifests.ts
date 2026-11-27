@@ -43,8 +43,7 @@ const CLAUDE_FULL_TREES = [
   "src/",
 ];
 // docs/rules.md indexes the rules for readers of this repo; installs load the rules themselves.
-// rules/releases.md never reached a manifest version; it stays out until a release adds it.
-const CLAUDE_EXCLUDED = ["docs/rules.md", "rules/releases.md"];
+const CLAUDE_EXCLUDED = ["docs/rules.md"];
 
 const CODEX_ROOT_FILES = [
   ".claude-plugin/marketplace.json",

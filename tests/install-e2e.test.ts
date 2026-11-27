@@ -2979,6 +2979,7 @@ describe("install E2E — uninstall ownership", () => {
             "rules/windows-design.md",
             "rules/design.md",
             "rules/writing.md",
+            "rules/releases.md",
             "src/lib/codex-skill-budget.ts",
             "src/scripts/codex-skill-budget.ts",
             "src/hooks/knowledge-hint.ts",

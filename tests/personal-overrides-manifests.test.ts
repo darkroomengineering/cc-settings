@@ -89,3 +89,20 @@ test("the git-cow worktree hook and helper belong only to the new manifest versi
   expect(runtimePathsForVersion(39, "test")).toContain("src/lib/git-cow.ts");
   expect(runtimePathsForVersion(39, "test")).not.toContain("src/hooks/worktree-cow.ts");
 });
+
+test("the releases rule and the manifest generator belong only to the new manifest versions", () => {
+  const generator = ["src/lib/generated/current-manifests.ts", "src/scripts/emit-manifests.ts"];
+  expect(claudeManagedManifestPaths(53, "full", "test")).toEqual([
+    ...claudeManagedManifestPaths(52, "full", "test"),
+    "rules/releases.md",
+    ...generator,
+  ]);
+  expect(claudeManagedManifestPaths(53, "light", "test")).toEqual([
+    ...claudeManagedManifestPaths(52, "light", "test"),
+    ...generator,
+  ]);
+  expect(runtimePathsForVersion(40, "test")).toEqual([
+    ...runtimePathsForVersion(39, "test"),
+    ...generator,
+  ]);
+});

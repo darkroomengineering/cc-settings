@@ -7,7 +7,11 @@ export const CLAUDE_MANIFEST_RECORDS: readonly ClaudeManifestRecord[] = [
   {
     version: 53,
     full: {
-      added: ["src/lib/generated/current-manifests.ts", "src/scripts/emit-manifests.ts"],
+      added: [
+        "rules/releases.md",
+        "src/lib/generated/current-manifests.ts",
+        "src/scripts/emit-manifests.ts",
+      ],
       removed: [],
     },
     light: {
