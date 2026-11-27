@@ -33,6 +33,7 @@ import {
 } from "./codex-install.ts";
 import { error, info, phase, success, warn } from "./colors.ts";
 import { composeSettings } from "./compose-settings.ts";
+import { installGitCow } from "./git-cow.ts";
 import { writeSrcManifest } from "./hooks-fingerprint.ts";
 import {
   ClaudePrewriteOwnershipChangedError,
@@ -675,6 +676,7 @@ export async function runFullInstall(
   ownershipSnapshot: ClaudeLifecycleOwnershipSnapshot,
   backup: boolean = true,
   backupId?: string,
+  gitCowAnswer?: boolean,
 ): Promise<Record<string, string>> {
   // Preflight BEFORE any destructive step. A bad --source (partial checkout,
   // wrong path) must abort here — while the existing install is still intact —
@@ -689,6 +691,7 @@ export async function runFullInstall(
   phase("Dependencies");
   await installDependencies(args.profile, engine);
   await installPinnedTools(args.profile);
+  await installGitCow(args.profile, gitCowAnswer, args.fresh);
   printPreflightReport(checkCliTools());
 
   await assertClaudeLifecycleOwnershipUnchanged(ownershipSnapshot);
