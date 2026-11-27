@@ -11,7 +11,7 @@
 // Delivery: plain stdout on PreToolUse never reaches the model — the hint is
 // emitted via hookSpecificOutput.additionalContext (see hook-runtime.ts).
 
-import { readFileSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { type HookIO, processIO, readState, runHook, writeState } from "../lib/hook-runtime.ts";
@@ -72,6 +72,26 @@ function repoNamesResolver(cwd: string): () => ReadonlySet<string> {
   };
 }
 
+// The Nulla declaration sits in the first lines of AGENTS.md.
+const AGENTS_MD_READ_BYTES = 16_384;
+
+/** The first bytes of a regular file, or "" for anything else. Opened
+ *  nonblocking so a FIFO named AGENTS.md cannot stall the hook. */
+function readHead(path: string): string {
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK);
+    if (!fstatSync(fd).isFile()) return "";
+    const buf = Buffer.alloc(AGENTS_MD_READ_BYTES);
+    const read = readSync(fd, buf, 0, buf.length, 0);
+    return buf.subarray(0, read).toString("utf8");
+  } catch {
+    return "";
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
 /** Lazily check whether the checkout's root AGENTS.md says it follows Nulla.
  *  Outside a git repo, cwd stands in for the root. A missing or unreadable
  *  file means no, so stack-bound notes keep surfacing as before. */
@@ -80,11 +100,7 @@ function followsNullaResolver(cwd: string): () => boolean {
   return () => {
     if (result === undefined) {
       const root = gitOut(cwd, ["rev-parse", "--show-toplevel"]) || cwd;
-      try {
-        result = followsNullaFrom(readFileSync(join(root, "AGENTS.md"), "utf8"));
-      } catch {
-        result = false;
-      }
+      result = followsNullaFrom(readHead(join(root, "AGENTS.md")));
     }
     return result;
   };

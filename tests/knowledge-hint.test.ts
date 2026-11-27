@@ -252,6 +252,24 @@ describe("followsNullaFrom", () => {
     ).toBe(true);
   });
 
+  test("the other declarations in use count", () => {
+    expect(
+      followsNullaFrom(
+        "# GrowthLoop on Nulla\n\nThis project follows the current [Nulla rules](https://github.com/darkroomengineering/nulla/blob/main/RULES.md).",
+      ),
+    ).toBe(true);
+    expect(
+      followsNullaFrom("This repository builds the production website with Nulla. Follow the"),
+    ).toBe(true);
+  });
+
+  test("a passing mention or a link does not count", () => {
+    expect(followsNullaFrom("No project in this workspace follows Nulla yet.")).toBe(false);
+    expect(
+      followsNullaFrom("See the migration plan: https://github.com/darkroomengineering/nulla"),
+    ).toBe(false);
+  });
+
   test("an AGENTS.md that does not mention Nulla does not", () => {
     expect(followsNullaFrom("# Satus\nUse Lenis for scroll.")).toBe(false);
     expect(followsNullaFrom("")).toBe(false);

@@ -215,8 +215,11 @@ export function repoNamesFrom(originUrl: string, toplevel: string): Set<string> 
   return names;
 }
 
-/** Whether a root AGENTS.md marks the project as following Nulla. Nulla's
- *  kickoff writes "This project follows Nulla: <repo URL>" into it. */
+/** Whether a root AGENTS.md declares that the project follows Nulla. Only a
+ *  line that opens with the declaration counts ("This project follows Nulla:
+ *  <url>", "This project follows the current [Nulla rules](...)", "This
+ *  repository builds the production website with Nulla."), so a passing
+ *  mention or a link does not hide framework notes. */
 export function followsNullaFrom(agentsMd: string): boolean {
-  return /github\.com\/darkroomengineering\/nulla\b|\bfollows nulla\b/i.test(agentsMd);
+  return /^this (?:project|repository) (?:follows|builds)\b[^\n]*\bnulla\b/im.test(agentsMd);
 }
