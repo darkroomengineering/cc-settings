@@ -57,6 +57,7 @@ kind: decision | convention | gotcha | incident | pattern
 summary: "<one line, max 160 chars, no ·>"
 tags: [kebab, strings]        # optional
 scope: [repo-name]            # optional
+stack: [react, nextjs]        # optional
 verified: "YYYY-MM-DD"        # optional
 retire_when: "<condition>"    # optional
 added-by: <github login or name>
@@ -72,7 +73,12 @@ open the note, so it states the rule and what to do, not how it was found.
 `tags` are matched as whole words against the command or file an agent is
 working on, so literal identifiers (`drizzle-kit`, `getboundingclientrect`)
 make the hint fire at the right moment. `scope` lists the GitHub repo names a
-note applies to; the hook hides a scoped note in any other repo. `verified`
+note applies to; the hook hides a scoped note in any other repo. `stack`
+names the frameworks or libraries a rule depends on; the hook hides those
+notes in projects whose root `AGENTS.md` says they follow
+[Nulla](https://github.com/darkroomengineering/nulla), which ships no
+framework. A note without `stack` states its rule in platform terms and keeps
+any framework recipe in a closing section. `verified`
 dates a note's version-specific claims; the linter warns once it is older than
 180 days. `retire_when` names the outside change that makes the note obsolete
 (for example "Next.js 17 ships the fix"); a met condition is contradicting
@@ -84,11 +90,12 @@ Every note gets one line in the generated `INDEX.md`, consumed by the
 knowledge-index cache and the `knowledge-hint` hook (see "Agent Usage"
 below):
 ```
-- [<kind>: <name>](<name>.md) — <hook text> · scope: x, y · tags: a, b, c
+- [<kind>: <name>](<name>.md) — <hook text> · stack: x · scope: x, y · tags: a, b, c
 ```
 Each ` · <field>: ...` suffix (`·` = U+00B7) is omitted when the note has no
-value for it. Scope comes before tags, so a parser that splits only the last
-`·` still finds the tags. `—` is U+2014. A change to this line shape needs a matching change to
+value for it. Suffixes are parsed right to left and a newer field sits further
+left, so a parser that predates `stack` still finds scope and tags and keeps
+`· stack: x` as hook text. `—` is U+2014. A change to this line shape needs a matching change to
 `parseIndexMarkdown` in `src/lib/knowledge-index.ts`.
 
 ### What Goes in Shared Knowledge
@@ -113,7 +120,8 @@ value for it. Scope comes before tags, so a parser that splits only the last
    on and surfaces up to 3 matching notes (title + one-line hook text) via
    `additionalContext`, once per note per session. A note with a `scope` is
    shown only when the session's repo (its origin remote name or checkout
-   folder) is in that scope. It never hits the network
+   folder) is in that scope. A note with a `stack` is hidden when the
+   checkout's root `AGENTS.md` says the project follows Nulla. It never hits the network
    — it only reads the same TTL cache the SessionStart banner does.
 3. **Read a note the hint pointed at:**
 ```bash
