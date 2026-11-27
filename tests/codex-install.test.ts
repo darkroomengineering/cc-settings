@@ -1854,6 +1854,8 @@ describe("Codex installer lifecycle", () => {
       "claude:50:light": "3093c4a22e0a828a",
       "claude:51:full": "b7e398f0f99a4875",
       "claude:51:light": "3093c4a22e0a828a",
+      "claude:52:full": "b15509c4b566fb91",
+      "claude:52:light": "1bbdb5987ffeddec",
       "codex:1": "4dd6aeea8177953e",
       "codex:2": "b0d5af4920c948e9",
       "codex:3": "04b180972c0d0929",
@@ -1892,6 +1894,7 @@ describe("Codex installer lifecycle", () => {
       "codex:36": "84ee6c0de24ed603",
       "codex:37": "3243c748e4a2580e",
       "codex:38": "2b96442ed1d20a08",
+      "codex:39": "89c3c9b8f0a246ca",
     };
     const actual: Record<string, string> = {};
     for (const key of Object.keys(shipped)) {
