@@ -19,12 +19,40 @@ export const CLAUDE_MANIFEST_RECORDS: readonly ClaudeManifestRecord[] = [
       removed: [],
     },
   },
+  {
+    version: 54,
+    full: {
+      added: [
+        "src/hooks/dispatch-handlers.ts",
+        "src/lib/hooks-doc.ts",
+        "src/scripts/gen-hooks-doc.ts",
+      ],
+      removed: [],
+    },
+    light: {
+      added: [
+        "src/hooks/dispatch-handlers.ts",
+        "src/lib/hooks-doc.ts",
+        "src/scripts/gen-hooks-doc.ts",
+      ],
+      removed: [],
+    },
+  },
 ];
 
 export const CODEX_RUNTIME_MANIFEST_RECORDS: readonly RuntimeManifestRecord[] = [
   {
     version: 40,
     added: ["src/lib/generated/current-manifests.ts", "src/scripts/emit-manifests.ts"],
+    removed: [],
+  },
+  {
+    version: 41,
+    added: [
+      "src/hooks/dispatch-handlers.ts",
+      "src/lib/hooks-doc.ts",
+      "src/scripts/gen-hooks-doc.ts",
+    ],
     removed: [],
   },
 ];

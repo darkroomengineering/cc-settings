@@ -22,6 +22,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  type HookEntry,
   hooksConfigPath,
   loadHookEntries,
   matchesTool,
@@ -35,7 +36,9 @@ const USAGE = `Usage: hook-bench [--runs N] [--warmup N] [--json]
   --warmup N   discarded runs per hook before measuring (default 3)
   --json       machine-readable report`;
 
-const SKIP: Record<string, string> = {
+// Every synchronous entry in config/40-hooks.json needs a payload in
+// buildCases or a reason here; benchCoverage() fails on a gap or a stale key.
+export const SKIP: Record<string, string> = {
   "verify-hooks": "needs the installed src manifest and hashes the install tree; once per session",
   "session-start":
     "starts the code-intel daemon, a gh knowledge refresh and an MCP prune; once per session",
@@ -154,7 +157,53 @@ function buildCases(work: string, sample: string, transcript: string): Record<st
         },
       },
     ],
+    "cache-cold": [
+      {
+        payload: {
+          ...base,
+          hook_event_name: "SessionStart",
+          source: "resume",
+          prompt_cache_likely_expired: true,
+          context_tokens: 150_000,
+          seconds_since_last_response: 7_200,
+          estimated_cache_write_usd: 0.56,
+        },
+      },
+    ],
   };
+}
+
+/** The payloads a config entry runs: those whose tool its matcher accepts. The
+ *  bench does not evaluate `if` filters, so a filtered entry runs every payload
+ *  its matcher accepts. */
+function variantsFor(e: HookEntry, cases: Record<string, Variant[]>): Variant[] {
+  return (cases[e.id] ?? []).filter((v) => !v.tool || matchesTool(e.matcher, v.tool));
+}
+
+/** Gaps between the config and this bench: a synchronous entry with neither a
+ *  skip reason nor a payload its matcher accepts, and a payload or skip key no
+ *  synchronous entry has. */
+export function benchCoverage(entries: readonly HookEntry[]): string[] {
+  const cases = buildCases("", "", "");
+  const skipIds = new Set(Object.keys(SKIP));
+  const sync = entries.filter((e) => !e.async);
+  const syncIds = new Set(sync.map((e) => e.id));
+  const problems = new Set<string>();
+  for (const e of sync) {
+    const hasCase = Object.hasOwn(cases, e.id);
+    if (hasCase && skipIds.has(e.id)) problems.add(`${e.id}: has both a payload and a SKIP reason`);
+    else if (!hasCase && !skipIds.has(e.id))
+      problems.add(`${e.id}: synchronous hook with no payload in buildCases and no SKIP reason`);
+    else if (hasCase && variantsFor(e, cases).length === 0)
+      problems.add(
+        `${e.id} (${e.event}, matcher ${e.matcher ?? "none"}): no payload in buildCases has a tool its matcher accepts`,
+      );
+  }
+  for (const id of Object.keys(cases))
+    if (!syncIds.has(id)) problems.add(`${id}: payload in buildCases names no synchronous hook`);
+  for (const id of skipIds)
+    if (!syncIds.has(id)) problems.add(`${id}: SKIP entry names no synchronous hook`);
+  return [...problems];
 }
 
 // ── Sandbox ──────────────────────────────────────────────────────────────────
@@ -326,16 +375,15 @@ async function main(): Promise<void> {
         skipped.push({ id: e.id, event: e.event, reason: skip });
         continue;
       }
-      const variants = cases[e.id];
-      if (!variants) {
-        skipped.push({ id: e.id, event: e.event, reason: "no payload defined in hook-bench.ts" });
+      const variants = variantsFor(e, cases);
+      if (variants.length === 0) {
+        skipped.push({ id: e.id, event: e.event, reason: "no payload its matcher accepts" });
         continue;
       }
       const key = `${e.event}:${e.matcher}:${e.id}`;
       if (tested.has(key)) continue;
       tested.add(key);
       for (const v of variants) {
-        if (v.tool && !matchesTool(e.matcher, v.tool)) continue;
         const payload = { ...v.payload, cwd: repoRoot };
         const env = childEnv(sb, repoRoot);
         const stdin = JSON.stringify(payload);
@@ -474,4 +522,4 @@ async function main(): Promise<void> {
   }
 }
 
-await main();
+if (import.meta.main) await main();

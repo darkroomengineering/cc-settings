@@ -24,6 +24,8 @@ export interface HookEntry {
   command: string;
   async: boolean;
   timeout: number | null;
+  /** `"block"` when a hook that cannot start or times out blocks the action. */
+  onFailure: string | null;
 }
 
 interface RawHook {
@@ -32,6 +34,7 @@ interface RawHook {
   if?: string;
   async?: boolean;
   timeout?: number;
+  onFailure?: string;
 }
 
 interface RawGroup {
@@ -57,6 +60,7 @@ export function flattenHooks(config: unknown): HookEntry[] {
           command: h.command,
           async: h.async === true,
           timeout: h.timeout ?? null,
+          onFailure: h.onFailure ?? null,
         });
       }
     }
