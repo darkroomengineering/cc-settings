@@ -65,6 +65,7 @@ generated from the zod sources in `src/schemas/` — don't hand-edit it.
 - Lint: `bun run lint` / `bun run lint:fix`
 - Deliberate-shortcut markers: `bun run lint:shortcuts` (add `-- --ledger` for the `/audit debt` view). Convention lives in AGENTS.md → Laziness Ladder.
 - Schemas (regenerate JSON Schema from zod sources): `bun run schemas:emit`
+- Install manifests (after adding, removing or renaming an installed file; `git add` it first): `bun run manifests:emit`. It appends the next Claude or Codex manifest version to `src/lib/generated/current-manifests.ts`; never hand-edit that file or the version lists. Claude-only sources and other exceptions live in `src/scripts/emit-manifests.ts`.
 - Preview composed settings.json: `bun run compose`
 - Dry-run a Bash command against the permission rules: `bun run permissions:check "<cmd>"` (`--installed` to check against `~/.claude/settings.json` instead of `config/`)
 - Upstream drift scan (Claude Code and Codex CLI): `bun run upstream:scan`

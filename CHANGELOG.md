@@ -4,6 +4,11 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [Unreleased]
+
+- Adding, removing or renaming an installed file needs no hand edits to the install manifests anymore. `bun run manifests:emit` derives the Claude and Codex file lists from the tracked source tree and appends the next manifest version (Claude 53, Codex runtime 40); CI fails when the committed records are out of date (OSS-256).
+- `rules/releases.md` now installs. It was added without a manifest version, so no install had received it.
+
 ## [16.7.0] — 2026-11-27
 
 Agent worktrees start with dependencies and build output already in place when [git-cow](https://github.com/gabrielkoerich/git-cow) is installed (OSS-255).
