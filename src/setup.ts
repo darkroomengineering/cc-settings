@@ -100,6 +100,7 @@ import { retireSkills, scanRetiredSkills } from "./lib/managed-skills.ts";
 import { CLAUDE_JSON_PATH, type McpServers, removeManagedMcpServers } from "./lib/mcp.ts";
 import { CLAUDE_DIR, getTimestamp, installPaths, isWindows } from "./lib/platform.ts";
 import { isInteractive, promptYn } from "./lib/prompts.ts";
+import { askRsrcUpfront } from "./lib/rsrc.ts";
 import { snapshotAutoUpdateState } from "./lib/schedule.ts";
 import {
   BASELINE_FILENAME,
@@ -497,9 +498,12 @@ async function main(): Promise<number> {
   const skillsDir = join(CLAUDE_DIR, "skills");
   const typesafeKey = await askTypesafeKeyUpfront(args.profile, args.typesafeKey, args.fresh);
   const autoUpdateAnswer = await askAutoUpdateUpfront(args, args.fresh ? null : priorAutoUpdate);
-  const gitCowAnswer = args.migrateOnly
-    ? undefined
-    : await askGitCowUpfront(args.profile, args.fresh);
+  const optionalTools = args.migrateOnly
+    ? {}
+    : {
+        gitCow: await askGitCowUpfront(args.profile, args.fresh),
+        rsrc: await askRsrcUpfront(args.profile, args.fresh),
+      };
   const retiredAtStart = args.migrateOnly ? [] : await scanRetiredSkills(skillsDir).catch(() => []);
   const removeRetired =
     retiredAtStart.length > 0 &&
@@ -595,7 +599,7 @@ async function main(): Promise<number> {
             preparedClaudeInstallOwnership.snapshot,
             true,
             backupId,
-            gitCowAnswer,
+            optionalTools,
           );
         }
 

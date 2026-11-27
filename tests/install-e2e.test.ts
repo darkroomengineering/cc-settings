@@ -3054,6 +3054,15 @@ describe("install E2E — uninstall ownership", () => {
             "skills/case-study/scripts/media/sheet.sh",
             "skills/case-study/scripts/media/soundtrack.py",
             "skills/case-study/scripts/media/theatre_history.py",
+            "skills/research-sources/LICENSE",
+            "skills/research-sources/SKILL.md",
+            "skills/research-sources/references/appstore.md",
+            "skills/research-sources/references/hn.md",
+            "skills/research-sources/references/linkedin.md",
+            "skills/research-sources/references/reddit.md",
+            "skills/research-sources/references/x.md",
+            "skills/research-sources/references/youtube.md",
+            "src/lib/rsrc.ts",
           ].sort(),
         );
         for (const path of newlyManaged) delete sentinel.managed_files[path];
